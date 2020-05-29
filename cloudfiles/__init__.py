@@ -9,11 +9,5 @@ Amazon S3 interfaces, and reading from arbitrary HTTP
 servers.
 """
 
-from .storage import (
-  SimpleStorage, ThreadedStorage, GreenStorage,  
-  DEFAULT_THREADS
-)
+from .cloudfiles import CloudFile, CloudFiles
 from .interfaces import reset_connection_pools
-
-# For backwards compatibility
-Storage = ThreadedStorage

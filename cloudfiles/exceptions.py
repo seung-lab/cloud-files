@@ -1,4 +1,7 @@
 
+class UnsupportedProtocolError(Exception):
+  pass
+
 class DecompressionError(Exception):
   """
   Decompression failed.
