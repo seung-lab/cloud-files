@@ -54,6 +54,11 @@ def jsonify(obj, **kwargs):
   return json.dumps(obj, cls=NumpyEncoder, **kwargs)
 
 def toiter(obj, is_iter=False):
+  if isinstance(obj, str):
+    if is_iter:
+      return [ obj ], False
+    return [ obj ]
+
   try:
     iter(obj)
     if is_iter:

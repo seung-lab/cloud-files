@@ -86,8 +86,9 @@ class CloudFiles(object):
     self.cloudpath = cloudpath
     self.secrets = secrets
     self.num_threads = num_threads
+    self.green = bool(green)
 
-    self._path = paths.extract(layer_path)
+    self._path = paths.extract(cloudpath)
     self._interface_cls = get_interface_class(self._path.protocol)
 
   def progress_description(self, prefix):
@@ -96,18 +97,18 @@ class CloudFiles(object):
     else:
       return prefix if self.progress else None
 
-  def get_connection(self):
-    return self._interface_cls(self._path)
+  def get_connection(self, secrets=None):
+    return self._interface_cls(self._path, secrets=secrets)
 
   def get(self, paths):
-    paths, mutliple_return = toiter(paths, isiter=True)
+    paths, mutliple_return = toiter(paths, is_iter=True)
 
     def download(path):
       path, start, end = path_to_byte_range(path)
       with self.get_connection(self.secrets) as conn:
         content, encoding = conn.get_file(path, start=start, end=end)
       content = compression.decompress(content, encoding, filename=path)
-      return CloudFile(path, content, byte_range=byte_range)
+      return CloudFile(path, content, byte_range=(start, end))
 
     if len(paths) == 1:
       ret = download(paths[0])
@@ -125,7 +126,7 @@ class CloudFiles(object):
     )
 
   def get_json(self, paths):
-    paths, return_multiple = toiter(paths)
+    paths, multiple_return = toiter(paths, is_iter=True)
     contents = self.get(paths)
 
     def decode(content):
@@ -135,7 +136,7 @@ class CloudFiles(object):
       return json.loads(content.decode('utf8'))
 
     contents = [ decode(content) for content in contents ]
-    if mutliple_return:
+    if multiple_return:
       return contents
     return contents[0]
 

@@ -2,7 +2,7 @@ import sys
 
 from tqdm import tqdm
 
-# from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
+from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 
 DEFAULT_THREADS = 20
 
