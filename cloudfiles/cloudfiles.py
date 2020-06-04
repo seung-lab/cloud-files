@@ -140,8 +140,31 @@ class CloudFiles(object):
       return contents
     return contents[0]
 
-  def put(self, files):
+  def put(
+    self, files, 
+    content_type=None, compress=None, 
+    compression_level=None, cache_control=None
+  ):
+    """
+    Places one or more files at a given location.
+
+    files: dict, CloudFile, or list thereof.
+      If dict, must contain 'content' and 'path' fields:
+        {
+          'content': b'json data', # must by binary data
+          'path': 'info', # specified relative to the cloudpath
+        }
+      If additional fields are specified, they will override the 
+      defaults provided by arguments to the function. e.g. you
+      can specify cache_control for an list but provide an exception
+      for one or more files.
+    """
     files = toiter(files)
+
+    def nvl(val, default):
+      if val is not None:
+        return val
+      return default
 
     def uploadfn(file):
       if instanceof(file, dict):
@@ -153,15 +176,15 @@ class CloudFiles(object):
       with self.get_connection() as conn:
         content = compression.compress(
           file.content, 
-          method=file.compress, 
-          compress_level=file.compression_level
+          method=nvl(file.compress, compress),
+          compress_level=nvl(file.compression_level, compression_level),
         )
         conn.put_file(
           file_path=file.path, 
           content=content, 
-          content_type=file.content_type, 
-          compress=file.compress, 
-          cache_control=file.cache_control,
+          content_type=nvl(file.content_type, content_type),
+          compress=nvl(file.compress, compress),
+          cache_control=nvl(file.cache_control, cache_control),
         )
 
     if not isinstance(gen, types.GeneratorType):
