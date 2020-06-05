@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from . import compression, paths
 from .exceptions import UnsupportedProtocolError
-from .lib import mkdir, toiter, scatter, jsonify, duplicates
+from .lib import mkdir, toiter, scatter, jsonify, duplicates, first
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .scheduler import schedule_jobs
 
@@ -167,7 +167,7 @@ class CloudFiles(object):
       return default
 
     def uploadfn(file):
-      if instanceof(file, dict):
+      if isinstance(file, dict):
         file = CloudFile(**file)
 
       if file.compress not in compression.COMPRESSION_TYPES:
@@ -187,20 +187,24 @@ class CloudFiles(object):
           cache_control=nvl(file.cache_control, cache_control),
         )
 
-    if not isinstance(gen, types.GeneratorType):
-      dupes = duplicates([ file for file in files ])
+    if not isinstance(files, types.GeneratorType):
+      dupes = duplicates([ file['path'] for file in files ])
       if dupes:
         raise ValueError("Cannot write the same file multiple times in one pass. This causes a race condition. Files: " + ", ".join(dupes))
       total = len(files)
     else:
       total = None
 
+    if total == 1:
+      uploadfn(first(files))
+      return
+
     fns = ( partial(uploadfn, file) for file in files )
     desc = self.progress_description('Uploading')
     schedule_jobs(
       fns=fns,
+      concurrency=self.num_threads,
       progress=(desc if self.progress else None),
-      concurrency=self.concurrency,
       total=total,
       green=self.green,
     )
@@ -214,6 +218,20 @@ class CloudFiles(object):
         file.content = jsonify(file.content)
     return self.put(files)
 
+  def put_a_json(
+    self, path, content, 
+    content_type=None, compress=None, 
+    compression_level=None, cache_control=None
+  ):
+    return self.put_json({
+      'path': path,
+      'content': content,
+      'content_type': content_type,
+      'compress': compress,
+      'compression_level': compression_level,
+      'cache_control': cache_control,
+    })
+
   def exists(self, paths):
     paths = toiter(paths)
 
@@ -225,9 +243,9 @@ class CloudFiles(object):
     
     desc = self.progress_description('Existence Testing')
     schedule_jobs(  
-      fns=( partial(exist_thunk, paths) for paths in scatter(paths, self.concurrency) ),
+      fns=( partial(exist_thunk, paths) for paths in scatter(paths, self.num_threads) ),
       progress=(desc if self.progress else None),
-      concurrency=self.concurrency,
+      concurrency=self.num_threads,
       total=len(paths),
       green=self.green,
     )
@@ -246,7 +264,7 @@ class CloudFiles(object):
     schedule_jobs(
       fns=( partial(thunk_delete, path) for path in paths ),
       progress=(desc if self.progress else None),
-      concurrency=self.concurrency,
+      concurrency=self.num_threads,
       total=len(paths),
       green=self.green,
     )

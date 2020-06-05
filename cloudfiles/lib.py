@@ -1,5 +1,6 @@
 import json
 import os.path
+import types
 
 COLORS = {
   'RESET': "\033[m",
@@ -53,8 +54,17 @@ class NumpyEncoder(json.JSONEncoder):
 def jsonify(obj, **kwargs):
   return json.dumps(obj, cls=NumpyEncoder, **kwargs)
 
+def first(lst):
+  if isinstance(lst, types.GeneratorType):
+    return next(lst)
+  try:
+    return lst[0]
+  except TypeError:
+    return next(iter(lst))
+  
+
 def toiter(obj, is_iter=False):
-  if isinstance(obj, str):
+  if isinstance(obj, str) or isinstance(obj, dict):
     if is_iter:
       return [ obj ], False
     return [ obj ]
