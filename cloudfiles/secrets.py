@@ -9,7 +9,7 @@ from google.oauth2 import service_account
 from .lib import mkdir, colorize
 
 HOME = os.path.expanduser('~')
-CLOUD_VOLUME_DIR = mkdir(os.path.join(HOME, '.cloudvolume'))
+CLOUD_VOLUME_DIR = mkdir(os.path.join(HOME, '.cloudvolume', 'secrets'))
 
 def secretpath(filepath):
   preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
@@ -30,7 +30,7 @@ def secretpath(filepath):
   return preferred
 
 def default_google_project_name():
-  default_credentials_path = secretpath('secrets/google-secret.json')
+  default_credentials_path = secretpath('google-secret.json')
   if os.path.exists(default_credentials_path):
     with open(default_credentials_path, 'rt') as f:
       return json.loads(f.read())['project_id']
@@ -38,7 +38,7 @@ def default_google_project_name():
 
 PROJECT_NAME = default_google_project_name()
 GOOGLE_CREDENTIALS_CACHE = {}
-google_credentials_path = secretpath('secrets/google-secret.json')
+google_credentials_path = secretpath('google-secret.json')
 
 def google_credentials(bucket = ''):
   global PROJECT_NAME
@@ -48,11 +48,11 @@ def google_credentials(bucket = ''):
     return GOOGLE_CREDENTIALS_CACHE[bucket]
 
   paths = [
-    secretpath('secrets/google-secret.json')
+    secretpath('google-secret.json')
   ]
 
   if bucket:
-    paths = [ secretpath('secrets/{}-google-secret.json'.format(bucket)) ] + paths
+    paths = [ secretpath('{}-google-secret.json'.format(bucket)) ] + paths
 
   google_credentials = None
   project_name = PROJECT_NAME
@@ -73,7 +73,7 @@ def google_credentials(bucket = ''):
   return project_name, google_credentials
 
 AWS_CREDENTIALS_CACHE = defaultdict(dict)
-aws_credentials_path = secretpath('secrets/aws-secret.json')
+aws_credentials_path = secretpath('aws-secret.json')
 def aws_credentials(bucket = '', service = 'aws'):
   global AWS_CREDENTIALS_CACHE
 
@@ -83,14 +83,14 @@ def aws_credentials(bucket = '', service = 'aws'):
   if bucket in AWS_CREDENTIALS_CACHE.keys():
     return AWS_CREDENTIALS_CACHE[bucket]
 
-  default_file_path = 'secrets/{}-secret.json'.format(service)
+  default_file_path = '{}-secret.json'.format(service)
 
   paths = [
     secretpath(default_file_path)
   ]
 
   if bucket:
-    paths = [ secretpath('secrets/{}-{}-secret.json'.format(bucket, service)) ] + paths
+    paths = [ secretpath('{}-{}-secret.json'.format(bucket, service)) ] + paths
 
   aws_credentials = {}
   aws_credentials_path = secretpath(default_file_path)
