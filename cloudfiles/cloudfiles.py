@@ -48,6 +48,16 @@ def totalfn(files, total):
     return None
   
 class CloudFiles(object):
+  """
+  CloudFiles is a multithreaded key-value object
+  management client that supports get, put, delete,
+  exists, and list operations.
+
+  It can support any key-value storage system and 
+  currently supports local filesystem, Google Cloud Storage,
+  Amazon S3 interfaces, and reading from arbitrary HTTP 
+  servers.
+  """
   def __init__(
     self, cloudpath, progress=False, 
     green=False, secrets=None, num_threads=20
@@ -331,6 +341,21 @@ class CloudFiles(object):
     })
 
   def exists(self, paths, total=None):
+    """
+    Test if the given file paths exist.
+
+    paths: one or more file paths relative to the cloudpath.
+
+    Returns:
+      If paths is a scalar:
+        boolean
+      Else:
+        {
+          filename_1: boolean,
+          filename_2: boolean,
+          ...
+        }
+    """
     paths, return_multiple = toiter(paths, is_iter=True)
 
     results = {}
@@ -353,6 +378,14 @@ class CloudFiles(object):
     return first(results.values())
 
   def delete(self, paths, total=None):
+    """
+    Delete one or more files.
+
+    paths: (str) one or more file paths relative 
+      to the class instance's cloudpath.
+
+    Returns: void
+    """
     paths = toiter(paths)
 
     def thunk_delete(path):
@@ -371,7 +404,7 @@ class CloudFiles(object):
 
   def list(self, prefix="", flat=False):
     """
-    List the files in the layer with the given prefix. 
+    List files with the given prefix. 
 
     flat means only generate one level of a directory,
     while non-flat means generate all file paths with that 
@@ -387,7 +420,7 @@ class CloudFiles(object):
       4. partial file name prefix = 'bigarray/chunk_'
         - Lists the 'bigarray/' directory and filters on 'chunk_'
     
-    Return: generated sequence of file paths relative to layer_path
+    Return: generated sequence of file paths relative to cloudpath
     """
     with self._get_connection() as conn:
       for f in conn.list_files(prefix, flat):
