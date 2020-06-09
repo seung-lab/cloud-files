@@ -39,6 +39,14 @@ def path_to_byte_range(path):
     return (path, None, None)
   return (path['path'], path['start'], path['end'])
 
+def totalfn(files, total):
+  if total is not None:
+    return total
+  try:
+    return len(files)
+  except TypeError:
+    return None
+  
 class CloudFiles(object):
   def __init__(
     self, cloudpath, progress=False, 
@@ -63,6 +71,27 @@ class CloudFiles(object):
     return self._interface_cls(self._path, secrets=self.secrets)
 
   def get(self, paths, total=None):
+    """
+    Download one or more files.
+
+    paths: scalar or iterable of:
+      filename (strings)
+      OR
+      { 'path': filename, 'start': (int) start byte, 'end': (int) end byte }
+
+    Returns:
+      if paths is scalar:
+        binary
+      else:
+        [
+          {
+            'path': path, 
+            'content': content, 
+            'byte_range': (start, end),
+            'error': error,
+          }
+        ]
+    """
     paths, mutliple_return = toiter(paths, is_iter=True)
 
     def download(path):
@@ -103,9 +132,33 @@ class CloudFiles(object):
       green=self.green,
     )
 
-  def get_json(self, paths):
+  def get_json(self, paths, total=None):
+    """
+    Download one or more JSON files and decode them into a python object.
+
+    paths: scalar or iterable of:
+      filename (strings)
+      OR
+      { 'path': filename, 'start': (int) start byte, 'end': (int) end byte }
+
+    total: Can be used to provide a size for the progress bar if the 
+      input type of paths does not support `len`.
+
+    Returns:
+      if paths is scalar:
+        object
+      else:
+        [
+          {
+            'path': path, 
+            'content': object, 
+            'byte_range': (start, end),
+            'error': error,
+          }
+        ]
+    """
     paths, multiple_return = toiter(paths, is_iter=True)
-    contents = self.get(paths)
+    contents = self.get(paths, total=total)
 
     def decode(content):
       content = content['content']
@@ -121,10 +174,11 @@ class CloudFiles(object):
   def puts(
     self, files, 
     content_type=None, compress=None, 
-    compression_level=None, cache_control=None
+    compression_level=None, cache_control=None,
+    total=None
   ):
     """
-    Places one or more files at a given location.
+    Writes one or more files at a given location.
 
     files: scalar or list of:
       tuple: (filepath, content)
@@ -145,6 +199,9 @@ class CloudFiles(object):
       defaults provided by arguments to the function. e.g. you
       can specify cache_control for an list but provide an exception
       for one or more files.
+
+    total: Can be used to provide a size for the progress bar if the 
+      input type of files does not support `len`.
     """
     files = toiter(files)
 
@@ -174,9 +231,8 @@ class CloudFiles(object):
       dupes = duplicates([ file['path'] for file in files ])
       if dupes:
         raise ValueError("Cannot write the same file multiple times in one pass. This causes a race condition. Files: " + ", ".join(dupes))
-      total = len(files)
-    else:
-      total = None
+    
+    total = totalfn(files, total)
 
     if total == 1:
       uploadfn(first(files))
@@ -198,6 +254,18 @@ class CloudFiles(object):
     content_type=None, compress=None, 
     compression_level=None, cache_control=None
   ):
+    """
+    Write a single file.
+
+    path: (str) file path relative to cloudpath
+    content: binary string 
+    content_type: e.g. 'application/json' or 'application/octet-stream'
+    compress: None, 'gzip', 'br' (brotli)
+    compression_level: (None or int) input to compressor, None means use default
+    cache_control: (str) HTTP Cache-Control header.
+
+    Returns: void
+    """
     return self.puts({
       'path': path,
       'content': content,
@@ -207,27 +275,62 @@ class CloudFiles(object):
       'cache_control': cache_control,
     })
 
-  def put_jsons(self, files):
+  def put_jsons(self, files, total=None):
+    """
+    Write one or more files as JSON.
+
+    See puts for details. The major difference is that
+    the 'content' field is converted from a Python object 
+    to JSON.
+
+    Returns: void
+    """
     files = toiter(files)
-    for i, file in enumerate(files):
-      file['content'] = jsonify(file['content']).encode('utf-8')
-    return self.puts(files)
+
+    tojson = lambda x: jsonify(x).encode('utf-8')
+
+    def jsonify_file(file):
+      if isinstance(file, list):
+        return [ file[0], tojson(file[1]) ]
+      elif isinstance(file, tuple):
+        return (file[0], tojson(file[1]))
+      else:
+        file['content'] = tojson(file['content'])
+        return file
+
+    total = totalfn(files, total)
+
+    return self.puts( 
+      (jsonify_file(file) for file in files), 
+      content_type='application/json', total=total
+    )
 
   def put_json(
-    self, path, content, 
-    content_type=None, compress=None, 
-    compression_level=None, cache_control=None
+    self, path, content,
+    compress=None, compression_level=None, 
+    cache_control=None
   ):
+    """
+    Write a single JSON file.
+
+    path: (str) file path relative to cloudpath
+    content: JSON serializable Python object
+    compress: None, 'gzip', 'br' (brotli)
+    compression_level: (None or int) input to compressor, None means use default
+    cache_control: (str) HTTP Cache-Control header.
+
+    Returns: void
+    """
     return self.put_jsons({
       'path': path,
       'content': content,
-      'content_type': content_type,
+      'content_type': 'application/json',
       'compress': compress,
       'compression_level': compression_level,
       'cache_control': cache_control,
     })
 
-  def exists(self, paths):
+  def exists(self, paths, total=None):
     paths, return_multiple = toiter(paths, is_iter=True)
 
     results = {}
@@ -235,13 +338,13 @@ class CloudFiles(object):
     def exist_thunk(paths):
       with self._get_connection() as conn:
         results.update(conn.files_exist(paths))
-    
+
     desc = self._progress_description('Existence Testing')
     schedule_jobs(  
       fns=( partial(exist_thunk, paths) for paths in scatter(paths, self.num_threads) ),
       progress=(desc if self.progress else None),
       concurrency=self.num_threads,
-      total=len(paths),
+      total=totalfn(paths, total),
       green=self.green,
     )
 
@@ -249,7 +352,7 @@ class CloudFiles(object):
       return results
     return first(results.values())
 
-  def delete(self, paths):
+  def delete(self, paths, total=None):
     paths = toiter(paths)
 
     def thunk_delete(path):
@@ -262,7 +365,7 @@ class CloudFiles(object):
       fns=( partial(thunk_delete, path) for path in paths ),
       progress=(desc if self.progress else None),
       concurrency=self.num_threads,
-      total=len(paths),
+      total=totalfn(paths, total),
       green=self.green,
     )
 
