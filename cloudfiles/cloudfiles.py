@@ -39,13 +39,6 @@ def path_to_byte_range(path):
     return (path, None, None)
   return (path['path'], path['start'], path['end'])
 
-def default_byte_iterator(starts, ends):
-  if starts is None:
-    starts = itertools.repeat(None)
-  if ends is None:
-    ends = itertools.repeat(None)
-  return iter(starts), iter(ends)
-
 class CloudFiles(object):
   def __init__(
     self, cloudpath, progress=False, 
@@ -60,13 +53,13 @@ class CloudFiles(object):
     self._path = paths.extract(cloudpath)
     self._interface_cls = get_interface_class(self._path.protocol)
 
-  def progress_description(self, prefix):
+  def _progress_description(self, prefix):
     if isinstance(self.progress, str):
       return prefix + ' ' + self.progress
     else:
       return prefix if self.progress else None
 
-  def get_connection(self):
+  def _get_connection(self):
     return self._interface_cls(self._path, secrets=self.secrets)
 
   def get(self, paths):
@@ -76,7 +69,7 @@ class CloudFiles(object):
       path, start, end = path_to_byte_range(path)
       error = None
       try:
-        with self.get_connection() as conn:
+        with self._get_connection() as conn:
           content, encoding = conn.get_file(path, start=start, end=end)
         content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
@@ -145,7 +138,7 @@ class CloudFiles(object):
       if compress not in compression.COMPRESSION_TYPES:
         raise ValueError('{} is not a supported compression type.'.format(compress))
 
-      with self.get_connection() as conn:
+      with self._get_connection() as conn:
         content = compression.compress(
           file['content'], 
           method=compress,
@@ -172,7 +165,7 @@ class CloudFiles(object):
       return
 
     fns = ( partial(uploadfn, file) for file in files )
-    desc = self.progress_description('Uploading')
+    desc = self._progress_description('Uploading')
     schedule_jobs(
       fns=fns,
       concurrency=self.num_threads,
@@ -222,10 +215,10 @@ class CloudFiles(object):
     results = {}
 
     def exist_thunk(paths):
-      with self.get_connection() as conn:
+      with self._get_connection() as conn:
         results.update(conn.files_exist(paths))
     
-    desc = self.progress_description('Existence Testing')
+    desc = self._progress_description('Existence Testing')
     schedule_jobs(  
       fns=( partial(exist_thunk, paths) for paths in scatter(paths, self.num_threads) ),
       progress=(desc if self.progress else None),
@@ -242,10 +235,10 @@ class CloudFiles(object):
     paths = toiter(paths)
 
     def thunk_delete(path):
-      with self.get_connection() as conn:
+      with self._get_connection() as conn:
         conn.delete_file(path)
 
-    desc = self.progress_description('Deleting')
+    desc = self._progress_description('Deleting')
 
     schedule_jobs(
       fns=( partial(thunk_delete, path) for path in paths ),
@@ -275,7 +268,7 @@ class CloudFiles(object):
     
     Return: generated sequence of file paths relative to layer_path
     """
-    with self.get_connection() as conn:
+    with self._get_connection() as conn:
       for f in conn.list_files(prefix, flat):
         yield f
 
