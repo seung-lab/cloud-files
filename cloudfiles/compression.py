@@ -41,7 +41,7 @@ def decompress(content, encoding, filename='N/A'):
     print("Filename: " + str(filename))
     raise
   
-  raise NotImplementedError(str(encoding) + ' is not currently supported. Supported Options: None, gzip')
+  raise ValueError(str(encoding) + ' is not currently supported. Supported Options: None, gzip, br')
 
 def compress(content, method='gzip', compress_level=None):
   """
@@ -67,7 +67,8 @@ def compress(content, method='gzip', compress_level=None):
     return gzip_compress(content, compresslevel=compress_level)
   elif method == 'br':
     return brotli_compress(content, quality=compress_level)
-  raise NotImplementedError(str(method) + ' is not currently supported. Supported Options: None, gzip')
+  
+  raise ValueError(str(method) + ' is not currently supported. Supported Options: None, gzip, br')
 
 def gzip_compress(content, compresslevel=None):
   if compresslevel is None:

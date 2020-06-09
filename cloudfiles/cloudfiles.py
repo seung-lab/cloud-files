@@ -81,8 +81,6 @@ class CloudFiles(object):
         content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
         error = err
-        if len(paths) == 1:
-          raise
 
       return { 
         'path': path, 
@@ -121,7 +119,7 @@ class CloudFiles(object):
       return contents
     return contents[0]
 
-  def put(
+  def puts(
     self, files, 
     content_type=None, compress=None, 
     compression_level=None, cache_control=None
@@ -143,20 +141,21 @@ class CloudFiles(object):
     files = toiter(files)
 
     def uploadfn(file):
-      if file.get('compress', None) not in compression.COMPRESSION_TYPES:
-        raise ValueError('{} is not a supported compression type.'.format(file.compress))
+      compress = file.get('compress', None)
+      if compress not in compression.COMPRESSION_TYPES:
+        raise ValueError('{} is not a supported compression type.'.format(compress))
 
-      with self.get_connection() as conn:
+      with self.get_connection(self.secrets) as conn:
         content = compression.compress(
           file['content'], 
-          method=file.get('compress', compress),
+          method=compress,
           compress_level=file.get('compression_level', compression_level),
         )
         conn.put_file(
           file_path=file['path'], 
           content=content, 
           content_type=file.get('content_type', content_type),
-          compress=file.get('compress', compress),
+          compress=compress,
           cache_control=file.get('cache_control', cache_control),
         )
 
@@ -182,18 +181,33 @@ class CloudFiles(object):
       green=self.green,
     )
 
-  def put_json(self, files):
+  def put(
+    self, 
+    path, content,     
+    content_type=None, compress=None, 
+    compression_level=None, cache_control=None
+  ):
+    return self.puts({
+      'path': path,
+      'content': content,
+      'content_type': content_type,
+      'compress': compress,
+      'compression_level': compression_level,
+      'cache_control': cache_control,
+    })
+
+  def put_jsons(self, files):
     files = toiter(files)
     for i, file in enumerate(files):
-      file['content'] = jsonify(file['content'])
-    return self.put(files)
+      file['content'] = jsonify(file['content']).encode('utf-8')
+    return self.puts(files)
 
-  def put_a_json(
+  def put_json(
     self, path, content, 
     content_type=None, compress=None, 
     compression_level=None, cache_control=None
   ):
-    return self.put_json({
+    return self.put_jsons({
       'path': path,
       'content': content,
       'content_type': content_type,
@@ -203,7 +217,7 @@ class CloudFiles(object):
     })
 
   def exists(self, paths):
-    paths = toiter(paths)
+    paths, return_multiple = toiter(paths, is_iter=True)
 
     results = {}
 
@@ -220,7 +234,9 @@ class CloudFiles(object):
       green=self.green,
     )
 
-    return results
+    if return_multiple:
+      return results
+    return first(results.values())
 
   def delete(self, paths):
     paths = toiter(paths)
