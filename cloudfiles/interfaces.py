@@ -7,7 +7,6 @@ import re
 
 import boto3
 import botocore
-from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
 import requests
