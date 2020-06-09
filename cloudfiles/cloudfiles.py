@@ -66,8 +66,8 @@ class CloudFiles(object):
     else:
       return prefix if self.progress else None
 
-  def get_connection(self, secrets=None):
-    return self._interface_cls(self._path, secrets=secrets)
+  def get_connection(self):
+    return self._interface_cls(self._path, secrets=self.secrets)
 
   def get(self, paths):
     paths, mutliple_return = toiter(paths, is_iter=True)
@@ -76,7 +76,7 @@ class CloudFiles(object):
       path, start, end = path_to_byte_range(path)
       error = None
       try:
-        with self.get_connection(self.secrets) as conn:
+        with self.get_connection() as conn:
           content, encoding = conn.get_file(path, start=start, end=end)
         content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
@@ -145,7 +145,7 @@ class CloudFiles(object):
       if compress not in compression.COMPRESSION_TYPES:
         raise ValueError('{} is not a supported compression type.'.format(compress))
 
-      with self.get_connection(self.secrets) as conn:
+      with self.get_connection() as conn:
         content = compression.compress(
           file['content'], 
           method=compress,
