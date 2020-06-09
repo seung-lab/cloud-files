@@ -9,5 +9,5 @@ Amazon S3 interfaces, and reading from arbitrary HTTP
 servers.
 """
 
-from .cloudfiles import CloudFile, CloudFiles
+from .cloudfiles import CloudFiles
 from .interfaces import reset_connection_pools

@@ -46,37 +46,6 @@ def default_byte_iterator(starts, ends):
     ends = itertools.repeat(None)
   return iter(starts), iter(ends)
 
-class CloudFile(object):
-  """A container for some file information."""
-  def __init__(
-    self, path, content, content_type=None,
-    compress=None, compression_level=None, 
-    cache_control=None, byte_range=None
-  ):
-    self.path = path
-    self.content = content 
-    self.content_type = content_type
-    self.compress = compress 
-    self.compression_level = compression_level
-    self.cache_control = cache_control
-    self.byte_range = byte_range
-
-  def __getitem__(self, key):
-    if key == 'path':
-      return self.path
-    elif key == 'content':
-      return self.content
-    elif key == 'content_type':
-      return self.content_type
-    elif key == 'compression_level':
-      return self.compression_level
-    elif key == 'cache_control':
-      return self.cache_control
-    elif key == 'byte_range':
-      return self.byte_range
-
-    raise KeyError('{} is not implemented.'.format(key))
-
 class CloudFiles(object):
   def __init__(
     self, cloudpath, progress=False, 
@@ -105,10 +74,22 @@ class CloudFiles(object):
 
     def download(path):
       path, start, end = path_to_byte_range(path)
-      with self.get_connection(self.secrets) as conn:
-        content, encoding = conn.get_file(path, start=start, end=end)
-      content = compression.decompress(content, encoding, filename=path)
-      return CloudFile(path, content, byte_range=(start, end))
+      error = None
+      try:
+        with self.get_connection(self.secrets) as conn:
+          content, encoding = conn.get_file(path, start=start, end=end)
+        content = compression.decompress(content, encoding, filename=path)
+      except Exception as err:
+        error = err
+        if len(paths) == 1:
+          raise
+
+      return { 
+        'path': path, 
+        'content': content, 
+        'byte_range': (start, end),
+        'error': error,
+      }
 
     if len(paths) == 1:
       ret = download(paths[0])
@@ -148,7 +129,7 @@ class CloudFiles(object):
     """
     Places one or more files at a given location.
 
-    files: dict, CloudFile, or list thereof.
+    files: dict or list thereof.
       If dict, must contain 'content' and 'path' fields:
         {
           'content': b'json data', # must by binary data
@@ -161,30 +142,22 @@ class CloudFiles(object):
     """
     files = toiter(files)
 
-    def nvl(val, default):
-      if val is not None:
-        return val
-      return default
-
     def uploadfn(file):
-      if isinstance(file, dict):
-        file = CloudFile(**file)
-
-      if file.compress not in compression.COMPRESSION_TYPES:
+      if file.get('compress', None) not in compression.COMPRESSION_TYPES:
         raise ValueError('{} is not a supported compression type.'.format(file.compress))
 
       with self.get_connection() as conn:
         content = compression.compress(
-          file.content, 
-          method=nvl(file.compress, compress),
-          compress_level=nvl(file.compression_level, compression_level),
+          file['content'], 
+          method=file.get('compress', compress),
+          compress_level=file.get('compression_level', compression_level),
         )
         conn.put_file(
-          file_path=file.path, 
+          file_path=file['path'], 
           content=content, 
-          content_type=nvl(file.content_type, content_type),
-          compress=nvl(file.compress, compress),
-          cache_control=nvl(file.cache_control, cache_control),
+          content_type=file.get('content_type', content_type),
+          compress=file.get('compress', compress),
+          cache_control=file.get('cache_control', cache_control),
         )
 
     if not isinstance(files, types.GeneratorType):
@@ -212,10 +185,7 @@ class CloudFiles(object):
   def put_json(self, files):
     files = toiter(files)
     for i, file in enumerate(files):
-      if isinstance(file, dict):
-        file['content'] = jsonify(file['content'])
-      else:
-        file.content = jsonify(file.content)
+      file['content'] = jsonify(file['content'])
     return self.put(files)
 
   def put_a_json(
