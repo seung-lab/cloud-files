@@ -63,6 +63,8 @@ You may wish to install credentials under `~/.cloudvolume/secrets`. See [this li
 
 ## Documentation  
 
+Note that the "Cloud Costs" mentioned below are current as of June 2020 and are subject to change. As of this writing, S3 and Google use identical cost structures for these operations.  
+
 ### Constructor
 ```python
 # import gevent.monkey
@@ -100,6 +102,8 @@ When more than one file is provided at once, the download will be threaded using
 
 `get_json` is the same as get but it will parse the returned binary as JSON data encoded as utf8 and returns a dictionary.
 
+Cloud Cost: Usually about $0.40 per million requests.
+
 ### put / puts / put_json / put_jsons
 
 ```python 
@@ -111,11 +115,34 @@ cf.puts([{
    'content': b'...',
    'content_type': 'application/octet-stream',
    'compress': 'gzip',
-   'compression_level': 6,
+   'compression_level': 6, # parameter for gzip or brotli compressor
    'cache_control': 'no-cache',
 }])
+
+cf.puts([ (path, content), (path, content) ], compression='gzip')
+cf.put_jsons(...)
+
+# Definition of put, put_json is identical
+def put(
+    self, 
+    path, content,     
+    content_type=None, compress=None, 
+    compression_level=None, cache_control=None
+)
+
+# Definition of puts, put_jsons is identical
+def puts(
+    self, files, 
+    content_type=None, compress=None, 
+    compression_level=None, cache_control=None
+)
 ```
 
+The PUT operation is the most complex operation because it's so configurable. Sometimes you want one file, sometimes many. Sometimes you want to configure each file individually, sometimes you want to standardize a bulk upload. Sometimes it's binary data, but oftentimes it's JSON. We provide a simpler interface for uploading a single file `put` and `put_json` (singular) versus the interface for uploading possibly many files `puts` and `put_jsons` (plural). 
+
+In order to upload many files at once (which is much faster due to threading), you need to minimally provide the `path` and `content` for each file. This can be done either as a dict containing those fields or as a tuple `(path, content)`. If dicts are used, the fields (if present) specified in the dict take precedence over the parameters of the function. You can mix tuples with dicts. The input to puts can be a scalar (a single dict or tuple) or an iterable such as a list, iterator, or generator.  
+
+Cloud Cost: Usually about $5 per million files.
 
 ### delete
 
@@ -125,6 +152,8 @@ cf.delete([ 'file1', 'file2', ... ])
 ```
 
 This will issue a delete request for each file specified in a threaded fashion.
+
+Cloud Cost: Usually free.
 
 ### exists 
 
@@ -138,6 +167,8 @@ cf.exists([ 'file1', 'file2', ... ])
 
 Scalar input results in a simple boolean output while iterable input returns a dictionary of input paths mapped to whether they exist. In iterable mode, a progress bar may be displayed and threading is utilized to improve performance. 
 
+Cloud Cost: Usually about $0.40 per million requests.
+
 ### list
 
 ```python 
@@ -147,6 +178,8 @@ cf.list(prefix="abc", flat=True)
 ```
 
 Recall that in object storage, directories do not really exist and file paths are really a key-value mapping. The `list` operator will list everything under the `cloudpath` given in the constructor. The `prefix` operator allows you to efficiently filter some of the results. If `flat` is specified, the results will be filtered to return only a single "level" of the "directory" even though directories are fake. The entire set of all subdirectories will still need to be fetched.
+
+Cloud Cost: Usually about $5 per million requests, but each request might list 1000 files. The list operation will continuously issue list requests until all files are listed.
 
 ## Credits
 
