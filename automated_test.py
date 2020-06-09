@@ -62,11 +62,17 @@ def test_get_generator(num_threads, green):
   gen = ( (str(i), b'hello world') for i in range(100) )
   cf.puts(gen)
 
-  files = cf.get(( str(i) for i in range(100) ))
+  files = cf.get(( str(i) for i in range(100) ), total=100)
 
   assert all([ f['error'] is None for f in files ])
   assert len(files) == 100
   assert all([ f['content'] == b'hello world' for f in files ])
+
+  fnames = [ str(i) for i in range(100) ]
+  assert sorted(list(cf.list())) == sorted(fnames)
+
+  cf.delete(( str(i) for i in range(100) ))
+  assert list(cf.list()) == []
 
 def test_http_read():
   cf = CloudFiles("https://storage.googleapis.com/seunglab-test/test_v0/black/")
