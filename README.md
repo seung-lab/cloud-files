@@ -59,6 +59,8 @@ CloudFiles is a pure python client for accessing cloud storage or the local file
 pip install cloud-files
 ```
 
+You may wish to install credentials under `~/.cloudvolume/secrets`. See [this link](https://github.com/seung-lab/cloud-volume#credentials) for details. CloudFiles is descended from CloudVolume, and for now we'll leave the same configuration structure in place. 
+
 ### Credits
 
 CloudFiles is derived from the [CloudVolume.Storage](https://github.com/seung-lab/cloud-volume/tree/master/cloudvolume/storage) system.  

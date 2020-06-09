@@ -1,0 +1,22 @@
+CHANGES
+=======
+
+0.1
+---
+
+* docs: add highlights and credits
+* refactor: remove dead code and make private methods explicit
+* docs: add some examples
+* chore: update package summary
+* test: add travis
+* refactor: put works with single files while puts does multiples
+* fix: remove CloudFile class for now
+* fix: make sure the correct path separators are used in Windows
+* fix: a simple test of most functions is working
+* feat: add default arguments for compression and cache control
+* fix: got it returning JSON
+* fix: import without errors
+* docs: add empty README
+* wip: first pass getting ready for the testing phase
+* wip: refactoring storage
+* Initial commit
