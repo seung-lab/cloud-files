@@ -62,7 +62,7 @@ class CloudFiles(object):
   def _get_connection(self):
     return self._interface_cls(self._path, secrets=self.secrets)
 
-  def get(self, paths):
+  def get(self, paths, total=None):
     paths, mutliple_return = toiter(paths, is_iter=True)
 
     def download(path):
@@ -82,7 +82,13 @@ class CloudFiles(object):
         'error': error,
       }
 
-    if len(paths) == 1:
+    if total is None:
+      try:
+        total = len(paths)
+      except TypeError:
+        pass
+
+    if total == 1:
       ret = download(paths[0])
       if mutliple_return:
         return [ ret ]
@@ -93,7 +99,7 @@ class CloudFiles(object):
       fns=( partial(download, path) for path in paths ), 
       concurrency=self.num_threads, 
       progress=self.progress,
-      total=len(paths),
+      total=paths,
       green=self.green,
     )
 
@@ -120,13 +126,22 @@ class CloudFiles(object):
     """
     Places one or more files at a given location.
 
-    files: dict or list thereof.
-      If dict, must contain 'content' and 'path' fields:
+    files: scalar or list of:
+      tuple: (filepath, content)
+      dict: must contain 'content' and 'path' fields:
         {
           'content': b'json data', # must by binary data
           'path': 'info', # specified relative to the cloudpath
+          
+          # optional fields
+          'content_type': 'application/json' or 'application/octet-stream', 
+          'compress': None, 'gzip', or 'br',
+          'compression_level': e.g. 6, # for gzip or brotli
+          'cache_control': specify the header the way you want 
+              e.g. 'no-cache' or 'public; max-age=3600' etc
         }
-      If additional fields are specified, they will override the 
+
+      If the additional fields are specified, they will override the 
       defaults provided by arguments to the function. e.g. you
       can specify cache_control for an list but provide an exception
       for one or more files.
@@ -134,6 +149,9 @@ class CloudFiles(object):
     files = toiter(files)
 
     def uploadfn(file):
+      if isinstance(file, tuple):
+        file = { 'path': file[0], 'content': file[1] }
+
       compress = file.get('compress', None)
       if compress not in compression.COMPRESSION_TYPES:
         raise ValueError('{} is not a supported compression type.'.format(compress))

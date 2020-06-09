@@ -50,6 +50,24 @@ def test_read_write(protocol, num_threads, green):
   if protocol == 'file':
     rmtree(path)
 
+@pytest.mark.parametrize("green", (False, True))
+@pytest.mark.parametrize("num_threads", (0, 5, 20))
+def test_get_generator(num_threads, green):
+  path = '/tmp/cloudfiles/gen'
+  rmtree(path)
+  url = 'file://' + path
+
+  cf = CloudFiles(url, num_threads=num_threads, green=green)
+
+  gen = ( (str(i), b'hello world') for i in range(100) )
+  cf.puts(gen)
+
+  files = cf.get(( str(i) for i in range(100) ))
+
+  assert all([ f['error'] is None for f in files ])
+  assert len(files) == 100
+  assert all([ f['content'] == b'hello world' for f in files ])
+
 def test_http_read():
   cf = CloudFiles("https://storage.googleapis.com/seunglab-test/test_v0/black/")
   info = cf.get_json('info')
@@ -172,7 +190,7 @@ def test_compress_level(compression_method):
     retrieved = cf.get('info')
     assert content == retrieved
 
-    conn = cf.get_connection()
+    conn = cf._get_connection()
     _, e = conn.get_file("info")
     assert e == compression_method
 
