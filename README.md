@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/cloud-files.svg)](https://badge.fury.io/py/cloud-files)
+
 CloudFiles: Fast access to cloud storage and local FS.
 ========
 
@@ -50,6 +52,12 @@ CloudFiles is a pure python client for accessing cloud storage or the local file
 6. Supports green threads, which are important for achieving maximum performance on virtualized servers.
 
 \* Except on Google Cloud Storage.
+
+## Installation 
+
+```bash
+pip install cloud-files
+```
 
 ### Credits
 
