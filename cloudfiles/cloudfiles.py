@@ -88,6 +88,8 @@ class CloudFiles(object):
       filename (strings)
       OR
       { 'path': filename, 'start': (int) start byte, 'end': (int) end byte }
+    total: manually provide a progress bar size if paths does
+      not support the `len` operator.
 
     Returns:
       if paths is scalar:
@@ -321,7 +323,8 @@ class CloudFiles(object):
     cache_control=None
   ):
     """
-    Write a single JSON file.
+    Write a single JSON file. Automatically supplies the
+    content_type 'application/json'.
 
     path: (str) file path relative to cloudpath
     content: JSON serializable Python object
@@ -345,6 +348,8 @@ class CloudFiles(object):
     Test if the given file paths exist.
 
     paths: one or more file paths relative to the cloudpath.
+    total: manually provide a progress bar size if paths does
+      not support the `len` operator.
 
     Returns:
       If paths is a scalar:
@@ -383,6 +388,8 @@ class CloudFiles(object):
 
     paths: (str) one or more file paths relative 
       to the class instance's cloudpath.
+    total: manually provide a progress bar size if paths does
+      not support the `len` operator.
 
     Returns: void
     """
