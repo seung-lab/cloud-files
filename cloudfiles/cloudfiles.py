@@ -60,10 +60,14 @@ class CloudFiles(object):
   """
   def __init__(
     self, cloudpath, progress=False, 
-    green=False, secrets=None, num_threads=20
+    green=False, secrets=None, num_threads=20,
+    use_https=False
   ):
-    self.progress = progress
+    if use_https:
+      cloudpath = paths.to_https_protocol(cloudpath)
+
     self.cloudpath = cloudpath
+    self.progress = progress
     self.secrets = secrets
     self.num_threads = num_threads
     self.green = bool(green)
