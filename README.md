@@ -177,7 +177,8 @@ Cloud Cost: Usually about $0.40 per million requests.
 ### list
 
 ```python 
-cf.list()
+cf.list() # returns generator
+list(cf) # same as list(cf.list())
 cf.list(prefix="abc")
 cf.list(prefix="abc", flat=True)
 ```
