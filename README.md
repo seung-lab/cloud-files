@@ -63,7 +63,8 @@ from cloudfiles import CloudFiles
 
 cf = CloudFiles(
     cloudpath, progress=False, 
-    green=False, secrets=None, num_threads=20
+    green=False, secrets=None, num_threads=20,
+    use_https=False
 )
 
 # cloudpath examples:
@@ -78,6 +79,7 @@ cf = CloudFiles('https://website.com/coolguy/') # arbitrary web server
 * green: Use green threads. For this to work properly, you must uncomment the top two lines.
 * secrets: Provide secrets dynamically rather than fetching from the credentials directory `$HOME/.cloudvolume/secrets`.
 * num_threads: Number of simultaneous requests to make. Usually 20 per core is pretty close to optimal unless file sizes are extreme.
+* use_https: `gs://` and `s3://` require credentials to access their files. However, each has a read-only https endpoint that sometimes requires no credentials. If True, automatically convert `gs://` to `https://storage.googleapis.com/` and `s3://` to `https://s3.amazonaws.com/`.
 
 ### get / get_json
 
