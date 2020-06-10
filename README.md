@@ -185,7 +185,7 @@ cf.list(prefix="abc", flat=True)
 
 Recall that in object storage, directories do not really exist and file paths are really a key-value mapping. The `list` operator will list everything under the `cloudpath` given in the constructor. The `prefix` operator allows you to efficiently filter some of the results. If `flat` is specified, the results will be filtered to return only a single "level" of the "directory" even though directories are fake. The entire set of all subdirectories will still need to be fetched.
 
-Cloud Cost: Usually about $5 per million requests, but each request might list 1000 files. The list operation will continuously issue list requests until all files are listed.
+Cloud Cost: Usually about $5 per million requests, but each request might list 1000 files. The list operation will continuously issue list requests lazily as needed.
 
 ## Credits
 
