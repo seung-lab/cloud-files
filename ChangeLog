@@ -1,6 +1,21 @@
 CHANGES
 =======
 
+0.2
+---
+
+* test: add tests for delete with generators
+* docs: state that put\_json(s) automatically supplies content\_type
+* docs: ensure all public facing methods have documentation
+* fix: make more functions work with generators properly
+* docs: document puts
+* Revert "refactor: remove unused import"
+* fix: accomodating generators more carefully
+* docs: describe most functions
+* docs: link to how to configure secrets
+* refactor: remove unused import
+* fix: update for the release
+
 0.1
 ---
 
