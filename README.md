@@ -32,8 +32,6 @@ boolean = cf.exists('filename')
 results = cf.exists([ 'filename_1', ... ]) # threaded
 ```
 
-CloudFiles is a pure python client for accessing cloud storage or the local file system in a threaded fashion without hassle. 
-
 ## Highlights
 
 1. Fast file access with transparent threading.

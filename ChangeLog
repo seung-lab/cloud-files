@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.3
+---
+
+* docs: condensed and added examples
+* feat: add dict-like features to CloudFiles
+* chore: add ChangeLog
+
 0.2
 ---
 
