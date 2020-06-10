@@ -6,23 +6,10 @@ CloudFiles: Fast access to cloud storage and local FS.
 ```python
 from cloudfiles import CloudFiles
 
-cf = CloudFiles('gs://bucket/') # google cloud storage
-cf = CloudFiles('s3://bucket/') # Amazon S3
-cf = CloudFiles('file:///home/coolguy/') # local filesystem
-cf = CloudFiles('https://website.com/coolguy/') # arbitrary web server
-
-# more options
-cf = CloudFiles(
-    's3://bucket/', 
-    num_threads=20, 
-    progress=True, # display progress bar
-    secrets=credential_json, # provide your own secrets
-    green=False, # whether to use green threads
-)
-
-
-cf.get('filename')
-cf.get([ 'filename_1', 'filename_2' ]) # threaded automatically
+cf = CloudFiles('gs://bucket', progress=True) # s3://, https://, and file:// also supported
+results = cf.get(['file1', 'file2', 'file3', ..., 'fileN']) # threaded
+file1 = cf['file1']
+part  = cf['file1', 0:30] # first 30 bytes of file1
 
 cf.put('filename', content)
 cf.put_json('filename', content)
@@ -31,23 +18,28 @@ cf.puts([{
     'content': content,
 }, ... ]) # automatically threaded
 cf.put_jsons(...) # same as puts
+cf['filename'] = content
 
-cf.list()
+for fname in cf.list(prefix='abc123'):
+    print(fname)
+list(cf) # same as list(cf.list())
+
 cf.delete('filename')
+del cf['filename']
 cf.delete([ 'filename_1', 'filename_2', ... ]) # threaded
 
-cf.exists('filename')
-cf.exists([ filename_1, ... ]) # threaded
+boolean = cf.exists('filename')
+results = cf.exists([ 'filename_1', ... ]) # threaded
 ```
 
 CloudFiles is a pure python client for accessing cloud storage or the local file system in a threaded fashion without hassle. 
 
 ## Highlights
 
-1. Fast file access due to transparent threading.
-2. Supports Google Cloud Storage, Amazone S3, local filesystems, and arbitrary web servers with a similar file access structure making hybrid or multi-cloud easy.
-3. Robust to flaky network connections. Retries using an exponential random window to avoid network collisions when working in a large cluster.
-4. Supports gzip and brotli\* compression.
+1. Fast file access with transparent threading.
+2. Google Cloud Storage, Amazon S3, local filesystems, and arbitrary web servers making hybrid or multi-cloud easy.
+3. Robust to flaky network connections. Uses exponential random window retries to avoid network collisions on a large cluster.
+4. gzip and brotli\* compression.
 5. Supports HTTP Range reads.
 6. Supports green threads, which are important for achieving maximum performance on virtualized servers.
 
@@ -75,6 +67,12 @@ cf = CloudFiles(
     cloudpath, progress=False, 
     green=False, secrets=None, num_threads=20
 )
+
+# cloudpath examples:
+cf = CloudFiles('gs://bucket/') # google cloud storage
+cf = CloudFiles('s3://bucket/') # Amazon S3
+cf = CloudFiles('file:///home/coolguy/') # local filesystem
+cf = CloudFiles('https://website.com/coolguy/') # arbitrary web server
 ```
 
 * cloudpath: The path to the bucket you are accessing. The path is formatted as `$PROTOCOL://BUCKET/PATH`. Files will then be accessed relative to the path. The protocols supported are `gs` (GCS), `s3` (AWS S3), `file` (local FS), and `http`/`https`.
