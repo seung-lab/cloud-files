@@ -362,16 +362,17 @@ class CloudFiles(object):
         }
     """
     paths, return_multiple = toiter(paths, is_iter=True)
-
     results = {}
 
     def exist_thunk(paths):
       with self._get_connection() as conn:
         results.update(conn.files_exist(paths))
 
+    n = max(self.num_threads, 1)
+
     desc = self._progress_description('Existence Testing')
     schedule_jobs(  
-      fns=( partial(exist_thunk, paths) for paths in scatter(paths, self.num_threads) ),
+      fns=( partial(exist_thunk, paths) for paths in scatter(paths, n) ),
       progress=(desc if self.progress else None),
       concurrency=self.num_threads,
       total=totalfn(paths, total),
@@ -433,4 +434,18 @@ class CloudFiles(object):
       for f in conn.list_files(prefix, flat):
         yield f
 
+  def __getitem__(self, key):
+    if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], str):
+      return self.get({ 'path': key[0], 'start': key[1].start, 'end': key[1].stop })
+
+    return self.get(key)
+
+  def __setitem__(self, key, value):
+    return self.put(key, value)
+
+  def __delitem__(self, key):
+    return self.delete(key)
+
+  def __iter__(self):
+    return self.list()
 

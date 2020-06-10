@@ -28,9 +28,16 @@ def test_read_write(protocol, num_threads, green):
   
   content = b'some_string'
   cf.put('info', content, compress=None, cache_control='no-cache')
-  
+  cf['info2'] = content
+
   assert cf.get('info') == content
+  assert cf['info2'] == content
+  assert cf['info2', 0:3] == content[0:3]
+  assert cf['info2', :] == content[:]
   assert cf.get('nonexistentfile') is None
+
+  del cf['info2']
+  assert cf.exists('info2') == False
 
   num_infos = max(num_threads, 1)
   results = cf.get([ 'info' for i in range(num_infos) ])
@@ -220,6 +227,7 @@ def test_list():
 
   # time.sleep(1) # sometimes it takes a moment for google to update the list
   assert set(cf.list(prefix='')) == set(['build/info3','info1', 'info2', 'level1/level2/info4', 'info5', 'info.txt'])
+  assert set(list(cf)) == set(cf.list(prefix=''))
   
   assert set(cf.list(prefix='inf')) == set(['info1','info2','info5','info.txt'])
   assert set(cf.list(prefix='info1')) == set(['info1'])

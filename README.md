@@ -86,14 +86,19 @@ cf = CloudFiles(
 ### get / get_json
 
 ```python
+# Let 'filename' be the file b'hello world'
+
 binary = cf.get('filename')
->> b'...'
+binary = cf['filename']
+>> b'hello world'
 
 binaries = cf.get(['filename1', 'filename2'])
 >> [ { 'path': 'filename1', 'content': b'...', 'byte_range': (None, None), 'error': None }, { 'path': 'filename2', 'content': b'...', 'byte_range': (None, None), 'error': None } ]
 
-binary = cf.get({ 'path': 'filename', 'start': 0, 'end': 1024 })
->> b'...' # represents byte range 0-1024 of filename
+binary = cf.get({ 'path': 'filename', 'start': 0, 'end': 5 }) # fetches 5 bytes
+binary = cf['filename', 0:5] # only fetches 5 bytes
+binary = cf['filename'][0:5] # same result, fetches 11 bytes
+>> b'hello' # represents byte range 0-4 inclusive of filename
 ```
 
 `get` supports several different styles of input. The simplest takes a scalar filename and returns the contents of that file. However, you can also specify lists of filenames, a byte range request, and lists of byte range requests. You can provide a generator or iterator as input as well. 
@@ -108,6 +113,7 @@ Cloud Cost: Usually about $0.40 per million requests.
 
 ```python 
 cf.put('filename', b'content')
+cf['filename'] = b'content'
 cf.put_json('digits', [1,2,3,4,5])
 
 cf.puts([{ 
@@ -149,6 +155,7 @@ Cloud Cost: Usually about $5 per million files.
 ```python 
 cf.delete('filename')
 cf.delete([ 'file1', 'file2', ... ])
+del cf['filename']
 ```
 
 This will issue a delete request for each file specified in a threaded fashion.
