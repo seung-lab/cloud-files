@@ -32,6 +32,8 @@ boolean = cf.exists('filename')
 results = cf.exists([ 'filename_1', ... ]) # threaded
 ```
 
+CloudFiles was developed to access files from object storage without ever touching disk. The goal was to reliably and rapidly access a petabyte of image data broken down into tens to hundreds of millions of files being accessed in parallel across thousands of cores. The predecessor of CloudFiles, `CloudVolume.Storage`, the core of which is retained here, has been used to processes dozens of images, many of which were in the hundreds of terabyte range. Storage has reliably read and written tens of billions of files to date.
+
 ## Highlights
 
 1. Fast file access with transparent threading.
