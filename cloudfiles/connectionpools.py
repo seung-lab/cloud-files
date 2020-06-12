@@ -43,16 +43,16 @@ class ConnectionPool(object):
   def total_connections(self):
     return self.pool.qsize() + self.outstanding
 
-  def _create_connection(self):
+  def _create_connection(self, secrets, endpoint):
     raise NotImplementedError
 
-  def get_connection(self, secrets=None):
+  def get_connection(self, secrets=None, endpoint=None):
     with self._lock:
       try:        
         conn = self.pool.get(block=False)
         self.pool.task_done()
       except Queue.Empty:
-        conn = self._create_connection(secrets)
+        conn = self._create_connection(secrets, endpoint)
       finally:
         self.outstanding += 1
 
@@ -94,16 +94,20 @@ class S3ConnectionPool(ConnectionPool):
     super(S3ConnectionPool, self).__init__()
 
   @retry
-  def _create_connection(self, secrets=None):
+  def _create_connection(self, secrets=None, endpoint=None):
     if secrets is None:
       secrets = self.credentials
+
+    additional_args = {}
+    if endpoint is not None:
+      additional_args['endpoint_url'] = endpoint
 
     if self.service in ('aws', 's3'):
       return boto3.client(
         's3',
         aws_access_key_id=secrets['AWS_ACCESS_KEY_ID'],
         aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
-        region_name='us-east-1',
+        **additional_args
       )
     elif self.service == 'matrix':
       return boto3.client(
@@ -129,9 +133,11 @@ class GCloudBucketPool(ConnectionPool):
     super(GCloudBucketPool, self).__init__()
 
   @retry
-  def _create_connection(self, secrets=None):
+  def _create_connection(self, secrets=None, endpoint=None):
     if secrets is None:
       secrets = self.credentials
+    if endpoint is not None:
+      raise ValueError("The endpoint argument is not supported for Google Cloud Storage. Got: " + str(endpoint))
 
     client = Client(
       credentials=secrets,

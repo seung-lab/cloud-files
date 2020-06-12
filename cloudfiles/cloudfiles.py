@@ -61,7 +61,7 @@ class CloudFiles(object):
   def __init__(
     self, cloudpath, progress=False, 
     green=False, secrets=None, num_threads=20,
-    use_https=False
+    use_https=False, endpoint=None
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -71,6 +71,7 @@ class CloudFiles(object):
     self.secrets = secrets
     self.num_threads = num_threads
     self.green = bool(green)
+    self.endpoint = endpoint
 
     self._path = paths.extract(cloudpath)
     self._interface_cls = get_interface_class(self._path.protocol)
@@ -82,7 +83,11 @@ class CloudFiles(object):
       return prefix if self.progress else None
 
   def _get_connection(self):
-    return self._interface_cls(self._path, secrets=self.secrets)
+    return self._interface_cls(
+      self._path, 
+      secrets=self.secrets, 
+      endpoint=self.endpoint
+    )
 
   def get(self, paths, total=None):
     """

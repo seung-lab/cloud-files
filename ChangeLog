@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+0.4.0
+-----
+
+* docs: fix misstatement about how list works
+* docs: show how list works
+* docs: use\_https
+* feat: adds use\_https argument
+* docs: remove useless line below examples
+
 0.3
 ---
 

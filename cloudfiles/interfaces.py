@@ -52,7 +52,7 @@ class StorageInterface(object):
     self.release_connection()
 
 class FileInterface(StorageInterface):
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, endpoint=None):
     super(StorageInterface, self).__init__()
     self._path = path
 
@@ -180,11 +180,11 @@ class FileInterface(StorageInterface):
     return iter(_radix_sort(filenames))
 
 class GoogleCloudStorageInterface(StorageInterface):
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, endpoint=None):
     super(StorageInterface, self).__init__()
     global GC_POOL
     self._path = path
-    self._bucket = GC_POOL[path.bucket].get_connection(secrets)
+    self._bucket = GC_POOL[path.bucket].get_connection(secrets, endpoint)
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
@@ -292,7 +292,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     GC_POOL[self._path.bucket].release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, endpoint=None):
     super(StorageInterface, self).__init__()
     self._path = path
 
@@ -350,11 +350,11 @@ class HttpInterface(StorageInterface):
     raise NotImplementedError()
 
 class S3Interface(StorageInterface):
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, endpoint=None):
     super(StorageInterface, self).__init__()
     global S3_POOL
     self._path = path
-    self._conn = S3_POOL[path.protocol][path.bucket].get_connection(secrets)
+    self._conn = S3_POOL[path.protocol][path.bucket].get_connection(secrets, endpoint)
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
