@@ -118,6 +118,7 @@ class CloudFiles(object):
     def download(path):
       path, start, end = path_to_byte_range(path)
       error = None
+      content = None
       try:
         with self._get_connection() as conn:
           content, encoding = conn.get_file(path, start=start, end=end)
