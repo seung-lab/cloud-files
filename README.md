@@ -105,7 +105,7 @@ Note that the "Cloud Costs" mentioned below are current as of June 2020 and are 
 
 ### Constructor
 ```python
-# import gevent.monkey
+# import gevent.monkey # uncomment when using green threads
 # gevent.monkey.patch_all(thread=False)
 from cloudfiles import CloudFiles
 
