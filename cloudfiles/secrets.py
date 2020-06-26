@@ -10,6 +10,7 @@ from .lib import mkdir, colorize
 
 HOME = os.path.expanduser('~')
 CLOUD_VOLUME_DIR = mkdir(os.path.join(HOME, '.cloudvolume', 'secrets'))
+CLOUD_FILES_DIR = mkdir(os.path.join(HOME, '.cloudfiles', 'secrets'))
 
 def secretpath(filepath):
   preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
@@ -18,7 +19,8 @@ def secretpath(filepath):
     return preferred
 
   backcompat = [
-    '/' # original
+    '/', # original
+    CLOUD_FILES_DIR,
   ]
 
   backcompat = [ os.path.join(path, filepath) for path in backcompat ] 
