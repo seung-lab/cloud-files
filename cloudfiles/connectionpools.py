@@ -107,6 +107,7 @@ class S3ConnectionPool(ConnectionPool):
         's3',
         aws_access_key_id=secrets['AWS_ACCESS_KEY_ID'],
         aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
+        region_name=secrets.get('AWS_DEFAULT_REGION', 'us-east-1'),
         **additional_args
       )
     elif self.service == 'matrix':
