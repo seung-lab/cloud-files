@@ -1,6 +1,23 @@
 CHANGES
 =======
 
+0.4.1
+-----
+
+* feat: add option for .cloudfiles/secrets instead of .cloudvolume/secrets
+* docs: add credential info to the README
+* fix: make sure to specify aws default region
+* fix: use pbr correctly
+* fix: use setup.py to add [test] option
+* fix: use automated\_test.py
+* fix: add pytest to dev requirements
+* fix: install moto in travis environment
+* test: add s3 mock testing
+* fix: makes sure content is set during error conditions
+* docs: add endpoint
+* docs: describe motivation
+* feat: add ability to control s3 endpoint
+
 0.4.0
 -----
 
