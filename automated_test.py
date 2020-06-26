@@ -7,16 +7,34 @@ import re
 import shutil
 import time
 
-from cloudfiles import CloudFiles, exceptions
+from moto import mock_s3
 
 def rmtree(path):
   if os.path.exists(path):
     shutil.rmtree(path)
 
+@pytest.fixture(scope='function')
+def aws_credentials():
+  """Mocked AWS Credentials for moto."""
+  os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
+  os.environ['AWS_SECRET_ACCESS_KEY'] = 'testing'
+  os.environ['AWS_SECURITY_TOKEN'] = 'testing'
+  os.environ['AWS_SESSION_TOKEN'] = 'testing'
+  os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+
+@pytest.fixture(scope='function')
+def s3(aws_credentials):
+  with mock_s3():
+    import boto3
+    conn = boto3.client('s3', region_name='us-east-1')
+    conn.create_bucket(Bucket="cloudfiles")
+    yield conn
+
 @pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("num_threads", (0, 5, 20))
-@pytest.mark.parametrize("protocol", ('file', ))#'gs', 's3'))
-def test_read_write(protocol, num_threads, green):
+@pytest.mark.parametrize("protocol", ('file', 's3'))#'gs'))
+def test_read_write(s3, protocol, num_threads, green):
+  from cloudfiles import CloudFiles, exceptions
   if protocol == 'file':
     path = '/tmp/cloudfiles/rw'
     rmtree(path)
@@ -60,6 +78,7 @@ def test_read_write(protocol, num_threads, green):
 @pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("num_threads", (0, 5, 20))
 def test_get_generator(num_threads, green):
+  from cloudfiles import CloudFiles, exceptions
   path = '/tmp/cloudfiles/gen'
   rmtree(path)
   url = 'file://' + path
@@ -82,6 +101,7 @@ def test_get_generator(num_threads, green):
   assert list(cf.list()) == []
 
 def test_http_read():
+  from cloudfiles import CloudFiles, exceptions
   cf = CloudFiles("https://storage.googleapis.com/seunglab-test/test_v0/black/")
   info = cf.get_json('info')
 
@@ -120,6 +140,7 @@ def test_http_read():
   }
 
 def test_http_read_brotli_image():
+  from cloudfiles import CloudFiles, exceptions
   cf = CloudFiles('https://open-neurodata.s3.amazonaws.com/kharris15/apical/em')
   
   imgbytes = cf.get("2_2_50/4096-4608_4096-4608_112-128")
@@ -129,8 +150,13 @@ def test_http_read_brotli_image():
   assert imgbytes[:len(expected)] == expected
   
 @pytest.mark.parametrize("green", (False, True))
-def test_delete(green):
-  url = "file:///tmp/cloudfiles/delete"
+@pytest.mark.parametrize("protocol", ('file', 's3'))
+def test_delete(s3, green, protocol):
+  from cloudfiles import CloudFiles, exceptions
+  if protocol == 'file':
+    url = "file:///tmp/cloudfiles/delete"
+  else:
+    url = "{}://cloudfiles/delete".format(protocol)
 
   cf = CloudFiles(url, green=green, num_threads=1)    
   content = b'some_string'
@@ -157,6 +183,7 @@ def test_delete(green):
 @pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("method", ('', None, True, False, 'gzip','br',))
 def test_compression(method, green):
+  from cloudfiles import CloudFiles, exceptions
   rmtree("/tmp/cloudfiles/compress")
 
   url = "file:///tmp/cloudfiles/compress"
@@ -190,6 +217,7 @@ def test_compression(method, green):
 
 @pytest.mark.parametrize("compression_method", ("gzip", "br"))
 def test_compress_level(compression_method):
+  from cloudfiles import CloudFiles, exceptions
   filepath = "/tmp/cloudfiles/compress_level"
   url = "file://" + filepath
 
@@ -211,10 +239,14 @@ def test_compress_level(compression_method):
 
     rmtree(filepath)
 
-def test_list():  
-  rmtree('/tmp/cloudfiles/list')
-
-  url = "file:///tmp/cloudfiles/list"
+@pytest.mark.parametrize("protocol", ('file', 's3'))
+def test_list(s3, protocol):  
+  from cloudfiles import CloudFiles, exceptions
+  if protocol == 'file':
+    rmtree('/tmp/cloudfiles/list')
+    url = "file:///tmp/cloudfiles/list"
+  else:
+    url = "{}://cloudfiles/list".format(protocol)
 
   cf = CloudFiles(url, num_threads=5)
   content = b'some_string'
@@ -250,10 +282,16 @@ def test_list():
   for file_path in ('info1', 'info2', 'build/info3', 'level1/level2/info4', 'info5', 'info.txt'):
     cf.delete(file_path)
   
-  rmtree("/tmp/cloudfiles/list")
+  if protocol == 'file':
+    rmtree("/tmp/cloudfiles/list")
 
-def test_exists():
-  url = "file:///tmp/cloudfiles/exists"
+@pytest.mark.parametrize("protocol", ('file', 's3'))
+def test_exists(s3, protocol):
+  from cloudfiles import CloudFiles, exceptions
+  if protocol == 'file':
+    url = "file:///tmp/cloudfiles/exists"
+  else:
+    url = "{}://cloudfiles/exists".format(protocol)
 
   cf = CloudFiles(url, num_threads=5)
   content = b'some_string'
@@ -267,8 +305,13 @@ def test_exists():
 
   cf.delete('info')
 
-def test_access_non_cannonical_paths():
-  url = "file:///tmp/noncanon"
+@pytest.mark.parametrize("protocol", ('file', 's3'))
+def test_access_non_cannonical_paths(s3, protocol):
+  from cloudfiles import CloudFiles, exceptions
+  if protocol == 'file':
+    url = "file:///tmp/noncanon"
+  else:
+    url = "{}://cloudfiles/noncanon".format(protocol)
   
   cf = CloudFiles(url, num_threads=5)
   content = b'some_string'

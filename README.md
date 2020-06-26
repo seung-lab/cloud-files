@@ -49,9 +49,55 @@ CloudFiles was developed to access files from object storage without ever touchi
 
 ```bash
 pip install cloud-files
+pip install cloud-files[test] # to enable testing with pytest
 ```
 
-You may wish to install credentials under `~/.cloudvolume/secrets`. See [this link](https://github.com/seung-lab/cloud-volume#credentials) for details. CloudFiles is descended from CloudVolume, and for now we'll leave the same configuration structure in place. 
+### Credentials
+
+You may wish to install credentials under `~/.cloudvolume/secrets`. CloudFiles is descended from CloudVolume, and for now we'll leave the same configuration structure in place. 
+
+You need credentials only for the services you'll use. The local filesystem doesn't need any. Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)) will attempt to use default account credentials if no service account is provided.  
+
+If neither of those two conditions apply, you need a service account credential. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
+
+```bash
+mkdir -p ~/.cloudvolume/secrets/
+mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
+mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
+mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
+mv matrix-secret.json ~/.cloudvolume/secrets/ # needed for Matrix
+```
+
+#### `aws-secret.json` and `matrix-secret.json`
+
+Create an [IAM user service account](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html) that can read, write, and delete objects from at least one bucket.
+
+```json
+{
+  "AWS_ACCESS_KEY_ID": "$MY_AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY": "$MY_SECRET_ACCESS_TOKEN",
+  "AWS_DEFAULT_REGION": "$MY_AWS_REGION" // defaults to us-east-1
+}
+```
+
+#### `google-secret.json`
+
+You can create the `google-secret.json` file [here](https://console.cloud.google.com/iam-admin/serviceaccounts). You don't need to manually fill in JSON by hand, the below example is provided to show you what the end result should look like. You should be able to read, write, and delete objects from at least one bucket.
+
+```json
+{
+  "type": "service_account",
+  "project_id": "$YOUR_GOOGLE_PROJECT_ID",
+  "private_key_id": "...",
+  "private_key": "...",
+  "client_email": "...",
+  "client_id": "...",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": ""
+}
+```
 
 ## Documentation  
 
