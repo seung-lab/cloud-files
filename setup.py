@@ -8,6 +8,7 @@ setuptools.setup(
   extras_require={
     ':python_version == "2.7"': ['futures'],
     ':python_version == "2.6"': ['futures'],
+    'test': ['pytest', 'moto'],
   },
   pbr=True
 )

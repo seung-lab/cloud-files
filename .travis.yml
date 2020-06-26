@@ -13,11 +13,7 @@ before_install:
 # - echo $GOOGLE_SECRET > ~/.cloudvolume/secrets/google-secret.json
 # - echo $BOSS_SECRET > ~/.cloudvolume/secrets/boss-secret.json
 install:
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then virtualenv venv; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then virtualenv -p python3 venv; fi
-- source venv/bin/activate
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then pip install -r requirements_dev.txt; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip install -r requirements_dev.txt; fi
+- pip install -e .[test]
 script:
 - if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then python -m pytest -v -x automated_test.py; fi
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 -m pytest -v -x automated_test.py; fi
