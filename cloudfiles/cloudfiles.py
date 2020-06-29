@@ -456,9 +456,25 @@ class CloudFiles(object):
         yield f
 
   def transfer_to(self, cf_dest, block_size=64):
+    """
+    Transfer all files from this CloudFiles storage 
+    to the destination CloudFiles in batches sized 
+    in the number of files.
+
+    cf_dest: another CloudFiles instance
+    block_size: number of files to transfer per a batch
+    """
     return cf_dest.transfer_from(self, block_size)
 
   def transfer_from(self, cf_src, block_size=64):
+    """
+    Transfer all files from the source CloudFiles storage 
+    to this CloudFiles in batches sized in the 
+    number of files.
+
+    cf_dest: another CloudFiles instance
+    block_size: number of files to transfer per a batch
+    """
     for paths in sip(cf_src, block_size):
       self.puts(( res for res in cf_src.get(paths) ))
 
