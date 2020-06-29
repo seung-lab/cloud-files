@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+0.5.0
+-----
+
+* fix: remove pdb statement
+* docs: show how to use slice notation
+* feat: add get slice notation
+* docs: add comments to transfer\_to / transfer\_from
+* feat: add transfer\_to / transfer\_from
+* feat: adds mem:// protocol
+* docs: made green thread usage more clear
+* docs: add travis badge
+
 0.4.1
 -----
 
