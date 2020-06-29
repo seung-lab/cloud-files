@@ -13,7 +13,7 @@ from google.cloud.storage import Batch, Client
 import requests
 import tenacity
 
-from .connectionpools import S3ConnectionPool, GCloudBucketPool
+from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .lib import mkdir
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br')
@@ -29,11 +29,15 @@ class keydefaultdict(defaultdict):
 
 S3_POOL = None
 GC_POOL = None
+MEM_POOL = None
 def reset_connection_pools():
   global S3_POOL
   global GC_POOL
+  global MEM_POOL
   S3_POOL = keydefaultdict(lambda service: keydefaultdict(lambda bucket_name: S3ConnectionPool(service, bucket_name)))
   GC_POOL = keydefaultdict(lambda bucket_name: GCloudBucketPool(bucket_name))
+  MEM_POOL = keydefaultdict(lambda bucket_name: MemoryPool(bucket_name))
+  MEMORY_DATA = {}
 
 reset_connection_pools()
 
@@ -168,6 +172,108 @@ class FileInterface(StorageInterface):
         
         for filename in files:
           filenames.append(filename)
+    
+    def stripext(fname):
+      (base, ext) = os.path.splitext(fname)
+      if ext in COMPRESSION_EXTENSIONS:
+        return base
+      else:
+        return fname
+
+    filenames = list(map(stripext, filenames))
+    return iter(_radix_sort(filenames))
+
+class MemoryInterface(StorageInterface):
+  def __init__(self, path, secrets=None, endpoint=None):
+    super(StorageInterface, self).__init__()
+    self._path = path
+    self._data = MEM_POOL[path.bucket].get_connection(secrets, endpoint)
+
+  def get_path_to_file(self, file_path):
+    return os.path.join(
+      self._path.basepath, self._path.layer, file_path
+    )
+
+  def put_file(
+    self, file_path, content, 
+    content_type, compress, 
+    cache_control=None
+  ):
+    path = self.get_path_to_file(file_path)
+
+    # keep default as gzip
+    if compress == "br":
+      path += ".br"
+    elif compress:
+      path += '.gz'
+
+    if content \
+      and content_type \
+      and re.search('json|te?xt', content_type) \
+      and type(content) is str:
+
+      content = content.encode('utf-8')
+
+    self._data[path] = content
+
+  def get_file(self, file_path, start=None, end=None):
+    path = self.get_path_to_file(file_path)
+
+    if path + '.gz' in self._data:
+      encoding = "gzip"
+      path += '.gz'
+    elif path + '.br' in self._data:
+      encoding = "br"
+      path += ".br"
+    else:
+      encoding = None
+
+    slc = slice(start, end)
+    return self._data[path][slc], encoding
+
+  def exists(self, file_path):
+    path = self.get_path_to_file(file_path)
+    return path in self._data or any(( (path + ext in self._data) for ext in COMPRESSION_EXTENSIONS ))
+
+  def files_exist(self, file_paths):
+    return { path: self.exists(path) for path in file_paths }
+
+  def delete_file(self, file_path):
+    path = self.get_path_to_file(file_path)
+
+    for suffix in ([''] + list(COMPRESSION_EXTENSIONS)):
+      try:
+        del self._data[path + suffix]
+        break
+      except KeyError:
+        continue
+
+  def delete_files(self, file_paths):
+    for path in file_paths:
+      self.delete_file(path)
+
+  def list_files(self, prefix, flat):
+    """
+    List the files in the layer with the given prefix. 
+
+    flat means only generate one level of a directory,
+    while non-flat means generate all file paths with that 
+    prefix.
+
+    Returns: iterator
+    """
+    layer_path = self.get_path_to_file("")        
+    path = os.path.join(layer_path, prefix) + '*'
+
+    remove = layer_path
+    if len(remove) and remove[-1] != '/':
+      remove += '/'
+
+    filenames = [ f.replace(remove, '') for f in self._data ]
+    filenames = [ f for f in filenames if f[:len(prefix)] == prefix ]
+
+    if flat:
+      filenames = [ f for f in filenames if '/' not in f.replace(prefix, '') ]
     
     def stripext(fname):
       (base, ext) = os.path.splitext(fname)
