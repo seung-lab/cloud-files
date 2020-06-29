@@ -260,7 +260,6 @@ class CloudFiles(object):
         )
 
     if not isinstance(files, types.GeneratorType):
-      import pdb; pdb.set_trace()
       dupes = duplicates([ file['path'] for file in files ])
       if dupes:
         raise ValueError("Cannot write the same file multiple times in one pass. This causes a race condition. Files: " + ", ".join(dupes))
