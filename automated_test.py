@@ -324,3 +324,38 @@ def test_access_non_cannonical_paths(s3, protocol):
   assert cf.get('info') == content
   assert cf.get('nonexistentfile') is None
   cf.delete('info')
+
+def test_transfer_semantics():
+  from cloudfiles import CloudFiles, exceptions
+  path = '/tmp/cloudfiles/xfer'
+  rmtree(path)
+  cff = CloudFiles('file://' + path)
+  cfm = CloudFiles('mem://cloudfiles/xfer')
+  
+  N = 128
+
+  content = b'some_string'
+  cff.puts(( (str(i), content) for i in  range(N) ))
+  assert sorted(list(cff)) == sorted([ str(i) for i in range(N) ])
+  assert [ f['content'] for f in cff[:] ] == [ content ] * N
+
+  cfm[:] = cff
+  assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
+  assert [ f['content'] for f in cfm[:] ] == [ content ] * N
+
+  cff.delete(list(cff))
+  cfm.delete(list(cfm))
+
+
+
+
+
+
+
+
+
+
+
+
+
+

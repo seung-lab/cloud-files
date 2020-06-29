@@ -119,16 +119,19 @@ cf = CloudFiles(
 cf = CloudFiles('gs://bucket/') # google cloud storage
 cf = CloudFiles('s3://bucket/') # Amazon S3
 cf = CloudFiles('file:///home/coolguy/') # local filesystem
+cf = CloudFiles('mem:///home/coolguy/') # in memory
 cf = CloudFiles('https://website.com/coolguy/') # arbitrary web server
 ```
 
-* cloudpath: The path to the bucket you are accessing. The path is formatted as `$PROTOCOL://BUCKET/PATH`. Files will then be accessed relative to the path. The protocols supported are `gs` (GCS), `s3` (AWS S3), `file` (local FS), and `http`/`https`.
+* cloudpath: The path to the bucket you are accessing. The path is formatted as `$PROTOCOL://BUCKET/PATH`. Files will then be accessed relative to the path. The protocols supported are `gs` (GCS), `s3` (AWS S3), `file` (local FS), `mem` (RAM), and `http`/`https`.
 * progress: Whether to display a progress bar when processing multiple items simultaneously.
 * green: Use green threads. For this to work properly, you must uncomment the top two lines.
 * secrets: Provide secrets dynamically rather than fetching from the credentials directory `$HOME/.cloudvolume/secrets`.
 * num_threads: Number of simultaneous requests to make. Usually 20 per core is pretty close to optimal unless file sizes are extreme.
 * use_https: `gs://` and `s3://` require credentials to access their files. However, each has a read-only https endpoint that sometimes requires no credentials. If True, automatically convert `gs://` to `https://storage.googleapis.com/` and `s3://` to `https://s3.amazonaws.com/`.
-* endpoint: (s3 only) provide an alternate endpoint than the official Amazon servers. This is useful for accessing the various S3 emulators offered by on-premises deployments of object storage.
+* endpoint: (s3 only) provide an alternate endpoint than the official Amazon servers. This is useful for accessing the various S3 emulators offered by on-premises deployments of object storage.  
+
+The advantage of using `mem://` versus a `dict` has both the advantage of using identical interfaces in your code and it will use compression  automatically.
 
 ### get / get_json
 
@@ -235,6 +238,20 @@ cf.list(prefix="abc", flat=True)
 Recall that in object storage, directories do not really exist and file paths are really a key-value mapping. The `list` operator will list everything under the `cloudpath` given in the constructor. The `prefix` operator allows you to efficiently filter some of the results. If `flat` is specified, the results will be filtered to return only a single "level" of the "directory" even though directories are fake. The entire set of all subdirectories will still need to be fetched.
 
 Cloud Cost: Usually about $5 per million requests, but each request might list 1000 files. The list operation will continuously issue list requests lazily as needed.
+
+### transfer_to / transfer_from
+
+```python
+cff = CloudFiles('file:///source_location')
+cfg = CloudFiles('gs:///dest_location')
+
+# Transfer all files from local filesys to google cloud storage
+cfg.transfer_from(cff, block_size=64)
+cff.transfer_to(cfg, block_size=64)
+cfg[:] = cff # default block size 64
+```
+
+Transfer semantics provide a simple way to perform bulk file transfers. Use the `block_size` parameter to adjust the number of files handled in a given pass. This can be important for preventing memory blow-up and reducing latency between batches.
 
 ## Credits
 
