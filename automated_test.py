@@ -339,6 +339,9 @@ def test_transfer_semantics():
   assert sorted(list(cff)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cff[:] ] == [ content ] * N
 
+  assert sorted([ f['path'] for f in cff[:100] ]) == sorted([ str(i) for i in range(N) ])[:100]
+  assert [ f['content'] for f in cff[:100] ] == [ content ] * 100
+
   cfm[:] = cff
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N
@@ -346,16 +349,28 @@ def test_transfer_semantics():
   cff.delete(list(cff))
   cfm.delete(list(cfm))
 
+def test_slice_notation():
+  from cloudfiles import CloudFiles, exceptions
+  path = '/tmp/cloudfiles/slice_notation'
+  rmtree(path)
+  cf = CloudFiles('file://' + path)
+  
+  N = 128
 
+  content = b'some_string'
+  cf.puts(( (str(i), content) for i in  range(N) ))
+  assert sorted(list(cf)) == sorted([ str(i) for i in range(N) ])
+  assert [ f['content'] for f in cf[:] ] == [ content ] * N
 
+  assert sorted([ f['path'] for f in cf[:100] ]) == sorted([ str(i) for i in range(N) ])[:100]
+  assert [ f['content'] for f in cf[:100] ] == [ content ] * 100
 
+  assert sorted([ f['path'] for f in cf[100:] ]) == sorted([ str(i) for i in range(N) ])[100:]
+  assert [ f['content'] for f in cf[100:] ] == [ content ] * (N - 100)
 
+  assert sorted([ f['path'] for f in cf[50:60] ]) == sorted([ str(i) for i in range(N) ])[50:60]
+  assert [ f['content'] for f in cf[50:60] ] == [ content ] * 10
 
-
-
-
-
-
-
-
+  assert sorted([ f['path'] for f in cf[:0] ]) == sorted([ str(i) for i in range(N) ])[:0]
+  assert [ f['content'] for f in cf[:0] ] == [ content ] * 0
 

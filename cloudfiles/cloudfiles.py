@@ -483,6 +483,8 @@ class CloudFiles(object):
       return self.get({ 'path': key[0], 'start': key[1].start, 'end': key[1].stop })
     elif key == slice(None, None, None):
       return self.get(self.list())
+    elif isinstance(key, slice):
+      return self.get(itertools.islice(self.list(), key.start, key.stop, key.step))
 
     return self.get(key)
 
