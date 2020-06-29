@@ -245,21 +245,21 @@ class CloudFiles(object):
     def uploadfn(file):
       file = todict(file)
 
-      compress = file.get('compress', None)
-      if compress not in compression.COMPRESSION_TYPES:
-        raise ValueError('{} is not a supported compression type.'.format(compress))
+      file_compress = file.get('compress', compress)
+      if file_compress not in compression.COMPRESSION_TYPES:
+        raise ValueError('{} is not a supported compression type.'.format(file_compress))
 
       with self._get_connection() as conn:
         content = compression.compress(
           file['content'], 
-          method=compress,
+          method=file_compress,
           compress_level=file.get('compression_level', compression_level),
         )
         conn.put_file(
           file_path=file['path'], 
           content=content, 
           content_type=file.get('content_type', content_type),
-          compress=compress,
+          compress=file_compress,
           cache_control=file.get('cache_control', cache_control),
         )
 
