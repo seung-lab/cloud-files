@@ -10,6 +10,8 @@ import tenacity
 from .secrets import google_credentials, aws_credentials
 from .exceptions import UnsupportedProtocolError
 
+MEMORY_DATA = {}
+
 retry = tenacity.retry(
   reraise=True, 
   stop=tenacity.stop_after_attempt(7), 
@@ -146,3 +148,15 @@ class GCloudBucketPool(ConnectionPool):
     )
 
     return client.bucket(self.bucket)
+
+class MemoryPool(ConnectionPool):
+  def __init__(self, bucket):
+    global MEMORY_DATA
+
+    self.bucket = bucket
+    self.data = MEMORY_DATA
+    super(MemoryPool, self).__init__()
+
+  def _create_connection(self, secrets=None, endpoint=None):
+    return self.data
+

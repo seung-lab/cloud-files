@@ -19,20 +19,27 @@ from .scheduler import schedule_jobs
 
 from .interfaces import (
   FileInterface, HttpInterface, 
-  S3Interface, GoogleCloudStorageInterface
+  S3Interface, GoogleCloudStorageInterface,
+  MemoryInterface
 )
 
+INTERFACES = {
+  'file': FileInterface,
+  'gs': GoogleCloudStorageInterface,
+  's3': S3Interface,
+  'matrix': S3Interface,
+  'http': HttpInterface,
+  'https': HttpInterface,
+  'mem': MemoryInterface,
+}
+
 def get_interface_class(protocol):
-  if protocol == 'file':
-    return FileInterface
-  elif protocol == 'gs':
-    return GoogleCloudStorageInterface
-  elif protocol in ('s3', 'matrix'):
-    return S3Interface
-  elif protocol in ('http', 'https'):
-    return HttpInterface
+  if protocol in INTERFACES:
+    return INTERFACES[protocol]
   else:
-    raise UnsupportedProtocolError(str(self._path))
+    raise UnsupportedProtocolError("Only {} are supported. Got: {}".format(
+      ", ".join(list(INTERFACES.keys())), protocol
+    ))
 
 def path_to_byte_range(path):
   if isinstance(path, str):
@@ -75,6 +82,9 @@ class CloudFiles(object):
 
     self._path = paths.extract(cloudpath)
     self._interface_cls = get_interface_class(self._path.protocol)
+
+    if self._path.protocol == 'mem':
+      self.num_threads = 0
 
   def _progress_description(self, prefix):
     if isinstance(self.progress, str):

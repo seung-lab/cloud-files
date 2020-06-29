@@ -32,7 +32,7 @@ def s3(aws_credentials):
 
 @pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("num_threads", (0, 5, 20))
-@pytest.mark.parametrize("protocol", ('file', 's3'))#'gs'))
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))
 def test_read_write(s3, protocol, num_threads, green):
   from cloudfiles import CloudFiles, exceptions
   if protocol == 'file':
@@ -65,12 +65,14 @@ def test_read_write(s3, protocol, num_threads, green):
   assert results[0]['content'] == content
   assert all(map(lambda x: x['error'] is None, results))
   assert cf.get([ 'nonexistentfile' ])[0]['content'] is None
-
+  
   cf.delete('info')
 
   cf.put_json('info', { 'omg': 'wow' }, cache_control='no-cache')
   results = cf.get_json('info')
   assert results == { 'omg': 'wow' }
+
+  cf.delete('info')
 
   if protocol == 'file':
     rmtree(path)
@@ -150,7 +152,7 @@ def test_http_read_brotli_image():
   assert imgbytes[:len(expected)] == expected
   
 @pytest.mark.parametrize("green", (False, True))
-@pytest.mark.parametrize("protocol", ('file', 's3'))
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_delete(s3, green, protocol):
   from cloudfiles import CloudFiles, exceptions
   if protocol == 'file':
@@ -239,7 +241,7 @@ def test_compress_level(compression_method):
 
     rmtree(filepath)
 
-@pytest.mark.parametrize("protocol", ('file', 's3'))
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_list(s3, protocol):  
   from cloudfiles import CloudFiles, exceptions
   if protocol == 'file':
@@ -285,7 +287,7 @@ def test_list(s3, protocol):
   if protocol == 'file':
     rmtree("/tmp/cloudfiles/list")
 
-@pytest.mark.parametrize("protocol", ('file', 's3'))
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_exists(s3, protocol):
   from cloudfiles import CloudFiles, exceptions
   if protocol == 'file':
@@ -305,7 +307,7 @@ def test_exists(s3, protocol):
 
   cf.delete('info')
 
-@pytest.mark.parametrize("protocol", ('file', 's3'))
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_access_non_cannonical_paths(s3, protocol):
   from cloudfiles import CloudFiles, exceptions
   if protocol == 'file':

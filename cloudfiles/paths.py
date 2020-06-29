@@ -11,7 +11,7 @@ ExtractedPath = namedtuple('ExtractedPath',
   ('format', 'protocol', 'bucket', 'basepath', 'no_bucket_basepath', 'dataset', 'layer')
 )
 
-ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'http', 'https' ]
+ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'http', 'https', 'mem' ]
 ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss' ] 
 
 CLOUDPATH_ERROR = yellow("""
