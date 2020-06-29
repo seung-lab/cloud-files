@@ -78,7 +78,6 @@ def first(lst):
     return lst[0]
   except TypeError:
     return next(iter(lst))
-  
 
 def toiter(obj, is_iter=False):
   if isinstance(obj, str) or isinstance(obj, dict):

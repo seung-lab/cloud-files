@@ -237,9 +237,13 @@ class CloudFiles(object):
     """
     files = toiter(files)
 
-    def uploadfn(file):
+    def todict(file):
       if isinstance(file, tuple):
-        file = { 'path': file[0], 'content': file[1] }
+        return { 'path': file[0], 'content': file[1] }
+      return file
+
+    def uploadfn(file):
+      file = todict(file)
 
       compress = file.get('compress', None)
       if compress not in compression.COMPRESSION_TYPES:
@@ -260,7 +264,7 @@ class CloudFiles(object):
         )
 
     if not isinstance(files, types.GeneratorType):
-      dupes = duplicates([ file['path'] for file in files ])
+      dupes = duplicates([ todict(file)['path'] for file in files ])
       if dupes:
         raise ValueError("Cannot write the same file multiple times in one pass. This causes a race condition. Files: " + ", ".join(dupes))
     
