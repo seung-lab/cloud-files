@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from . import compression, paths
 from .exceptions import UnsupportedProtocolError
-from .lib import mkdir, toiter, scatter, jsonify, duplicates, first
+from .lib import mkdir, toiter, scatter, jsonify, duplicates, first, sip
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .scheduler import schedule_jobs
 
@@ -454,14 +454,48 @@ class CloudFiles(object):
       for f in conn.list_files(prefix, flat):
         yield f
 
+  def transfer_to(self, cf_dest, block_size=64):
+    """
+    Transfer all files from this CloudFiles storage 
+    to the destination CloudFiles in batches sized 
+    in the number of files.
+
+    cf_dest: another CloudFiles instance
+    block_size: number of files to transfer per a batch
+    """
+    return cf_dest.transfer_from(self, block_size)
+
+  def transfer_from(self, cf_src, block_size=64):
+    """
+    Transfer all files from the source CloudFiles storage 
+    to this CloudFiles in batches sized in the 
+    number of files.
+
+    cf_dest: another CloudFiles instance
+    block_size: number of files to transfer per a batch
+    """
+    for paths in sip(cf_src, block_size):
+      self.puts(( res for res in cf_src.get(paths) ))
+
   def __getitem__(self, key):
     if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], str):
       return self.get({ 'path': key[0], 'start': key[1].start, 'end': key[1].stop })
+    elif key == slice(None, None, None):
+      return self.get(self.list())
+    elif isinstance(key, slice):
+      return self.get(itertools.islice(self.list(), key.start, key.stop, key.step))
 
     return self.get(key)
 
   def __setitem__(self, key, value):
-    return self.put(key, value)
+    if isinstance(value, CloudFiles):
+      if key == slice(None, None, None):
+        self.transfer_from(value)
+        return
+      else:
+        raise KeyError("We only support the complete set slice. `:`. Got: " + str(key))
+
+    self.put(key, value)
 
   def __delitem__(self, key):
     return self.delete(key)

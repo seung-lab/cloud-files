@@ -1,3 +1,4 @@
+import itertools
 import json
 import os.path
 import time
@@ -41,6 +42,21 @@ def mkdir(path):
       raise
 
   return path
+
+def sip(iterable, block_size):
+  """Sips a fixed size from the iterable."""
+  ct = 0
+  block = []
+  for x in iterable:
+    ct += 1
+    block.append(x)
+    if ct == block_size:
+      yield block
+      ct = 0
+      block = []
+
+  if len(block) > 0:
+    yield block
 
 class NumpyEncoder(json.JSONEncoder):
   def default(self, obj):
