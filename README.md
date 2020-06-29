@@ -149,6 +149,8 @@ binary = cf.get({ 'path': 'filename', 'start': 0, 'end': 5 }) # fetches 5 bytes
 binary = cf['filename', 0:5] # only fetches 5 bytes
 binary = cf['filename'][0:5] # same result, fetches 11 bytes
 >> b'hello' # represents byte range 0-4 inclusive of filename
+
+binaries = cf[:100] # download the first 100 files
 ```
 
 `get` supports several different styles of input. The simplest takes a scalar filename and returns the contents of that file. However, you can also specify lists of filenames, a byte range request, and lists of byte range requests. You can provide a generator or iterator as input as well. 
