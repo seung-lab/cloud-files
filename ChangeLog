@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.5.1
+-----
+
+* fix: compress was being overridden
+* fix: handle tuples during duplicate detection step
+* chore: update changelog
+
 0.5.0
 -----
 

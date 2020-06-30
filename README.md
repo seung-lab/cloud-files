@@ -64,7 +64,6 @@ If neither of those two conditions apply, you need a service account credential.
 mkdir -p ~/.cloudvolume/secrets/
 mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
 mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
-mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
 mv matrix-secret.json ~/.cloudvolume/secrets/ # needed for Matrix
 ```
 
