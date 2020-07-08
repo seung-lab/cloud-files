@@ -4,8 +4,6 @@ import os.path
 import time
 import types
 
-import numpy as np
-
 COLORS = {
   'RESET': "\033[m",
   'YELLOW': "\033[1;93m",
@@ -62,6 +60,16 @@ def sip(iterable, block_size):
 
 class NumpyEncoder(json.JSONEncoder):
   def default(self, obj):
+    try:
+      import numpy as np
+    except ImportError:
+      try:
+        return json.JSONEncoder.default(self, obj)
+      except TypeError:
+        if 'numpy' in str(type(obj)):
+          print(yellow("Type " + str(type(obj)) + " requires a numpy installation to encode. Try `pip install numpy`."))
+        raise
+
     if isinstance(obj, np.ndarray):
       return obj.tolist()
     if isinstance(obj, np.integer):
