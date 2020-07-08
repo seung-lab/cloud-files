@@ -4,6 +4,8 @@ import os.path
 import time
 import types
 
+import numpy as np
+
 COLORS = {
   'RESET': "\033[m",
   'YELLOW': "\033[1;93m",
