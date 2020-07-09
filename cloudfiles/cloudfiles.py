@@ -15,7 +15,7 @@ import google.cloud.storage
 
 from . import compression, paths
 from .exceptions import UnsupportedProtocolError
-from .lib import mkdir, toiter, scatter, jsonify, duplicates, first, sip
+from .lib import mkdir, toiter, scatter, jsonify, duplicates, first, sip, STRING_TYPES
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .scheduler import schedule_jobs
 
@@ -44,7 +44,7 @@ def get_interface_class(protocol):
     ))
 
 def path_to_byte_range(path):
-  if isinstance(path, str):
+  if isinstance(path, STRING_TYPES):
     return (path, None, None)
   return (path['path'], path['start'], path['end'])
 
@@ -89,7 +89,7 @@ class CloudFiles(object):
       self.num_threads = 0
 
   def _progress_description(self, prefix):
-    if isinstance(self.progress, str):
+    if isinstance(self.progress, STRING_TYPES):
       return prefix + ' ' + self.progress
     else:
       return prefix if self.progress else None
@@ -491,7 +491,7 @@ class CloudFiles(object):
       self.puts(( res for res in cf_src.get(paths) ))
 
   def __getitem__(self, key):
-    if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], str):
+    if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], STRING_TYPES):
       return self.get({ 'path': key[0], 'start': key[1].start, 'end': key[1].stop })
     elif key == slice(None, None, None):
       return self.get(self.list())
