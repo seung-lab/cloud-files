@@ -118,5 +118,6 @@ def scatter(sequence, n):
   """Scatters elements of ``sequence`` into ``n`` blocks. Returns generator."""
   if n < 1:
     raise ValueError('n cannot be less than one. Got: ' + str(n))
+  sequence = list(sequence)
   for i in range(n):
     yield sequence[i::n]

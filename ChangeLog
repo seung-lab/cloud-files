@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.5.2
+-----
+
+* fix: make numpy optional and print warning message if its not installed
+* fix: import error for numpy in JSON decoder
+* docs: remove reference to BOSS from secrets
+
 0.5.1
 -----
 
