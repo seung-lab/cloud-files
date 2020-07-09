@@ -3,6 +3,12 @@ import json
 import os.path
 import time
 import types
+import sys
+
+if sys.version_info < (3,0,0):
+  STRING_TYPES = (str, unicode)
+else:
+  STRING_TYPES = (str,)
 
 COLORS = {
   'RESET': "\033[m",
@@ -90,7 +96,7 @@ def first(lst):
     return next(iter(lst))
 
 def toiter(obj, is_iter=False):
-  if isinstance(obj, str) or isinstance(obj, dict):
+  if isinstance(obj, STRING_TYPES) or isinstance(obj, dict):
     if is_iter:
       return [ obj ], False
     return [ obj ]
