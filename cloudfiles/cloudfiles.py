@@ -144,12 +144,8 @@ class CloudFiles(object):
         'byte_range': (start, end),
         'error': error,
       }
-
-    if total is None:
-      try:
-        total = len(paths)
-      except TypeError:
-        pass
+    
+    total = totalfn(paths, total)
 
     if total == 1:
       ret = download(paths[0])
@@ -162,7 +158,7 @@ class CloudFiles(object):
       fns=( partial(download, path) for path in paths ), 
       concurrency=self.num_threads, 
       progress=self.progress,
-      total=paths,
+      total=total,
       green=self.green,
     )
 
