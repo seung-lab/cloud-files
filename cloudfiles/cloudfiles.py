@@ -11,6 +11,8 @@ import types
 
 from tqdm import tqdm
 
+import google.cloud.storage 
+
 from . import compression, paths
 from .exceptions import UnsupportedProtocolError
 from .lib import mkdir, toiter, scatter, jsonify, duplicates, first, sip
@@ -394,9 +396,16 @@ class CloudFiles(object):
 
     n = max(self.num_threads, 1)
 
+    if not isinstance(paths, types.GeneratorType):
+      fns = ( partial(exist_thunk, paths) for paths in scatter(paths, n) )
+    else:
+      # Special carve out for Google because they have a specialized batch submission
+      batch_size = 50 if self._path.protocol != 'gs' else google.cloud.storage.Batch._MAX_BATCH_SIZE
+      fns = ( partial(exist_thunk, paths) for paths in sip(paths, batch_size) )
+
     desc = self._progress_description('Existence Testing')
     schedule_jobs(  
-      fns=( partial(exist_thunk, paths) for paths in scatter(paths, n) ),
+      fns=fns,
       progress=(desc if self.progress else None),
       concurrency=self.num_threads,
       total=totalfn(paths, total),
