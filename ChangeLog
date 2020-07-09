@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+0.5.4
+-----
+
+* fix: accept py27 str and unicode types
+
 0.5.3
 -----
 
