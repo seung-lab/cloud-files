@@ -42,6 +42,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 4. gzip and brotli compression.
 5. Supports HTTP Range reads.
 6. Supports green threads, which are important for achieving maximum performance on virtualized servers.
+7. High efficiency transfers that avoid compression/decompression cycles.
 
 ## Installation 
 
