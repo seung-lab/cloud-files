@@ -483,6 +483,9 @@ class CloudFiles(object):
     cf_dest: another CloudFiles instance
     block_size: number of files to transfer per a batch
     """
+    if isinstance(cf_dest, STRING_TYPES):
+      cf_dest = CloudFiles(cf_dest, progress=self.progress)
+
     return cf_dest.transfer_from(self, block_size)
 
   def transfer_from(self, cf_src, block_size=64):
@@ -494,6 +497,9 @@ class CloudFiles(object):
     cf_dest: another CloudFiles instance
     block_size: number of files to transfer per a batch
     """
+    if isinstance(cf_src, STRING_TYPES):
+      cf_src = CloudFiles(cf_src, progress=self.progress)
+
     for paths in sip(cf_src, block_size):
       self.puts(( res for res in cf_src.get(paths, raw=True) ), raw=True)
 
