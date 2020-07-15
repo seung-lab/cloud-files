@@ -354,6 +354,12 @@ def test_transfer_semantics(compression):
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N
 
+  cfm.delete(list(cfm))
+
+  cff.transfer_to(cfm.cloudpath)
+  assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
+  assert [ f['content'] for f in cfm[:] ] == [ content ] * N  
+
   cff.delete(list(cff))
   cfm.delete(list(cfm))
 
