@@ -321,7 +321,8 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     try:
       # blob handles the decompression so the encoding is None
-      return blob.download_as_string(start=start, end=end), None # content, encoding
+      content = blob.download_as_string(start=start, end=end, raw_download=True)
+      return content, blob.content_encoding
     except google.cloud.exceptions.NotFound as err:
       return None, None
 
