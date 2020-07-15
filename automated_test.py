@@ -325,7 +325,8 @@ def test_access_non_cannonical_paths(s3, protocol):
   assert cf.get('nonexistentfile') is None
   cf.delete('info')
 
-def test_transfer_semantics():
+@pytest.mark.parametrize('compression', (None, 'gzip', 'br'))
+def test_transfer_semantics(compression):
   from cloudfiles import CloudFiles, exceptions
   path = '/tmp/cloudfiles/xfer'
   rmtree(path)
@@ -335,7 +336,7 @@ def test_transfer_semantics():
   N = 128
 
   content = b'some_string'
-  cff.puts(( (str(i), content) for i in  range(N) ))
+  cff.puts(( (str(i), content) for i in  range(N) ), compress=compression)
   assert sorted(list(cff)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cff[:] ] == [ content ] * N
 

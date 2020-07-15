@@ -101,7 +101,7 @@ class CloudFiles(object):
       endpoint=self.endpoint
     )
 
-  def get(self, paths, total=None):
+  def get(self, paths, total=None, raw=False):
     """
     Download one or more files.
 
@@ -111,6 +111,7 @@ class CloudFiles(object):
       { 'path': filename, 'start': (int) start byte, 'end': (int) end byte }
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
+    raw: download without decompressing
     
     Returns:
       if paths is scalar:
@@ -135,7 +136,8 @@ class CloudFiles(object):
       try:
         with self._get_connection() as conn:
           content, encoding = conn.get_file(path, start=start, end=end)
-        content = compression.decompress(content, encoding, filename=path)
+        if not raw:
+          content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
         error = err
 
@@ -144,7 +146,8 @@ class CloudFiles(object):
         'content': content, 
         'byte_range': (start, end),
         'error': error,
-        'encoding': encoding,
+        'compress': encoding,
+        'raw': raw,
       }
     
     total = totalfn(paths, total)
@@ -207,7 +210,7 @@ class CloudFiles(object):
     self, files, 
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
-    total=None
+    total=None, raw=False
   ):
     """
     Writes one or more files at a given location.
@@ -234,6 +237,9 @@ class CloudFiles(object):
 
     total: Can be used to provide a size for the progress bar if the 
       input type of files does not support `len`.
+    raw: upload without applying additional compression but 
+      label the Content-Encoding using the compress parameter. 
+      This is useful for file transfers.
     """
     files = toiter(files)
 
@@ -249,12 +255,15 @@ class CloudFiles(object):
       if file_compress not in compression.COMPRESSION_TYPES:
         raise ValueError('{} is not a supported compression type.'.format(file_compress))
 
-      with self._get_connection() as conn:
+      content = file['content']
+      if not raw:
         content = compression.compress(
-          file['content'], 
+          content, 
           method=file_compress,
           compress_level=file.get('compression_level', compression_level),
         )
+
+      with self._get_connection() as conn:
         conn.put_file(
           file_path=file['path'], 
           content=content, 
@@ -288,7 +297,7 @@ class CloudFiles(object):
     self, 
     path, content,     
     content_type=None, compress=None, 
-    compression_level=None, cache_control=None
+    compression_level=None, cache_control=None,
   ):
     """
     Write a single file.
@@ -486,7 +495,7 @@ class CloudFiles(object):
     block_size: number of files to transfer per a batch
     """
     for paths in sip(cf_src, block_size):
-      self.puts(( res for res in cf_src.get(paths) ))
+      self.puts(( res for res in cf_src.get(paths, raw=True) ), raw=True)
 
   def __getitem__(self, key):
     if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], STRING_TYPES):
