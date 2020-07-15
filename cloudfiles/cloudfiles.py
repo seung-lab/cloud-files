@@ -131,6 +131,7 @@ class CloudFiles(object):
       path, start, end = path_to_byte_range(path)
       error = None
       content = None
+      encoding = None
       try:
         with self._get_connection() as conn:
           content, encoding = conn.get_file(path, start=start, end=end)
