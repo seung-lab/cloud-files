@@ -13,10 +13,12 @@ from google.cloud.storage import Batch, Client
 import requests
 import tenacity
 
+from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .lib import mkdir
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br')
+GZIP_TYPES = (True, 'gzip', 1)
 
 # This is just to support pooling by bucket
 class keydefaultdict(defaultdict):
@@ -76,8 +78,10 @@ class FileInterface(StorageInterface):
     # keep default as gzip
     if compress == "br":
       path += ".br"
-    elif compress:
+    elif compress in GZIP_TYPES:
       path += '.gz'
+    elif compress:
+      raise ValueError("Compression type {} not supported.".format(compress))
 
     if content \
       and content_type \
@@ -204,8 +208,10 @@ class MemoryInterface(StorageInterface):
     # keep default as gzip
     if compress == "br":
       path += ".br"
-    elif compress:
+    elif compress in GZIP_TYPES:
       path += '.gz'
+    elif compress:
+      raise ValueError("Compression type {} not supported.".format(compress))
 
     if content \
       and content_type \
@@ -300,11 +306,13 @@ class GoogleCloudStorageInterface(StorageInterface):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
-    # gcloud disable brotli until content-encoding works
     if compress == "br":
-      raise UnsupportedCompressionType("Brotli unsupported on google cloud storage")
-    elif compress:
+      blob.content_encoding = "br"
+    elif compress in GZIP_TYPES:
       blob.content_encoding = "gzip"
+    elif compress:
+      raise ValueError("Compression type {} not supported.".format(compress))
+
     if cache_control:
       blob.cache_control = cache_control
     blob.upload_from_string(content, content_type)
@@ -481,8 +489,11 @@ class S3Interface(StorageInterface):
     # keep gzip as default
     if compress == "br":
       attrs['ContentEncoding'] = 'br'
-    elif compress:
+    elif compress in GZIP_TYPES:
       attrs['ContentEncoding'] = 'gzip'
+    elif compress:
+      raise ValueError("Compression type {} not supported.".format(compress))
+
     if cache_control:
       attrs['CacheControl'] = cache_control
 
