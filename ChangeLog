@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.5.5
+-----
+
+* fix: ensure desc is a string
+* fix: typo where paths should be total
+* chore: update changelog
+
 0.5.4
 -----
 
