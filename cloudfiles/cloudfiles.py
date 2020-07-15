@@ -101,7 +101,7 @@ class CloudFiles(object):
       endpoint=self.endpoint
     )
 
-  def get(self, paths, total=None, raw=False):
+  def get(self, paths, total=None):
     """
     Download one or more files.
 
@@ -111,8 +111,7 @@ class CloudFiles(object):
       { 'path': filename, 'start': (int) start byte, 'end': (int) end byte }
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
-    raw: if True, skip decompression step
-
+    
     Returns:
       if paths is scalar:
         binary
