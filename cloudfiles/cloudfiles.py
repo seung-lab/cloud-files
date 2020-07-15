@@ -111,7 +111,7 @@ class CloudFiles(object):
       { 'path': filename, 'start': (int) start byte, 'end': (int) end byte }
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
-
+    
     Returns:
       if paths is scalar:
         binary
@@ -131,6 +131,7 @@ class CloudFiles(object):
       path, start, end = path_to_byte_range(path)
       error = None
       content = None
+      encoding = None
       try:
         with self._get_connection() as conn:
           content, encoding = conn.get_file(path, start=start, end=end)
@@ -143,6 +144,7 @@ class CloudFiles(object):
         'content': content, 
         'byte_range': (start, end),
         'error': error,
+        'encoding': encoding,
       }
     
     total = totalfn(paths, total)
