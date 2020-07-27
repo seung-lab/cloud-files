@@ -243,7 +243,7 @@ Cloud Cost: Usually about $5 per million requests, but each request might list 1
 
 ```python
 cff = CloudFiles('file:///source_location')
-cfg = CloudFiles('gs:///dest_location')
+cfg = CloudFiles('gs://dest_location')
 
 # Transfer all files from local filesys to google cloud storage
 cfg.transfer_from(cff, block_size=64)

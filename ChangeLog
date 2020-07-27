@@ -1,6 +1,19 @@
 CHANGES
 =======
 
+0.6.0
+-----
+
+* chore: upgrade google storage to 1.30.0
+* docs: mention high efficiency transfers
+* docs: remove caveat from brotli support
+* test: ensure transfer\_to works with strings
+* test: show transfer\_from works
+* feat: allow transfer\_to/transfer\_from to accept cloudpaths
+* perf: skip compress/decompress cycle during transfers (#12)
+* feat: support for brotli on GCS (#11)
+* chore: update changelog
+
 0.5.5
 -----
 
