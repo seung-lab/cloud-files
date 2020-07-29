@@ -13,6 +13,14 @@ def rmtree(path):
   if os.path.exists(path):
     shutil.rmtree(path)
 
+def compute_url(protocol, name):
+  from cloudfiles import CloudFiles, exceptions
+  if protocol == 'file':
+    rmtree("/tmp/cloudfiles/" + name)
+    return "file:///tmp/cloudfiles/" + name
+  else:
+    return "{}://cloudfiles/{}".format(protocol, name)
+
 @pytest.fixture(scope='function')
 def aws_credentials():
   """Mocked AWS Credentials for moto."""
@@ -184,27 +192,17 @@ def test_delete(s3, green, protocol):
 
 @pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("method", ('', None, True, False, 'gzip','br',))
-def test_compression(method, green):
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
+def test_compression(s3, protocol, method, green):
   from cloudfiles import CloudFiles, exceptions
-  rmtree("/tmp/cloudfiles/compress")
-
-  url = "file:///tmp/cloudfiles/compress"
+  url = compute_url(protocol, "compress")
 
   cf = CloudFiles(url, num_threads=5, green=green)
   content = b'some_string'
 
-  # remove when GCS enables "br"
-  if method == "br" and "gs://" in url:
-    with pytest.raises(
-        exceptions.UnsupportedCompressionType, 
-        match="Brotli unsupported on google cloud storage"
-    ):
-      cf.put('info', content, compress=method)
-      retrieved = cf.get('info')
-  else:
-    cf.put('info', content, compress=method)
-    retrieved = cf.get('info')
-    assert content == retrieved
+  cf.put('info', content, compress=method)
+  retrieved = cf.get('info')
+  assert content == retrieved
 
   assert cf.get('nonexistentfile') is None
 
@@ -214,8 +212,7 @@ def test_compression(method, green):
   except ValueError:
     pass
 
-  if "file://" in url:
-    rmtree("/tmp/cloudfiles/compress")
+  cf.delete(iter(cf))
 
 @pytest.mark.parametrize("compression_method", ("gzip", "br"))
 def test_compress_level(compression_method):
