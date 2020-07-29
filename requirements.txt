@@ -1,4 +1,5 @@
 boto3>=1.4.7
+brotli
 chardet>=3.0.4
 gevent
 google-auth>=1.10.0
