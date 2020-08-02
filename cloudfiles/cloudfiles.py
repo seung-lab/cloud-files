@@ -401,18 +401,11 @@ class CloudFiles(object):
       with self._get_connection() as conn:
         results.update(conn.files_exist(paths))
 
-    n = max(self.num_threads, 1)
-
-    if not isinstance(paths, types.GeneratorType):
-      fns = ( partial(exist_thunk, paths) for paths in scatter(paths, n) )
-    else:
-      # Special carve out for Google because they have a specialized batch submission
-      batch_size = 50 if self._path.protocol != 'gs' else google.cloud.storage.Batch._MAX_BATCH_SIZE
-      fns = ( partial(exist_thunk, paths) for paths in sip(paths, batch_size) )
-
+    batch_size = self._interface_cls.batch_size
+    
     desc = self._progress_description('Existence Testing')
     schedule_jobs(  
-      fns=fns,
+      fns=( partial(exist_thunk, paths) for paths in sip(paths, batch_size) ),
       progress=(desc if self.progress else None),
       concurrency=self.num_threads,
       total=totalfn(paths, total),
@@ -438,12 +431,14 @@ class CloudFiles(object):
 
     def thunk_delete(path):
       with self._get_connection() as conn:
-        conn.delete_file(path)
+        conn.delete_files(path)
 
     desc = self._progress_description('Deleting')
 
+    batch_size = self._interface_cls.batch_size
+
     schedule_jobs(
-      fns=( partial(thunk_delete, path) for path in paths ),
+      fns=( partial(thunk_delete, path) for path in sip(paths, batch_size) ),
       progress=(desc if self.progress else None),
       concurrency=self.num_threads,
       total=totalfn(paths, total),

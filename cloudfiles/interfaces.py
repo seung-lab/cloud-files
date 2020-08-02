@@ -15,7 +15,7 @@ import tenacity
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
-from .lib import mkdir
+from .lib import mkdir, sip
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -50,6 +50,7 @@ retry = tenacity.retry(
 )
 
 class StorageInterface(object):
+  batch_size = 1
   def release_connection(self):
     pass
   def __enter__(self):
@@ -292,12 +293,14 @@ class MemoryInterface(StorageInterface):
     return iter(_radix_sort(filenames))
 
 class GoogleCloudStorageInterface(StorageInterface):
+  batch_size = Batch._MAX_BATCH_SIZE
+
   def __init__(self, path, secrets=None, endpoint=None):
     super(StorageInterface, self).__init__()
     global GC_POOL
     self._path = path
     self._bucket = GC_POOL[path.bucket].get_connection(secrets, endpoint)
-
+    
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
 
@@ -340,16 +343,16 @@ class GoogleCloudStorageInterface(StorageInterface):
     blob = self._bucket.blob(key)
     return blob.exists()
 
+  @retry
   def files_exist(self, file_paths):
-    result = {path: None for path in file_paths}
-    MAX_BATCH_SIZE = Batch._MAX_BATCH_SIZE
+    result = { path: None for path in file_paths }
 
-    for i in range(0, len(file_paths), MAX_BATCH_SIZE):
+    for batch in sip(file_paths, self.batch_size):
       # Retrieve current batch of blobs. On Batch __exit__ it will populate all
       # future responses before raising errors about the (likely) missing keys.
       try:
         with self._bucket.client.batch():
-          for file_path in file_paths[i:i+MAX_BATCH_SIZE]:
+          for file_path in batch:
             key = self.get_path_to_file(file_path)
             result[file_path] = self._bucket.get_blob(key)
       except google.cloud.exceptions.NotFound as err:
@@ -370,13 +373,12 @@ class GoogleCloudStorageInterface(StorageInterface):
     except google.cloud.exceptions.NotFound:
       pass
 
+  @retry
   def delete_files(self, file_paths):
-    MAX_BATCH_SIZE = Batch._MAX_BATCH_SIZE
-
-    for i in range(0, len(file_paths), MAX_BATCH_SIZE):
+    for batch in sip(file_paths, self.batch_size):
       try:
         with self._bucket.client.batch():
-          for file_path in file_paths[i : i + MAX_BATCH_SIZE]:
+          for file_path in batch:
             key = self.get_path_to_file(file_path)
             self._bucket.delete_blob(key)
       except google.cloud.exceptions.NotFound:
