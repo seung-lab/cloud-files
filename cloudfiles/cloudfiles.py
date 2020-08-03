@@ -401,10 +401,10 @@ class CloudFiles(object):
       with self._get_connection() as conn:
         results.update(conn.files_exist(paths))
 
-    batch_size = self._interface_cls.batch_size
+    batch_size = self._interface_cls.exists_batch_size
     
     desc = self._progress_description('Existence Testing')
-    schedule_jobs(  
+    schedule_jobs(
       fns=( partial(exist_thunk, paths) for paths in sip(paths, batch_size) ),
       progress=(desc if self.progress else None),
       concurrency=self.num_threads,
@@ -435,7 +435,7 @@ class CloudFiles(object):
 
     desc = self._progress_description('Deleting')
 
-    batch_size = self._interface_cls.batch_size
+    batch_size = self._interface_cls.delete_batch_size
 
     schedule_jobs(
       fns=( partial(thunk_delete, path) for path in sip(paths, batch_size) ),

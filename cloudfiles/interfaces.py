@@ -50,7 +50,8 @@ retry = tenacity.retry(
 )
 
 class StorageInterface(object):
-  batch_size = 1
+  exists_batch_size = 1
+  delete_batch_size = 1
   def release_connection(self):
     pass
   def __enter__(self):
@@ -293,7 +294,8 @@ class MemoryInterface(StorageInterface):
     return iter(_radix_sort(filenames))
 
 class GoogleCloudStorageInterface(StorageInterface):
-  batch_size = Batch._MAX_BATCH_SIZE
+  exists_batch_size = Batch._MAX_BATCH_SIZE
+  delete_batch_size = Batch._MAX_BATCH_SIZE
 
   def __init__(self, path, secrets=None, endpoint=None):
     super(StorageInterface, self).__init__()
@@ -347,7 +349,7 @@ class GoogleCloudStorageInterface(StorageInterface):
   def files_exist(self, file_paths):
     result = { path: None for path in file_paths }
 
-    for batch in sip(file_paths, self.batch_size):
+    for batch in sip(file_paths, self.exists_batch_size):
       # Retrieve current batch of blobs. On Batch __exit__ it will populate all
       # future responses before raising errors about the (likely) missing keys.
       try:
@@ -375,7 +377,7 @@ class GoogleCloudStorageInterface(StorageInterface):
 
   @retry
   def delete_files(self, file_paths):
-    for batch in sip(file_paths, self.batch_size):
+    for batch in sip(file_paths, self.delete_batch_size):
       try:
         with self._bucket.client.batch():
           for file_path in batch:
@@ -467,6 +469,9 @@ class HttpInterface(StorageInterface):
     raise NotImplementedError()
 
 class S3Interface(StorageInterface):
+  # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Bucket.delete_objects
+  # claims batch size limit is 1000
+  delete_batch_size = 1000
   def __init__(self, path, secrets=None, endpoint=None):
     super(StorageInterface, self).__init__()
     global S3_POOL
@@ -549,7 +554,7 @@ class S3Interface(StorageInterface):
     return exists
 
   def files_exist(self, file_paths):
-    return {path: self.exists(path) for path in file_paths}
+    return { path: self.exists(path) for path in file_paths }
 
   @retry
   def delete_file(self, file_path):
@@ -569,9 +574,19 @@ class S3Interface(StorageInterface):
       Key=self.get_path_to_file(file_path),
     )
 
+  @retry
   def delete_files(self, file_paths):
-    for path in file_paths:
-      self.delete_file(path)
+    for batch in sip(file_paths, self.delete_batch_size):
+      response = self._conn.delete_objects(
+        Bucket=self._path.bucket,
+        Delete={
+          'Objects': [
+            { 'Key': self.get_path_to_file(filepath) } for filepath in batch
+          ],
+          'Quiet': True
+        },
+      )
+
 
   def list_files(self, prefix, flat=False):
     """
