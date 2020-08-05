@@ -191,7 +191,7 @@ def test_delete(s3, green, protocol):
   assert cf.get('delete-test-compressed') is None
 
 @pytest.mark.parametrize("green", (False, True))
-@pytest.mark.parametrize("method", ('', None, True, False, 'gzip','br',))
+@pytest.mark.parametrize("method", ('', None, True, False, 'gzip','br','zstd'))
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_compression(s3, protocol, method, green):
   from cloudfiles import CloudFiles, exceptions

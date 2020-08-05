@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+0.7.0
+-----
+
+* perf:  gs and s3 use batch submission for delete (and exists too for gcs) (#13)
+
+0.6.1
+-----
+
+* test: expand compression test
+* chore: add brotli as a dependency
+* docs: fix typo in transfer docs, upload changelog
+
 0.6.0
 -----
 

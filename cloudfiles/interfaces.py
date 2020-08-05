@@ -17,7 +17,7 @@ from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .lib import mkdir, sip
 
-COMPRESSION_EXTENSIONS = ('.gz', '.br')
+COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd')
 GZIP_TYPES = (True, 'gzip', 1)
 
 # This is just to support pooling by bucket
@@ -81,7 +81,9 @@ class FileInterface(StorageInterface):
     if compress == "br":
       path += ".br"
     elif compress in GZIP_TYPES:
-      path += '.gz'
+      path += ".gz"
+    elif compress == "zstd":
+      path += ".zstd"
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
@@ -108,6 +110,9 @@ class FileInterface(StorageInterface):
     elif os.path.exists(path + '.br'):
       encoding = "br"
       path += ".br"
+    elif os.path.exists(path + '.zstd'):
+      encoding = "zstd"
+      path += ".zstd"
     else:
       encoding = None
 
@@ -211,7 +216,9 @@ class MemoryInterface(StorageInterface):
     if compress == "br":
       path += ".br"
     elif compress in GZIP_TYPES:
-      path += '.gz'
+      path += ".gz"
+    elif compress == "zstd":
+      path += ".zstd"
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
@@ -233,6 +240,9 @@ class MemoryInterface(StorageInterface):
     elif path + '.br' in self._data:
       encoding = "br"
       path += ".br"
+    elif path + '.zstd' in self._data:
+      encoding = "zstd"
+      path += ".zstd"
     else:
       encoding = None
 
@@ -498,6 +508,8 @@ class S3Interface(StorageInterface):
       attrs['ContentEncoding'] = 'br'
     elif compress in GZIP_TYPES:
       attrs['ContentEncoding'] = 'gzip'
+    elif compress == "zstd":
+      attrs['ContentEncoding'] = 'zstd'
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
