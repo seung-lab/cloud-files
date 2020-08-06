@@ -298,6 +298,7 @@ class CloudFiles(object):
     path, content,     
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
+    raw=False
   ):
     """
     Write a single file.
@@ -308,6 +309,8 @@ class CloudFiles(object):
     compress: None, 'gzip', 'br' (brotli), 'zstd'
     compression_level: (None or int) input to compressor, None means use default
     cache_control: (str) HTTP Cache-Control header.
+    raw: (bool) if true, content is pre-compressed and 
+      will bypass the compressor
 
     Returns: void
     """
@@ -318,7 +321,7 @@ class CloudFiles(object):
       'compress': compress,
       'compression_level': compression_level,
       'cache_control': cache_control,
-    })
+    }, raw=raw)
 
   def put_jsons(self, files, total=None):
     """
