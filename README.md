@@ -140,8 +140,13 @@ binary = cf.get('filename')
 binary = cf['filename']
 >> b'hello world'
 
+compressed_binary = cf.get('filename', raw=True) 
+
 binaries = cf.get(['filename1', 'filename2'])
 >> [ { 'path': 'filename1', 'content': b'...', 'byte_range': (None, None), 'error': None }, { 'path': 'filename2', 'content': b'...', 'byte_range': (None, None), 'error': None } ]
+
+# total provides info for progress bar when using generators.
+binaries = cf.get(generator(), total=N) 
 
 binary = cf.get({ 'path': 'filename', 'start': 0, 'end': 5 }) # fetches 5 bytes
 binary = cf['filename', 0:5] # only fetches 5 bytes
@@ -183,14 +188,16 @@ def put(
     self, 
     path, content,     
     content_type=None, compress=None, 
-    compression_level=None, cache_control=None
+    compression_level=None, cache_control=None,
+    raw=False
 )
 
 # Definition of puts, put_jsons is identical
 def puts(
     self, files, 
     content_type=None, compress=None, 
-    compression_level=None, cache_control=None
+    compression_level=None, cache_control=None,
+    total=None, raw=False
 )
 ```
 
