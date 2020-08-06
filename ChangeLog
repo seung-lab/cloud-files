@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.8.0
+-----
+
+* docs: show how to use zstd
+* test: add zstd to two more tests
+* feat: adds zstd as a supported compressor (#14)
+
 0.7.0
 -----
 
