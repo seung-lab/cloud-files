@@ -224,8 +224,8 @@ class CloudFiles(object):
           
           # optional fields
           'content_type': 'application/json' or 'application/octet-stream', 
-          'compress': None, 'gzip', or 'br',
-          'compression_level': e.g. 6, # for gzip or brotli
+          'compress': None, 'gzip', 'br', 'zstd'
+          'compression_level': e.g. 6, # for gzip, brotli, or zstd
           'cache_control': specify the header the way you want 
               e.g. 'no-cache' or 'public; max-age=3600' etc
         }
@@ -305,7 +305,7 @@ class CloudFiles(object):
     path: (str) file path relative to cloudpath
     content: binary string 
     content_type: e.g. 'application/json' or 'application/octet-stream'
-    compress: None, 'gzip', 'br' (brotli)
+    compress: None, 'gzip', 'br' (brotli), 'zstd'
     compression_level: (None or int) input to compressor, None means use default
     cache_control: (str) HTTP Cache-Control header.
 
@@ -361,7 +361,7 @@ class CloudFiles(object):
 
     path: (str) file path relative to cloudpath
     content: JSON serializable Python object
-    compress: None, 'gzip', 'br' (brotli)
+    compress: None, 'gzip', 'br' (brotli), 'zstd'
     compression_level: (None or int) input to compressor, None means use default
     cache_control: (str) HTTP Cache-Control header.
 
