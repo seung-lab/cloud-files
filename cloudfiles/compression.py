@@ -4,12 +4,13 @@ import gzip
 import sys
 
 import brotli
+import zstandard as zstd
 
 from .exceptions import DecompressionError, CompressionError
 
 COMPRESSION_TYPES = [ 
   None, False, True,
-  '', 'gzip', 'br'
+  '', 'gzip', 'br', 'zstd'
 ]
 
 def decompress(content, encoding, filename='N/A'):
@@ -37,6 +38,8 @@ def decompress(content, encoding, filename='N/A'):
       return gunzip(content)
     elif encoding == 'br':
       return brotli_decompress(content)
+    elif encoding == 'zstd':
+      return zstd_decompress(content)
   except DecompressionError as err:
     print("Filename: " + str(filename))
     raise
@@ -67,6 +70,8 @@ def compress(content, method='gzip', compress_level=None):
     return gzip_compress(content, compresslevel=compress_level)
   elif method == 'br':
     return brotli_compress(content, quality=compress_level)
+  elif method == 'zstd':
+    return zstd_compress(content, compress_level)
   
   raise ValueError(str(method) + ' is not currently supported. Supported Options: None, gzip, br')
 
@@ -115,3 +120,19 @@ def brotli_decompress(content):
     raise DecompressionError('File contains zero bytes.')
 
   return brotli.decompress(content)
+
+def zstd_compress(content, level=None):
+  kwargs = {}
+  if level is not None:
+    kwargs['level'] = int(level)
+
+  ctx = zstd.ZstdCompressor(**kwargs)
+  return ctx.compress(content)
+
+def zstd_decompress(content):
+  ctx = zstd.ZstdDecompressor()
+  return ctx.decompress(content)
+
+
+
+
