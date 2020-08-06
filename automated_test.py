@@ -214,7 +214,7 @@ def test_compression(s3, protocol, method, green):
 
   cf.delete(iter(cf))
 
-@pytest.mark.parametrize("compression_method", ("gzip", "br"))
+@pytest.mark.parametrize("compression_method", ("gzip", "br", "zstd"))
 def test_compress_level(compression_method):
   from cloudfiles import CloudFiles, exceptions
   filepath = "/tmp/cloudfiles/compress_level"
@@ -322,7 +322,7 @@ def test_access_non_cannonical_paths(s3, protocol):
   assert cf.get('nonexistentfile') is None
   cf.delete('info')
 
-@pytest.mark.parametrize('compression', (None, 'gzip', 'br'))
+@pytest.mark.parametrize('compression', (None, 'gzip', 'br', 'zstd'))
 def test_transfer_semantics(compression):
   from cloudfiles import CloudFiles, exceptions
   path = '/tmp/cloudfiles/xfer'
