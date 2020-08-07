@@ -380,9 +380,18 @@ def test_transfer_semantics(compression):
   cff.transfer_to(cfm.cloudpath)
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N  
-
-  cff.delete(list(cff))
   cfm.delete(list(cfm))
+
+  cff.transfer_to(cfm.cloudpath, reencode='br')
+  assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
+  assert [ f['content'] for f in cfm[:] ] == [ content ] * N  
+
+  data = cfm._get_connection()._data
+  data = [ os.path.splitext(d)[1] for d in data.keys() ] 
+  assert all([ ext == '.br' for ext in data ])
+
+  cfm.delete(list(cfm))
+  cff.delete(list(cff))
 
 def test_slice_notation():
   from cloudfiles import CloudFiles, exceptions

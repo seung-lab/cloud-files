@@ -474,7 +474,7 @@ class CloudFiles(object):
       for f in conn.list_files(prefix, flat):
         yield f
 
-  def transfer_to(self, cf_dest, block_size=64):
+  def transfer_to(self, cf_dest, block_size=64, reencode=None):
     """
     Transfer all files from this CloudFiles storage 
     to the destination CloudFiles in batches sized 
@@ -482,6 +482,8 @@ class CloudFiles(object):
 
     cf_dest: another CloudFiles instance
     block_size: number of files to transfer per a batch
+    reencode: if not None, reencode the compression type
+      as '' (None), 'gzip', 'br', 'zstd'
     """
     if isinstance(cf_dest, STRING_TYPES):
       cf_dest = CloudFiles(
@@ -489,9 +491,9 @@ class CloudFiles(object):
         green=self.green, num_threads=self.num_threads,
       )
 
-    return cf_dest.transfer_from(self, block_size)
+    return cf_dest.transfer_from(self, block_size, reencode)
 
-  def transfer_from(self, cf_src, block_size=64):
+  def transfer_from(self, cf_src, block_size=64, reencode=None):
     """
     Transfer all files from the source CloudFiles storage 
     to this CloudFiles in batches sized in the 
@@ -499,6 +501,8 @@ class CloudFiles(object):
 
     cf_src: another CloudFiles instance
     block_size: number of files to transfer per a batch
+    reencode: if not None, reencode the compression type
+      as '' (None), 'gzip', 'br', 'zstd'
     """
     if isinstance(cf_src, STRING_TYPES):
       cf_src = CloudFiles(
@@ -507,7 +511,10 @@ class CloudFiles(object):
       )
 
     for paths in sip(cf_src, block_size):
-      self.puts(( res for res in cf_src.get(paths, raw=True) ), raw=True)
+      downloaded = cf_src.get(paths, raw=True)
+      if reencode is not None:
+        downloaded = compression.transcode(downloaded, reencode, in_place=True)
+      self.puts(downloaded, raw=True)
 
   def __getitem__(self, key):
     if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], STRING_TYPES):

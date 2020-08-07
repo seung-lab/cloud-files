@@ -253,8 +253,9 @@ cff = CloudFiles('file:///source_location')
 cfg = CloudFiles('gs://dest_location')
 
 # Transfer all files from local filesys to google cloud storage
-cfg.transfer_from(cff, block_size=64)
+cfg.transfer_from(cff, block_size=64) # in blocks of 64 files
 cff.transfer_to(cfg, block_size=64)
+cff.transfer_to(cfg, block_size=64, reencode='br') # change encoding to brotli
 cfg[:] = cff # default block size 64
 ```
 
