@@ -123,6 +123,8 @@ class CloudFiles(object):
             'content': content, 
             'byte_range': (start, end),
             'error': error,
+            'compress': compression type,
+            'raw': boolean,
           }
         ]
     """

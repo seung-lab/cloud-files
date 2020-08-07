@@ -238,6 +238,30 @@ def test_compress_level(compression_method):
 
     rmtree(filepath)
 
+@pytest.mark.parametrize("dest_encoding", (None, "gzip", "br", "zstd"))
+def test_transcode(dest_encoding):
+  from cloudfiles import CloudFiles, compression
+  base_text = b'hello world'
+  encodings = [ None, "gzip", "br", "zstd" ]
+
+  varied_texts = []
+
+  ans = compression.compress(base_text, dest_encoding)
+
+  for i in range(200):
+    src_encoding = encodings[i % len(encodings)]
+    print(src_encoding)
+    varied_texts.append({
+      "path": str(i),
+      "content": compression.compress(base_text, src_encoding),
+      "raw": src_encoding is not None,
+      "compress": src_encoding,
+    })
+
+  transcoded = (x['content'] for x in compression.transcode(varied_texts, dest_encoding))
+  for content in transcoded:
+    assert content == ans
+
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_list(s3, protocol):  
   from cloudfiles import CloudFiles, exceptions

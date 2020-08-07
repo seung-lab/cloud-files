@@ -1,17 +1,77 @@
 from six import StringIO, BytesIO
 
+import copy
 import gzip
 import sys
 
 import brotli
 import zstandard as zstd
 
+from tqdm import tqdm
+
+from .lib import STRING_TYPES
 from .exceptions import DecompressionError, CompressionError
 
 COMPRESSION_TYPES = [ 
   None, False, True,
   '', 'gzip', 'br', 'zstd'
 ]
+
+def transcode(
+  files, encoding, level=None, 
+  progress=False, in_place=False
+):
+  """
+  Given the output of get, which may include raw files, 
+  transcode the compresson scheme into the one specified by 
+  encoding. If the files are raw and the schemes match, 
+  the decompression-compression cycle will be skipped.
+
+  level: input of compression level e.g. 6 for gzip
+  progress: show a progress bar
+  in_place: modify the files in-place to save memory
+
+  Yields: {
+    'path': ,
+    'content': ,
+    'compress': ,
+    'raw': ,
+  }
+  """
+  encoding = normalize_encoding(encoding)
+  for f in tqdm(files, disable=(not progress), desc="Transcoding"):
+    f_encoding = normalize_encoding(f['compress'])
+    if not in_place:
+      f = copy.deepcopy(f)
+
+    raw = f.get('raw', False)
+    content = f['content']
+
+    if content is None:
+      yield f
+
+    if raw:
+      if encoding == f_encoding:
+        yield f
+      content = decompress(content, f_encoding, f['path'])
+
+    content = compress(content, encoding, level)
+
+    f['raw'] = True
+    f['compress'] = encoding
+    f['content'] = content
+    yield f
+    
+def normalize_encoding(encoding):
+  if isinstance(encoding, STRING_TYPES):
+    encoding = encoding.lower()
+
+  if encoding in (None, False, '', 0):
+    return None
+  elif encoding in (True, 'gzip', 1):
+    return 'gzip'
+  
+  return encoding
 
 def decompress(content, encoding, filename='N/A'):
   """

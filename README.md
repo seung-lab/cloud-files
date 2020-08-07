@@ -260,6 +260,27 @@ cfg[:] = cff # default block size 64
 
 Transfer semantics provide a simple way to perform bulk file transfers. Use the `block_size` parameter to adjust the number of files handled in a given pass. This can be important for preventing memory blow-up and reducing latency between batches.
 
+## transcode
+
+```python
+from cloudfiles.compression import transcode
+
+files = cf.get(...) 
+
+for file in transcode(files, 'gzip'):
+  file['content'] # gzipped file content regardless of source
+
+transcode(files, 
+  encoding='gzip', # any cf compatible compression scheme
+  in_place=False, # modify the files in-place to save memory
+  progress=True # progress bar
+)
+```
+
+Sometimes we want to change the encoding type of a set of arbitrary files (often when moving them around to another storage system). `transcode` will take the output of `get` and transcode the resultant files into a new format. `transcode` respects the `raw` attribute which indicates that the contents are already compressed and will decompress them first before recompressing. If the input data are already compressed to the correct output encoding, it will simply pass it through without going through a decompression/recompression cycle.
+
+`transcode` returns a generator so that the transcoding can be done in a streaming manner.
+
 ## Credits
 
 CloudFiles is derived from the [CloudVolume.Storage](https://github.com/seung-lab/cloud-volume/tree/master/cloudvolume/storage) system.  
