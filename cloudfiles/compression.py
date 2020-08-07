@@ -163,7 +163,8 @@ def gunzip(content):
   first_two_bytes = [ byte for byte in bytearray(content)[:2] ]
   if first_two_bytes != gzip_magic_numbers:
     raise DecompressionError('File is not in gzip format. Magic numbers {}, {} did not match {}, {}.'.format(
-      hex(first_two_bytes[0]), hex(first_two_bytes[1])), hex(gzip_magic_numbers[0]), hex(gzip_magic_numbers[1]))
+      hex(first_two_bytes[0]), hex(first_two_bytes[1]), hex(gzip_magic_numbers[0]), hex(gzip_magic_numbers[1])
+    ))
 
   stringio = BytesIO(content)
   with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
