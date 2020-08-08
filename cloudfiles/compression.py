@@ -9,7 +9,7 @@ import zstandard as zstd
 
 from tqdm import tqdm
 
-from .lib import STRING_TYPES
+from .lib import STRING_TYPES, toiter
 from .exceptions import DecompressionError, CompressionError
 
 COMPRESSION_TYPES = [ 
@@ -38,6 +38,7 @@ def transcode(
     'raw': ,
   }
   """
+  files = toiter(files)
   encoding = normalize_encoding(encoding)
   for f in tqdm(files, disable=(not progress), desc="Transcoding"):
     f_encoding = normalize_encoding(f['compress'])
