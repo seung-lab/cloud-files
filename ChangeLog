@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+0.9.0
+-----
+
+* fix: gzip decode had a syntax error
+* feat: add transcode to compression (#15)
+* docs: show how to use raw and total
+* fix: adds raw to cf.put
+* chore: update changelog
+
 0.8.0
 -----
 
