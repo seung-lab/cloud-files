@@ -474,13 +474,18 @@ class CloudFiles(object):
       for f in conn.list_files(prefix, flat):
         yield f
 
-  def transfer_to(self, cf_dest, block_size=64, reencode=None):
+  def transfer_to(
+    self, cf_dest, paths=None, 
+    block_size=64, reencode=None
+  ):
     """
     Transfer all files from this CloudFiles storage 
     to the destination CloudFiles in batches sized 
     in the number of files.
 
-    cf_dest: another CloudFiles instance
+    cf_dest: another CloudFiles instance or a cloudpath
+    paths: if None transfer all files from src, else if
+      an iterable, transfer only these files.
     block_size: number of files to transfer per a batch
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
@@ -491,15 +496,20 @@ class CloudFiles(object):
         green=self.green, num_threads=self.num_threads,
       )
 
-    return cf_dest.transfer_from(self, block_size, reencode)
+    return cf_dest.transfer_from(self, paths, block_size, reencode)
 
-  def transfer_from(self, cf_src, block_size=64, reencode=None):
+  def transfer_from(
+    self, cf_src, paths=None, 
+    block_size=64, reencode=None
+  ):
     """
     Transfer all files from the source CloudFiles storage 
     to this CloudFiles in batches sized in the 
     number of files.
 
-    cf_src: another CloudFiles instance
+    cf_src: another CloudFiles instance or cloudpath 
+    paths: if None transfer all files from src, else if
+      an iterable, transfer only these files.
     block_size: number of files to transfer per a batch
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
@@ -510,8 +520,11 @@ class CloudFiles(object):
         green=self.green, num_threads=self.num_threads,
       )
 
-    for paths in sip(cf_src, block_size):
-      downloaded = cf_src.get(paths, raw=True)
+    if paths is None:
+      paths = cf_src
+
+    for block_paths in sip(paths, block_size):
+      downloaded = cf_src.get(block_paths, raw=True)
       if reencode is not None:
         downloaded = compression.transcode(downloaded, reencode, in_place=True)
       self.puts(downloaded, raw=True)
