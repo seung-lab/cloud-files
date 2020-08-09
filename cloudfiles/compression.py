@@ -41,6 +41,15 @@ def transcode(
   files = toiter(files)
   encoding = normalize_encoding(encoding)
   for f in tqdm(files, disable=(not progress), desc="Transcoding"):
+    # Accomodate (filename, content) inputs
+    if isinstance(f, tuple):
+      f = {
+        "path": f[0],
+        "content": f[1],
+        "compress": None,
+        "raw": False,
+      }
+
     f_encoding = normalize_encoding(f['compress'])
     if not in_place:
       f = copy.deepcopy(f)
