@@ -574,7 +574,7 @@ class S3Interface(StorageInterface):
 
     self._conn.put_object(**attrs)
 
-  # @retry
+  @retry
   def get_file(self, file_path, start=None, end=None):
     """
     There are many types of execptions which can get raised
@@ -603,12 +603,9 @@ class S3Interface(StorageInterface):
       # to make uniform comparisons. 
       # example s3 etag: "31ee76261d87fed8cb9d4c465c48158c"
       etag = resp.get('ETag', None)
-      print(etag)
       if etag is not None:
-        etag = etag[1:-1] # strip quotes
-        print(etag)
+        etag = etag.lstrip('"').rstrip('"')
         etag = base64.b64encode(binascii.unhexlify(etag)).decode('utf8')
-        print(etag)
 
       return resp['Body'].read(), encoding, etag
     except botocore.exceptions.ClientError as err: 
