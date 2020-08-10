@@ -135,13 +135,15 @@ class CloudFiles(object):
     paths, mutliple_return = toiter(paths, is_iter=True)
 
     def check_md5(path, content, server_md5):
-      if server_md5 is not None:
-        computed_md5 = md5(content)
+      if server_md5 is None:
+        return
+      
+      computed_md5 = md5(content)
 
-        if computed_md5.rstrip("==") != server_md5.rstrip("=="):
-          raise MD5IntegrityError("{} failed its md5 check. server md5: {} computed md5: {}".format(
-            path, server_md5, computed_md5
-          ))
+      if computed_md5.rstrip("==") != server_md5.rstrip("=="):
+        raise MD5IntegrityError("{} failed its md5 check. server md5: {} computed md5: {}".format(
+          path, server_md5, computed_md5
+        ))
 
     def download(path):
       path, start, end = path_to_byte_range(path)
@@ -154,7 +156,10 @@ class CloudFiles(object):
           content, encoding, server_md5 = conn.get_file(path, start=start, end=end)
         if not raw:
           content = compression.decompress(content, encoding, filename=path)
-        check_md5(path, content, server_md5)
+
+        # md5s don't match for partial reads
+        if start is None and end is None:
+          check_md5(path, content, server_md5)
       except Exception as err:
         error = err
 
