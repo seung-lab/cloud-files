@@ -20,3 +20,9 @@ class UnsupportedCompressionType(Exception):
   by the storage interface.
   """
   pass
+
+class MD5IntegrityError(Exception):
+  """
+  Failed MD5 digest check.
+  """
+  pass

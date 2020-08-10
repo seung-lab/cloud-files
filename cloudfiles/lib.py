@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import itertools
 import json
 import os.path
@@ -129,3 +131,11 @@ def scatter(sequence, n):
   sequence = list(sequence)
   for i in range(n):
     yield sequence[i::n]
+
+def md5(binary):
+  if isinstance(binary, str):
+    binary = binary.encode('utf8')
+
+  return base64.b64encode(
+    hashlib.md5(binary).digest()
+  ).decode('utf8')

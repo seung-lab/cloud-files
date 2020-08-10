@@ -1,4 +1,7 @@
 import six
+
+import base64
+import binascii
 from collections import defaultdict
 import json
 import os.path
@@ -15,7 +18,7 @@ import tenacity
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
-from .lib import mkdir, sip, PYTHON3
+from .lib import mkdir, sip, md5, PYTHON3
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -126,9 +129,9 @@ class FileInterface(StorageInterface):
           data = f.read(num_bytes)
         else:
           data = f.read()
-      return data, encoding
+      return data, encoding, None
     except IOError:
-      return None, encoding
+      return None, encoding, None
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -265,7 +268,7 @@ class MemoryInterface(StorageInterface):
       encoding = None
 
     slc = slice(start, end)
-    return self._data[path][slc], encoding
+    return self._data[path][slc], encoding, None
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -370,6 +373,8 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     if cache_control:
       blob.cache_control = cache_control
+
+    blob.md5_hash = md5(content)
     blob.upload_from_string(content, content_type)
 
   @retry
@@ -385,9 +390,9 @@ class GoogleCloudStorageInterface(StorageInterface):
     try:
       # blob handles the decompression so the encoding is None
       content = blob.download_as_string(start=start, end=end, raw_download=True)
-      return content, blob.content_encoding
+      return (content, blob.content_encoding, blob.md5_hash)
     except google.cloud.exceptions.NotFound as err:
-      return None, None
+      return (None, None, None)
 
   @retry
   def size(self, file_path):
@@ -502,13 +507,14 @@ class HttpInterface(StorageInterface):
       return None, None
     resp.raise_for_status()
 
-    if 'Content-Encoding' not in resp.headers:
-      return resp.content, None
+    etag = resp.headers.get('etag', None)
+    content_encoding = resp.headers.get('Content-Encoding', None)
+
     # requests automatically decodes these
-    elif resp.headers['Content-Encoding'] in ('', 'gzip', 'deflate', 'br'):
-      return resp.content, None
-    else:
-      return resp.content, resp.headers['Content-Encoding']
+    if content_encoding in (None, '', 'gzip', 'deflate', 'br'):
+      content_encoding = None
+    
+    return resp.content, content_encoding, etag
 
   @retry
   def exists(self, file_path):
@@ -537,7 +543,11 @@ class S3Interface(StorageInterface):
     return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
 
   @retry
-  def put_file(self, file_path, content, content_type, compress, cache_control=None, ACL="bucket-owner-full-control"):
+  def put_file(
+    self, file_path, content, 
+    content_type, compress, 
+    cache_control=None, ACL="bucket-owner-full-control"
+  ):
     key = self.get_path_to_file(file_path)
 
     attrs = {
@@ -546,6 +556,7 @@ class S3Interface(StorageInterface):
       'Key': key,
       'ContentType': (content_type or 'application/octet-stream'),
       'ACL': ACL,
+      'ContentMD5': md5(content),
     }
 
     # keep gzip as default
@@ -563,7 +574,7 @@ class S3Interface(StorageInterface):
 
     self._conn.put_object(**attrs)
 
-  @retry
+  # @retry
   def get_file(self, file_path, start=None, end=None):
     """
     There are many types of execptions which can get raised
@@ -588,10 +599,21 @@ class S3Interface(StorageInterface):
       if 'ContentEncoding' in resp:
         encoding = resp['ContentEncoding']
 
-      return resp['Body'].read(), encoding
+      # s3 etags return hex digests but we need the base64 encoding
+      # to make uniform comparisons. 
+      # example s3 etag: "31ee76261d87fed8cb9d4c465c48158c"
+      etag = resp.get('ETag', None)
+      print(etag)
+      if etag is not None:
+        etag = etag[1:-1] # strip quotes
+        print(etag)
+        etag = base64.b64encode(binascii.unhexlify(etag)).decode('utf8')
+        print(etag)
+
+      return resp['Body'].read(), encoding, etag
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] == 'NoSuchKey':
-        return None, None
+        return None, None, None
       else:
         raise
 
