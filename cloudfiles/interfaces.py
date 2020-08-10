@@ -507,14 +507,17 @@ class HttpInterface(StorageInterface):
       return None, None
     resp.raise_for_status()
 
-    etag = resp.headers.get('etag', None)
+    # Don't check MD5 for http because the etag can come in many
+    # forms from either GCS, S3 or another service entirely. We
+    # probably won't figure out how to decode it right.
+    # etag = resp.headers.get('etag', None)
     content_encoding = resp.headers.get('Content-Encoding', None)
 
     # requests automatically decodes these
     if content_encoding in (None, '', 'gzip', 'deflate', 'br'):
       content_encoding = None
     
-    return resp.content, content_encoding, etag
+    return resp.content, content_encoding, None 
 
   @retry
   def exists(self, file_path):
