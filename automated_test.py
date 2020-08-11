@@ -250,7 +250,6 @@ def test_transcode(dest_encoding):
 
   for i in range(200):
     src_encoding = encodings[i % len(encodings)]
-    print(src_encoding)
     varied_texts.append({
       "path": str(i),
       "content": compression.compress(base_text, src_encoding),
@@ -265,11 +264,7 @@ def test_transcode(dest_encoding):
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_list(s3, protocol):  
   from cloudfiles import CloudFiles, exceptions
-  if protocol == 'file':
-    rmtree('/tmp/cloudfiles/list')
-    url = "file:///tmp/cloudfiles/list"
-  else:
-    url = "{}://cloudfiles/list".format(protocol)
+  url = compute_url(protocol, "list")
 
   cf = CloudFiles(url, num_threads=5)
   content = b'some_string'
@@ -311,10 +306,7 @@ def test_list(s3, protocol):
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_exists(s3, protocol):
   from cloudfiles import CloudFiles, exceptions
-  if protocol == 'file':
-    url = "file:///tmp/cloudfiles/exists"
-  else:
-    url = "{}://cloudfiles/exists".format(protocol)
+  url = compute_url(protocol, "exists")
 
   cf = CloudFiles(url, num_threads=5)
   content = b'some_string'
