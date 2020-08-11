@@ -86,6 +86,32 @@ def test_read_write(s3, protocol, num_threads, green):
     rmtree(path)
 
 @pytest.mark.parametrize("green", (False, True))
+@pytest.mark.parametrize("compress", (None, 'gzip','br','zstd'))
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))
+def test_size(s3, protocol, compress, green):
+  from cloudfiles import CloudFiles, exceptions, compression
+
+  url = compute_url(protocol, 'size')
+  cf = CloudFiles(url)
+  
+  content = b'some_string'
+  cf.put('info', content, compress=compress, cache_control='no-cache')
+  cf['info2'] = content
+  cf.put('zero', b'', compress=None, cache_control='no-cache')
+
+  compressed_content = compression.compress(content, compress)
+
+  assert cf.size('info') == len(compressed_content)
+  assert cf.size(['info', 'info2']) == { 
+    "info": len(compressed_content), 
+    "info2": len(content) 
+  }
+  assert cf.size('nonexistent') is None
+  assert cf.size('zero') == 0
+
+  cf.delete(['info', 'info2', 'zero'])
+
+@pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("num_threads", (0, 5, 20))
 def test_get_generator(num_threads, green):
   from cloudfiles import CloudFiles, exceptions
@@ -250,7 +276,6 @@ def test_transcode(dest_encoding):
 
   for i in range(200):
     src_encoding = encodings[i % len(encodings)]
-    print(src_encoding)
     varied_texts.append({
       "path": str(i),
       "content": compression.compress(base_text, src_encoding),
@@ -265,11 +290,7 @@ def test_transcode(dest_encoding):
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_list(s3, protocol):  
   from cloudfiles import CloudFiles, exceptions
-  if protocol == 'file':
-    rmtree('/tmp/cloudfiles/list')
-    url = "file:///tmp/cloudfiles/list"
-  else:
-    url = "{}://cloudfiles/list".format(protocol)
+  url = compute_url(protocol, "list")
 
   cf = CloudFiles(url, num_threads=5)
   content = b'some_string'
@@ -311,10 +332,7 @@ def test_list(s3, protocol):
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_exists(s3, protocol):
   from cloudfiles import CloudFiles, exceptions
-  if protocol == 'file':
-    url = "file:///tmp/cloudfiles/exists"
-  else:
-    url = "{}://cloudfiles/exists".format(protocol)
+  url = compute_url(protocol, "exists")
 
   cf = CloudFiles(url, num_threads=5)
   content = b'some_string'

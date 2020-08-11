@@ -233,6 +233,20 @@ Scalar input results in a simple boolean output while iterable input returns a d
 
 Cloud Cost: Usually about $0.40 per million requests.
 
+### size 
+
+```python
+cf.size('filename')
+>>> 1337 # size in bytes
+
+cf.size([ 'file1', 'nonexistent', 'empty_file', ... ])
+>>> { 'file1': 392, 'nonexistent': None, 'empty_file': 0, ... }
+```
+
+The output is the size of each file as it is stored in bytes. If the file doesn't exist, `None` is returned. Scalar input results in a simple boolean output while iterable input returns a dictionary of input paths mapped to whether they exist. In iterable mode, a progress bar may be displayed and threading is utilized to improve performance. 
+
+Cloud Cost: Usually about $0.40 per million requests.
+
 ### list
 
 ```python 
