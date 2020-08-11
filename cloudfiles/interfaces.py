@@ -15,7 +15,7 @@ import tenacity
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
-from .lib import mkdir, sip
+from .lib import mkdir, sip, PYTHON3
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -135,10 +135,15 @@ class FileInterface(StorageInterface):
 
     exts = ('.gz', '.br', '.zstd', '')
 
+    if PYTHON3:
+      errors = (FileNotFoundError,)
+    else:
+      errors = (OSError,)
+
     for ext in exts:
       try:
         return os.path.getsize(path + ext)
-      except FileNotFoundError:
+      except errors:
         continue
 
     return None
@@ -274,10 +279,13 @@ class MemoryInterface(StorageInterface):
 
     if path in self._data:
       data = self._data[path]
-      if isinstance(data, bytes):
-        return len(data)
+      if PYTHON3:
+        if isinstance(data, bytes):
+          return len(data)
+        else:
+          return len(data.encode('utf8'))
       else:
-        return len(data.encode('utf8'))
+        return len(data)
 
     return None
 

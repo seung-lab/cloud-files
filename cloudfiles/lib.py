@@ -7,8 +7,10 @@ import sys
 
 if sys.version_info < (3,0,0):
   STRING_TYPES = (str, unicode)
+  PYTHON3 = False
 else:
   STRING_TYPES = (str,)
+  PYTHON3 = True
 
 COLORS = {
   'RESET': "\033[m",
