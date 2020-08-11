@@ -275,7 +275,7 @@ cfg[:] = cff # default block size 64
 
 Transfer semantics provide a simple way to perform bulk file transfers. Use the `block_size` parameter to adjust the number of files handled in a given pass. This can be important for preventing memory blow-up and reducing latency between batches.
 
-## transcode
+### transcode
 
 ```python
 from cloudfiles.compression import transcode
