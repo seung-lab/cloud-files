@@ -130,6 +130,19 @@ class FileInterface(StorageInterface):
     except IOError:
       return None, encoding
 
+  def size(self, file_path):
+    path = self.get_path_to_file(file_path)
+
+    exts = ('.gz', '.br', '.zstd', '')
+
+    for ext in exts:
+      try:
+        return os.path.getsize(path + ext)
+      except FileNotFoundError:
+        continue
+
+    return None
+
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
     return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
@@ -249,6 +262,25 @@ class MemoryInterface(StorageInterface):
     slc = slice(start, end)
     return self._data[path][slc], encoding
 
+  def size(self, file_path):
+    path = self.get_path_to_file(file_path)
+
+    exts = ('.gz', '.br', '.zstd')
+
+    for ext in exts:
+      pathext = path + ext
+      if pathext in self._data:
+        return len(self._data[pathext])
+
+    if path in self._data:
+      data = self._data[path]
+      if isinstance(data, bytes):
+        return len(data)
+      else:
+        return len(data.encode('utf8'))
+
+    return None
+
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
     return path in self._data or any(( (path + ext in self._data) for ext in COMPRESSION_EXTENSIONS ))
@@ -348,6 +380,11 @@ class GoogleCloudStorageInterface(StorageInterface):
       return content, blob.content_encoding
     except google.cloud.exceptions.NotFound as err:
       return None, None
+
+  @retry
+  def size(self, file_path):
+    key = self.get_path_to_file(file_path)
+    return self._bucket.get_blob(key).size
 
   @retry
   def exists(self, file_path):
@@ -550,6 +587,19 @@ class S3Interface(StorageInterface):
       else:
         raise
 
+  @retry
+  def size(self, file_path):
+    try:
+      response = self._conn.head_object(
+        Bucket=self._path.bucket,
+        Key=self.get_path_to_file(file_path),
+      )
+      return response['ContentLength']
+    except botocore.exceptions.ClientError as e:
+      if e.response['Error']['Code'] == "404":
+        return None
+      raise
+
   def exists(self, file_path):
     exists = True
     try:
@@ -598,7 +648,6 @@ class S3Interface(StorageInterface):
           'Quiet': True
         },
       )
-
 
   def list_files(self, prefix, flat=False):
     """

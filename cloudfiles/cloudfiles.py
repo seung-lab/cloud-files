@@ -421,6 +421,30 @@ class CloudFiles(object):
       return results
     return first(results.values())
 
+  def size(self, paths, total=None):
+    """
+    Get the size in bytes of one or more files in its stored state.
+    """
+    paths, return_multiple = toiter(paths, is_iter=True)
+    results = {}
+
+    def size_thunk(path):
+      with self._get_connection() as conn:
+        results[path] = conn.size(path)
+    
+    desc = self._progress_description('Measuring Sizes')
+    schedule_jobs(
+      fns=( partial(size_thunk, path) for path in paths ),
+      progress=(desc if self.progress else None),
+      concurrency=self.num_threads,
+      total=totalfn(paths, total),
+      green=self.green,
+    )
+
+    if return_multiple:
+      return results
+    return first(results.values())
+
   def delete(self, paths, total=None):
     """
     Delete one or more files.
