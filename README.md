@@ -304,9 +304,7 @@ First, it uses a connection pool to avoid needing to reestablish connections or 
 
 Second, it uses an exponential random window backoff to retry failed connections and requests. The exponential backoff allows increasing breathing room for an overloaded server and the random window decorrelates independent attempts by a cluster. If the backoff was not growing, the retry attempts by a large cluster would be too rapid fire or inefficiently slow. If the attempts were not decorrellated, then regardless of the backoff, the servers will often all try again around the same time.  
 
-Third, for Google Cloud Storage (GCS) and S3 endpoints, we compute the md5 digest both sending and receiving to ensure data corruption did not occur in transit and that the server sent the full response. We cannot validate the digest for partial ("Range") reads, for [composite objects]() (GCS) aka [multi-part uploads]() (S3), 
- 
-
+Third, for Google Cloud Storage (GCS) and S3 endpoints, we compute the md5 digest both sending and receiving to ensure data corruption did not occur in transit and that the server sent the full response. We cannot validate the digest for partial ("Range") reads. For [composite objects](https://cloud.google.com/storage/docs/composite-objects) (GCS) we can check the [crc32c](https://pypi.org/project/crc32c/) check-sum which catches transmission errors but not tampering (though MD5 isn't secure at all anymore). We are unable to perform validation for [multi-part uploads]() (S3). Using custom encryption keys may also create validation problems.
 
 ## Credits
 
