@@ -51,7 +51,7 @@ pip install cloud-files
 pip install cloud-files[test] # to enable testing with pytest
 ```
 
-### API Credentials
+### Credentials
 
 You may wish to install credentials under `~/.cloudvolume/secrets`. CloudFiles is descended from CloudVolume, and for now we'll leave the same configuration structure in place. 
 
@@ -97,7 +97,7 @@ You can create the `google-secret.json` file [here](https://console.cloud.google
 }
 ```
 
-## Documentation  
+## API Documentation  
 
 Note that the "Cloud Costs" mentioned below are current as of June 2020 and are subject to change. As of this writing, S3 and Google use identical cost structures for these operations.  
 
