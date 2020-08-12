@@ -129,9 +129,9 @@ class FileInterface(StorageInterface):
           data = f.read(num_bytes)
         else:
           data = f.read()
-      return data, encoding, None
+      return (data, encoding, None, None)
     except IOError:
-      return None, encoding, None
+      return (None, encoding, None, None)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -268,7 +268,7 @@ class MemoryInterface(StorageInterface):
       encoding = None
 
     slc = slice(start, end)
-    return self._data[path][slc], encoding, None
+    return (self._data[path][slc], encoding, None, None)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -377,7 +377,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     blob.md5_hash = md5(content)
     blob.upload_from_string(content, content_type)
 
-  @retry
+  # @retry
   def get_file(self, file_path, start=None, end=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
@@ -385,16 +385,21 @@ class GoogleCloudStorageInterface(StorageInterface):
     if start is not None:
       start = int(start)
     if end is not None:
-      end = int(end - 1)      
+      end = int(end - 1)
 
     try:
-      # md5_hash is not useful if the object is a composite download, 
-      # so try testing for that using component_count.
       content = blob.download_as_string(start=start, end=end, raw_download=True)
-      md5_hash = blob.md5_hash if blob.component_count is None else None
-      return (content, blob.content_encoding, md5_hash)
     except google.cloud.exceptions.NotFound as err:
-      return (None, None, None)
+      return (None, None, None, None)
+
+    hash_type = "md5"
+    hash_value = blob.md5_hash if blob.component_count is None else None
+
+    if hash_value is None and blob.crc32c is not None:
+      hash_type = "crc32c"
+      hash_value = blob.crc32c
+
+    return (content, blob.content_encoding, hash_value, hash_type)
 
   @retry
   def size(self, file_path):
@@ -506,7 +511,7 @@ class HttpInterface(StorageInterface):
     else:
       resp = requests.get(key)
     if resp.status_code in (404, 403):
-      return None, None, None
+      return (None, None, None, None)
     resp.raise_for_status()
 
     # Don't check MD5 for http because the etag can come in many
@@ -519,7 +524,7 @@ class HttpInterface(StorageInterface):
     if content_encoding in (None, '', 'gzip', 'deflate', 'br'):
       content_encoding = None
     
-    return resp.content, content_encoding, None 
+    return (resp.content, content_encoding, None, None)
 
   @retry
   def exists(self, file_path):
@@ -612,10 +617,10 @@ class S3Interface(StorageInterface):
         etag = etag.lstrip('"').rstrip('"')
         etag = base64.b64encode(binascii.unhexlify(etag)).decode('utf8')
 
-      return resp['Body'].read(), encoding, etag
+      return (resp['Body'].read(), encoding, etag, "md5")
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] == 'NoSuchKey':
-        return None, None, None
+        return (None, None, None, None)
       else:
         raise
 

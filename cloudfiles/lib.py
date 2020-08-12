@@ -5,7 +5,10 @@ import json
 import os.path
 import time
 import types
+import struct
 import sys
+
+import crc32c as crc32clib
 
 if sys.version_info < (3,0,0):
   STRING_TYPES = (str, unicode)
@@ -134,7 +137,28 @@ def scatter(sequence, n):
   for i in range(n):
     yield sequence[i::n]
 
+def decode_crc32c_b64(b64digest):
+  """
+  Decode a Google provided crc32c digest into
+  an integer. Accomodate a bug I introduced in
+  GCP where padding '=' were stripped off.
+  """
+  b64digest += "=" * (len(b64digest) % 4)
+  # !I means network order (big endian) and unsigned int
+  return struct.unpack("!I", base64.b64decode(b64digest))[0]
+
+def crc32c(binary):
+  """
+  Computes the crc32c of a binary string 
+  and returns it as an integer.
+  """
+  return crc32clib.value(binary) # an integer
+
 def md5(binary):
+  """
+  Returns the md5 of a binary string 
+  in base64 format.
+  """
   if isinstance(binary, UNICODE_TYPE):
     binary = binary.encode('utf8')
 

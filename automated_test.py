@@ -257,8 +257,9 @@ def test_compress_level(compression_method):
     assert content == retrieved
 
     conn = cf._get_connection()
-    _, encoding, server_md5 = conn.get_file("info")
+    _, encoding, server_md5, hash_type = conn.get_file("info")
     assert encoding == compression_method
+    assert hash_type in ('md5', None)
 
     assert cf.get('nonexistentfile') is None
 

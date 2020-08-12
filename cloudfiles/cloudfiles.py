@@ -14,11 +14,11 @@ from tqdm import tqdm
 import google.cloud.storage 
 
 from . import compression, paths
-from .exceptions import UnsupportedProtocolError, MD5IntegrityError
+from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
   mkdir, toiter, scatter, jsonify, 
   duplicates, first, sip, STRING_TYPES, 
-  md5
+  md5, crc32c, decode_crc32c_b64
 )
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .scheduler import schedule_jobs
@@ -134,32 +134,46 @@ class CloudFiles(object):
     """
     paths, mutliple_return = toiter(paths, is_iter=True)
 
-    def check_md5(path, content, server_md5):
-      if server_md5 is None:
+    def check_md5(path, content, server_hash):
+      if server_hash is None:
         return
       
       computed_md5 = md5(content)
 
-      if computed_md5.rstrip("==") != server_md5.rstrip("=="):
+      if computed_md5.rstrip("==") != server_hash.rstrip("=="):
         raise MD5IntegrityError("{} failed its md5 check. server md5: {} computed md5: {}".format(
-          path, server_md5, computed_md5
+          path, server_hash, computed_md5
         ))
+
+    def check_crc32c(path, content, server_hash):
+      if server_hash is None:
+        return
+
+      server_hash = decode_crc32c_b64(server_hash)
+      crc = crc32c_b64(content)
+
+      if crc != server_hash:
+        raise CRC32CIntegrityError("crc32c mismatch for {}: server {} ; client {}".format(path, server_hash, crc))
 
     def download(path):
       path, start, end = path_to_byte_range(path)
       error = None
       content = None
       encoding = None
-      server_md5 = None
+      server_hash = None
+      server_hash_type = None
       try:
         with self._get_connection() as conn:
-          content, encoding, server_md5 = conn.get_file(path, start=start, end=end)
+          content, encoding, server_hash, server_hash_type = conn.get_file(path, start=start, end=end)
         if not raw:
           content = compression.decompress(content, encoding, filename=path)
 
         # md5s don't match for partial reads
         if start is None and end is None:
-          check_md5(path, content, server_md5)
+          if server_hash_type == "md5":
+            check_md5(path, content, server_hash)
+          elif server_hash_type == "crc32c":
+            check_crc32c(path, content, server_hash)
       except Exception as err:
         error = err
 

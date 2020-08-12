@@ -38,7 +38,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 
 1. Fast file access with transparent threading.
 2. Google Cloud Storage, Amazon S3, local filesystems, and arbitrary web servers making hybrid or multi-cloud easy.
-3. Robust to flaky network connections. Uses exponential random window retries to avoid network collisions on a large cluster.
+3. Robust to flaky network connections. Uses exponential random window retries to avoid network collisions on a large cluster. Validates md5 for gcs and s3.
 4. gzip, brotli, and zstd compression.
 5. Supports HTTP Range reads.
 6. Supports green threads, which are important for achieving maximum performance on virtualized servers.
@@ -51,7 +51,7 @@ pip install cloud-files
 pip install cloud-files[test] # to enable testing with pytest
 ```
 
-### Credentials
+### API Credentials
 
 You may wish to install credentials under `~/.cloudvolume/secrets`. CloudFiles is descended from CloudVolume, and for now we'll leave the same configuration structure in place. 
 
@@ -295,6 +295,16 @@ transcode(files,
 Sometimes we want to change the encoding type of a set of arbitrary files (often when moving them around to another storage system). `transcode` will take the output of `get` and transcode the resultant files into a new format. `transcode` respects the `raw` attribute which indicates that the contents are already compressed and will decompress them first before recompressing. If the input data are already compressed to the correct output encoding, it will simply pass it through without going through a decompression/recompression cycle.
 
 `transcode` returns a generator so that the transcoding can be done in a streaming manner.
+
+## Network Robustness
+
+CloudFiles protects itself from network issues in several ways. 
+
+First, it uses a connection pool to avoid needing to reestablish connections or exhausting the number of available sockets.  
+
+Second, it uses an exponential random window backoff to retry failed connections and requests. The exponential backoff allows increasing breathing room for an overloaded server and the random window decorrelates independent attempts by a cluster. If the backoff was not growing, the retry attempts by a large cluster would be too rapid fire or inefficiently slow. If the attempts were not decorrellated, then regardless of the backoff, the servers will often all try again around the same time. We backoff seven times starting from 0.5 seconds to 60 seconds, doubling the random window each time.
+
+Third, for Google Cloud Storage (GCS) and S3 endpoints, we compute the md5 digest both sending and receiving to ensure data corruption did not occur in transit and that the server sent the full response. We cannot validate the digest for partial ("Range") reads. For [composite objects](https://cloud.google.com/storage/docs/composite-objects) (GCS) we can check the [crc32c](https://pypi.org/project/crc32c/) check-sum which catches transmission errors but not tampering (though MD5 isn't secure at all anymore). We are unable to perform validation for [multi-part uploads](https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html) (S3). Using custom encryption keys may also create validation problems.
 
 ## Credits
 

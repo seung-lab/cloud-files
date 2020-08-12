@@ -21,8 +21,20 @@ class UnsupportedCompressionType(Exception):
   """
   pass
 
-class MD5IntegrityError(Exception):
+class IntegrityError(Exception):
+  """Data failed an integrity check."""
+  pass 
+
+class MD5IntegrityError(IntegrityError):
   """
-  Failed MD5 digest check.
+  Failed MD5 digest check. This could indicate
+  data tampering, network failures, or server error.
+  """
+  pass
+
+class CRC32CIntegrityError(IntegrityError):
+  """
+  Failed CRC32C check. This usually indicates
+  network data corruption or server errors.
   """
   pass
