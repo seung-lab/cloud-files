@@ -5,7 +5,10 @@ import json
 import os.path
 import time
 import types
+import struct
 import sys
+
+import crc32c
 
 if sys.version_info < (3,0,0):
   STRING_TYPES = (str, unicode)
@@ -134,7 +137,20 @@ def scatter(sequence, n):
   for i in range(n):
     yield sequence[i::n]
 
+def crc32c_b64(binary):
+  """
+  Computes the crc32c of a binary string 
+  and returns it as a base64 encoded value.
+  """
+  value = crc32c.value(binary) # an integer
+  value = str(value).encode('utf8')
+  return base64.b64encode(value).decode("utf8")
+
 def md5(binary):
+  """
+  Returns the md5 of a binary string 
+  in base64 format.
+  """
   if isinstance(binary, UNICODE_TYPE):
     binary = binary.encode('utf8')
 
