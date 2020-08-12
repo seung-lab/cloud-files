@@ -506,7 +506,7 @@ class HttpInterface(StorageInterface):
     else:
       resp = requests.get(key)
     if resp.status_code in (404, 403):
-      return None, None
+      return None, None, None
     resp.raise_for_status()
 
     # Don't check MD5 for http because the etag can come in many
