@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import itertools
 import json
 import os.path
@@ -7,9 +9,11 @@ import sys
 
 if sys.version_info < (3,0,0):
   STRING_TYPES = (str, unicode)
+  UNICODE_TYPE = unicode
   PYTHON3 = False
 else:
   STRING_TYPES = (str,)
+  UNICODE_TYPE = str
   PYTHON3 = True
 
 COLORS = {
@@ -129,3 +133,11 @@ def scatter(sequence, n):
   sequence = list(sequence)
   for i in range(n):
     yield sequence[i::n]
+
+def md5(binary):
+  if isinstance(binary, UNICODE_TYPE):
+    binary = binary.encode('utf8')
+
+  return base64.b64encode(
+    hashlib.md5(binary).digest()
+  ).decode('utf8')

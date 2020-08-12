@@ -14,8 +14,12 @@ from tqdm import tqdm
 import google.cloud.storage 
 
 from . import compression, paths
-from .exceptions import UnsupportedProtocolError
-from .lib import mkdir, toiter, scatter, jsonify, duplicates, first, sip, STRING_TYPES
+from .exceptions import UnsupportedProtocolError, MD5IntegrityError
+from .lib import (
+  mkdir, toiter, scatter, jsonify, 
+  duplicates, first, sip, STRING_TYPES, 
+  md5
+)
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .scheduler import schedule_jobs
 
@@ -130,16 +134,32 @@ class CloudFiles(object):
     """
     paths, mutliple_return = toiter(paths, is_iter=True)
 
+    def check_md5(path, content, server_md5):
+      if server_md5 is None:
+        return
+      
+      computed_md5 = md5(content)
+
+      if computed_md5.rstrip("==") != server_md5.rstrip("=="):
+        raise MD5IntegrityError("{} failed its md5 check. server md5: {} computed md5: {}".format(
+          path, server_md5, computed_md5
+        ))
+
     def download(path):
       path, start, end = path_to_byte_range(path)
       error = None
       content = None
       encoding = None
+      server_md5 = None
       try:
         with self._get_connection() as conn:
-          content, encoding = conn.get_file(path, start=start, end=end)
+          content, encoding, server_md5 = conn.get_file(path, start=start, end=end)
         if not raw:
           content = compression.decompress(content, encoding, filename=path)
+
+        # md5s don't match for partial reads
+        if start is None and end is None:
+          check_md5(path, content, server_md5)
       except Exception as err:
         error = err
 
