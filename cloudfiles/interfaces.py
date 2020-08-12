@@ -385,16 +385,12 @@ class GoogleCloudStorageInterface(StorageInterface):
     if start is not None:
       start = int(start)
     if end is not None:
-      end = int(end - 1)      
-
-    print("wow")
+      end = int(end - 1)
 
     try:
       content = blob.download_as_string(start=start, end=end, raw_download=True)
     except google.cloud.exceptions.NotFound as err:
       return (None, None, None, None)
-
-    import pdb; pdb.set_trace()
 
     hash_type = "md5"
     hash_value = blob.md5_hash if blob.component_count is None else None

@@ -18,7 +18,7 @@ from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CInteg
 from .lib import (
   mkdir, toiter, scatter, jsonify, 
   duplicates, first, sip, STRING_TYPES, 
-  md5, crc32c_b64
+  md5, crc32c, decode_crc32c_b64
 )
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .scheduler import schedule_jobs
@@ -149,8 +149,8 @@ class CloudFiles(object):
       if server_hash is None:
         return
 
-      server_hash = server_hash.rstrip("==")
-      crc = crc32c_b64(content).rstrip("==")
+      server_hash = decode_crc32c_b64(server_hash)
+      crc = crc32c_b64(content)
 
       if crc != server_hash:
         raise CRC32CIntegrityError("crc32c mismatch for {}: server {} ; client {}".format(path, server_hash, crc))
@@ -161,20 +161,18 @@ class CloudFiles(object):
       content = None
       encoding = None
       server_hash = None
-      import pdb; pdb.set_trace()
+      server_hash_type = None
       try:
         with self._get_connection() as conn:
           content, encoding, server_hash, server_hash_type = conn.get_file(path, start=start, end=end)
         if not raw:
           content = compression.decompress(content, encoding, filename=path)
 
-        import pdb; pdb.set_trace()
-
         # md5s don't match for partial reads
         if start is None and end is None:
-          if server_hash == "md5":
+          if server_hash_type == "md5":
             check_md5(path, content, server_hash)
-          elif server_hash == "crc32c":
+          elif server_hash_type == "crc32c":
             check_crc32c(path, content, server_hash)
       except Exception as err:
         error = err
