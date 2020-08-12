@@ -388,9 +388,11 @@ class GoogleCloudStorageInterface(StorageInterface):
       end = int(end - 1)      
 
     try:
-      # blob handles the decompression so the encoding is None
+      # md5_hash is not useful if the object is a composite download, 
+      # so try testing for that using component_count.
       content = blob.download_as_string(start=start, end=end, raw_download=True)
-      return (content, blob.content_encoding, blob.md5_hash)
+      md5_hash = blob.md5_hash if blob.component_count is None else None
+      return (content, blob.content_encoding, md5_hash)
     except google.cloud.exceptions.NotFound as err:
       return (None, None, None)
 
