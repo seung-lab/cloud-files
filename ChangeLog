@@ -1,6 +1,27 @@
 CHANGES
 =======
 
+0.11.0
+------
+
+* docs: fix missplaced "API"
+* feat+docs: check crc32c for GCS composite objects (#19)
+* fix(https): error condition was not returning appropriate triple tuple
+* feat: perform md5 integrity checks (#16)
+
+0.10.0
+------
+
+* docs: formatting of transcode
+* feat(size): get byte sizes of files (#17)
+
+0.9.2
+-----
+
+* feat(transfer): add paths argument
+* chore: update changelog
+* fix(transcode): accomodate tuple (filename, content) inputs
+
 0.9.1
 -----
 
