@@ -150,7 +150,7 @@ class CloudFiles(object):
         return
 
       server_hash = decode_crc32c_b64(server_hash)
-      crc = crc32c_b64(content)
+      crc = crc32c(content)
 
       if crc != server_hash:
         raise CRC32CIntegrityError("crc32c mismatch for {}: server {} ; client {}".format(path, server_hash, crc))
