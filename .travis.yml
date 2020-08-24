@@ -1,20 +1,13 @@
 language: python
 python:
-- '2.7'
 - '3.5'
 - '3.6'
-- '3.7-dev'
-- '3.8-dev'
+- '3.7'
+- '3.8'
 before_install:
 - PYTHON_MAJOR_VERSION=`echo $TRAVIS_PYTHON_VERSION | head -c 1`
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then sudo apt-get install python3-pip; fi
-# - mkdir -p ~/.cloudvolume/secrets/
-# - echo $AWS_SECRET > ~/.cloudvolume/secrets/aws-secret.json
-# - echo $GOOGLE_SECRET > ~/.cloudvolume/secrets/google-secret.json
-# - echo $BOSS_SECRET > ~/.cloudvolume/secrets/boss-secret.json
+- sudo apt-get install python3-pip
 install:
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then python -m pip install -e .[test]; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 -m pip install -e .[test]; fi
+- python3 -m pip install -e .[test]
 script:
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then python -m pytest -v -x automated_test.py; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 -m pytest -v -x automated_test.py; fi
+- python3 -m pytest -v -x automated_test.py
