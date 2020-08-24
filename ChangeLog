@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.12.0
+------
+
+* chore: update changelog
+* fix: bump google-crc32c to a fixed version (#20)
+
 0.11.1
 ------
 
