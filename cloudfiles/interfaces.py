@@ -377,7 +377,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     blob.md5_hash = md5(content)
     blob.upload_from_string(content, content_type)
 
-  # @retry
+  @retry
   def get_file(self, file_path, start=None, end=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
