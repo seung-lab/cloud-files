@@ -3,19 +3,20 @@ import os
 import posixpath
 import re
 import sys
+import urllib.parse
 
 from .exceptions import UnsupportedProtocolError
 from .lib import yellow, toabs
 
 ExtractedPath = namedtuple('ExtractedPath', 
-  ('format', 'protocol', 'bucket', 'basepath', 'no_bucket_basepath', 'dataset', 'layer')
+  ('format', 'protocol', 'bucket', 'path', 'host')
 )
 
 ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'http', 'https', 'mem' ]
 ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss' ] 
 
 CLOUDPATH_ERROR = yellow("""
-Cloud Path must conform to FORMAT://PROTOCOL://BUCKET/PATH
+Cloud Path must conform to [FORMAT://]PROTOCOL://PATH
 Examples: 
   precomputed://gs://test_bucket/em
   gs://test_bucket/em
@@ -30,9 +31,11 @@ Cloud Path Recieved: {}
 )
 
 def ascloudpath(epath):
+  pth = epath.path
+  if epath.host:
+    pth = posixpath.join(pth.host, epath.path)
   return "{}://{}://{}".format(
-    epath.format, epath.protocol, 
-    posixpath.join(epath.basepath, epath.dataset, epath.layer)
+    epath.format, epath.protocol, pth
   )
 
 def pop_protocol(cloudpath):
@@ -64,6 +67,9 @@ def extract_format_protocol(cloudpath):
   elif proto in ALLOWED_FORMATS:
     fmt = proto
 
+  if protocol not in ALLOWED_PROTOCOLS:
+    raise error
+
   (proto, cloudpath) = pop_protocol(cloudpath)
 
   if proto in ALLOWED_FORMATS:
@@ -74,28 +80,13 @@ def extract_format_protocol(cloudpath):
     else:
       raise error # e.g. gs://gs:// 
 
-  (proto, cloudpath) = pop_protocol(cloudpath)
-  if proto is not None:
+  (proto, _) = pop_protocol(cloudpath)
+  if proto and not (proto in ('http','https') and proto == 's3'):
     raise error # e.g. gs://gs://gs://
 
   return (fmt, protocol, cloudpath)
 
-def strict_extract(cloudpath, windows=None, disable_toabs=False):
-  """
-  Same as cloudvolume.paths.extract, but raise an additional 
-  cloudvolume.exceptions.UnsupportedProtocolError
-  if either dataset or layer is not set.
-
-  Returns: ExtractedPath
-  """
-  path = extract(cloudpath, windows, disable_toabs)
-
-  if path.dataset == '' or path.layer == '':
-    raise UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
-
-  return path
-
-def extract(cloudpath, windows=None, disable_toabs=False):
+def extract(cloudpath, windows=None):
   """
   Given a valid cloudpath of the form 
   format://protocol://bucket/.../dataset/layer
@@ -109,65 +100,40 @@ def extract(cloudpath, windows=None, disable_toabs=False):
   Raise a cloudvolume.exceptions.UnsupportedProtocolError if the
   path does not conform to a valid path.
 
-  Windows OS may handle file protocol paths slightly differently
-  than other OSes.
-
   Returns: ExtractedPath
   """
   if len(cloudpath) == 0:
-    return ExtractedPath('','','','','','','')
+    return ExtractedPath('','','','','')
 
-  windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+(?:\\)?)') # for C:\what\a\great\path
-  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)/') # posix /what/a/great/path
-  
+  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)/') # posix /what/a/great/path  
   error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
-
-  if windows is None:
-    windows = sys.platform == 'win32'
-
-  if disable_toabs:
-    abspath = lambda x: x # can't prepend linux paths when force testing windows
-  else:
-    abspath = toabs    
 
   fmt, protocol, cloudpath = extract_format_protocol(cloudpath)
   
-  split_char = '/'
-  if protocol == 'file':
-    cloudpath = abspath(cloudpath)
-    if windows:
-      bucket_re = windows_file_re
-    split_char = os.path.sep
+  if windows is None:
+    windows = sys.platform == 'win32'
 
-  match = re.match(bucket_re, cloudpath)
-  if not match:
-    raise error
+  if protocol == 'file' and not windows:
+    cloudpath = toabs(cloudpath)
 
-  (bucket,) = match.groups()
+  host = None
+  if cloudpath.startswith('http://') or cloudpath.startswith('https://'):
+    parse = urllib.parse.urlparse(cloudpath)
+    host = parse.scheme + "://" + parse.netloc
+    cloudpath = parse.path
+    if cloudpath.startswith('/') or cloudpath.startswith('\\'):
+      cloudpath = cloudpath[1:]
 
-  splitcloudpath = cloudpath 
-  if splitcloudpath[0] == split_char:
-    splitcloudpath = splitcloudpath[1:]
-  if splitcloudpath[-1] == split_char:
-    splitcloudpath = splitcloudpath[:-1]
-
-  splitties = splitcloudpath.split(split_char)
-  if len(splitties) == 0:
-    return ExtractedPath(fmt, protocol, bucket, cloudpath, '', bucket, '')
-  elif len(splitties) == 1:
-    dataset = bucket
-    layer = splitties[0]
-    basepath = split_char.join(splitties[:-1])
-    no_bucket_basepath = split_char.join(splitties[1:-1])
-  elif len(splitties) >= 2:
-    dataset, layer = splitties[-2:]
-    no_bucket_basepath = split_char.join(splitties[1:-1])
-    basepath = split_char.join([bucket] + splitties[1:-1])
+  bucket = None
+  if protocol in ('gs', 's3', 'matrix'):
+    match = re.match(bucket_re, cloudpath)
+    if not match:
+      raise error
+    (bucket,) = match.groups()
 
   return ExtractedPath(
     fmt, protocol, bucket, 
-    basepath, no_bucket_basepath, 
-    dataset, layer
+    cloudpath, host
   )
 
 def to_https_protocol(cloudpath):
