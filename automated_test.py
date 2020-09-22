@@ -366,10 +366,11 @@ def test_access_non_cannonical_paths(s3, protocol):
   cf.delete('info')
 
 def test_path_extraction():
-  from cloudfiles import paths, exceptions
+  from cloudfiles import paths, exceptions, lib
+  ExtractedPath = paths.ExtractedPath
   def shoulderror(url):
     try:
-        paths.extract(url)
+        print(paths.extract(url))
         assert False, url
     except exceptions.UnsupportedProtocolError:
         pass
@@ -378,7 +379,7 @@ def test_path_extraction():
     path = paths.extract(url)
     assert path.protocol == 'gs', url
     assert path.bucket == 'bucket', url
-    assert path.path == 'bucket/dataset/layer', url
+    assert path.path in ('dataset/layer', 'dataset/layer/'), url
     assert path.host is None
     assert path.format == 'precomputed', url
 
@@ -390,17 +391,17 @@ def test_path_extraction():
   assert (paths.extract('graphene://http://localhost:8080/segmentation/1.0/testvol')
     == ExtractedPath(
       'graphene', 'http', None, 
-      'segmentation/1.0', 'http://localhost:8080'))
+      'segmentation/1.0/testvol', 'http://localhost:8080'))
 
   assert (paths.extract('precomputed://gs://fafb-ffn1-1234567')
     == ExtractedPath(
       'precomputed', 'gs', 'fafb-ffn1-1234567', 
-      'fafb-ffn1-1234567', None))
+      '', None))
 
   assert (paths.extract('precomputed://gs://fafb-ffn1-1234567/segmentation')
     == ExtractedPath(
       'precomputed', 'gs', 'fafb-ffn1-1234567', 
-      'fafb-ffn1-1234567/segmentation', None))
+      'segmentation', None))
 
   firstdir = lambda x: '/' + x.split('/')[1]
 
@@ -418,75 +419,69 @@ def test_path_extraction():
   assert (paths.extract('s3://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 's3', 'seunglab-test', 
-        'seunglab-test/intermediate/path/dataset', 'intermediate/path/dataset', 
-        'dataset', 'layer'
+        'intermediate/path/dataset/layer', None
       ))
 
   assert (paths.extract('file:///tmp/dataset/layer') 
       == ExtractedPath(
-        'precomputed', 'file', "/tmp", '/tmp/dataset', 'dataset', 'dataset', 'layer'
+        'precomputed', 'file', None, 
+        "/tmp/dataset/layer", None
       ))
 
   assert (paths.extract('file://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
-        'precomputed', 'file', firstdir(curpath), 
-        os.path.join(bucket, curintermediate, 'seunglab-test/intermediate/path/dataset'),   
-        os.path.join(curintermediate, 'seunglab-test', 'intermediate/path/dataset'), 
-       'dataset', 'layer'))
+        'precomputed', 'file', None,
+        os.path.join(curpath, 'seunglab-test/intermediate/path/dataset/layer'), None
+      ))
 
   assert (paths.extract('gs://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'gs', 'seunglab-test',
-        'seunglab-test/intermediate/path/dataset', 'intermediate/path/dataset', 
-        'dataset', 'layer'
+        'intermediate/path/dataset/layer', None
       ))
 
   assert (paths.extract('file://~/seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
-        'precomputed', 'file', firstdir(homepath), 
-        os.path.join(bucket, homerintermediate, 'seunglab-test', 'intermediate/path/dataset'),
-        os.path.join(homerintermediate, 'seunglab-test', 'intermediate/path/dataset'),  
-        'dataset', 
-        'layer'
+        'precomputed', 'file', None, 
+        os.path.join(homepath, 'seunglab-test/intermediate/path/dataset/layer'),
+        None
       )
   )
 
   assert (paths.extract('file:///User/me/.cloudvolume/cache/gs/bucket/dataset/layer') 
       == ExtractedPath(
-        'precomputed', 'file', '/User', 
-        '/User/me/.cloudvolume/cache/gs/bucket/dataset', 
-        'me/.cloudvolume/cache/gs/bucket/dataset', 'dataset', 'layer'
+        'precomputed', 'file', None, 
+        '/User/me/.cloudvolume/cache/gs/bucket/dataset/layer', None
       ))
 
   shoulderror('ou3bouqjsa fkj aojsf oaojf ojsaf')
 
   okgoogle('gs://bucket/dataset/layer/')
-  shoulderror('gs://bucket/dataset/layer/info')
+  # shoulderror('gs://bucket/dataset/layer/info')
 
   path = paths.extract('s3://bucketxxxxxx/datasetzzzzz91h8__3/layer1br9bobasjf/')
   assert path.format == 'precomputed'
   assert path.protocol == 's3'
   assert path.bucket == 'bucketxxxxxx'
-  assert path.dataset == 'datasetzzzzz91h8__3'
-  assert path.layer == 'layer1br9bobasjf'
+  assert path.path == 'datasetzzzzz91h8__3/layer1br9bobasjf/'
+  assert path.host is None
 
   path = paths.extract('file:///bucket/dataset/layer/')
   assert path.format == 'precomputed'
   assert path.protocol == 'file'
-  assert path.bucket == '/bucket'
-  assert path.dataset == 'dataset'
-  assert path.layer == 'layer'
+  assert path.bucket is None
+  assert path.path == '/bucket/dataset/layer'
+  assert path.host is None
 
   shoulderror('lucifer://bucket/dataset/layer/')
   shoulderror('gs://///')
-  shoulderror('gs://seunglab-test//segmentation')
 
   path = paths.extract('file:///tmp/removeme/layer/')
   assert path.format == 'precomputed'
   assert path.protocol == 'file'
-  assert path.bucket == '/tmp'
-  assert path.dataset == 'removeme'
-  assert path.layer == 'layer'
+  assert path.bucket is None
+  assert path.path == '/tmp/removeme/layer'
+  assert path.host is None
 
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_access_non_cannonical_minimal_path(s3, protocol):
@@ -523,9 +518,10 @@ def test_windows_path_extraction():
   assert extract.host is None
 
   extract = paths.extract('precomputed://https://storage.googleapis.com/neuroglancer-public-data/kasthuri2011/ground_truth', windows=True)
+  print(extract, type(extract))
   assert extract.format == 'precomputed'
   assert extract.protocol == 'https'
-  assert extract.bucket == 'neuroglancer-public-data'
+  assert extract.bucket == None
   assert extract.path == 'neuroglancer-public-data/kasthuri2011/ground_truth'
   assert extract.host == 'https://storage.googleapis.com'
 
@@ -535,7 +531,7 @@ def test_s3_custom_endpoint_path():
   assert extract.format == 'precomputed'
   assert extract.protocol == 's3'
   assert extract.bucket == 'hello'
-  assert extract.path == 'hello/world'
+  assert extract.path == 'world'
   assert extract.host == 'https://s3-hpcrc.rc.princeton.edu'
 
 @pytest.mark.parametrize('compression', (None, 'gzip', 'br', 'zstd'))

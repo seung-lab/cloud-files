@@ -30,6 +30,16 @@ Cloud Path Recieved: {}
   ", ".join(ALLOWED_FORMATS), ", ".join(ALLOWED_PROTOCOLS), '{}' # curry first two
 )
 
+def mkregexp():
+  fmt_capture = r'|'.join(ALLOWED_FORMATS)
+  fmt_capture = "(?:(?P<fmt>{})://)".format(fmt_capture)
+  proto_capture = r'|'.join(ALLOWED_PROTOCOLS)
+  proto_capture = "(?:(?P<proto>{})://)".format(proto_capture)
+  regexp = "{}?{}?".format(fmt_capture, proto_capture)
+  return regexp
+
+CLOUDPATH_REGEXP = re.compile(mkregexp())
+
 def ascloudpath(epath):
   pth = epath.path
   if epath.host:
@@ -53,38 +63,33 @@ def pop_protocol(cloudpath):
 
 def extract_format_protocol(cloudpath):
   error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
-  
-  (proto, cloudpath) = pop_protocol(cloudpath)
-  
-  if proto is None:
-    raise error # e.g. ://test_bucket, test_bucket, wow//test_bucket
 
-  fmt, protocol = None, None
-
-  if proto in ALLOWED_PROTOCOLS:
-    fmt = 'precomputed'
-    protocol = proto 
-  elif proto in ALLOWED_FORMATS:
-    fmt = proto
-
-  if protocol not in ALLOWED_PROTOCOLS:
+  m = re.match(CLOUDPATH_REGEXP, cloudpath)
+  if m is None:
     raise error
 
-  (proto, cloudpath) = pop_protocol(cloudpath)
+  groups = m.groups()
+  cloudpath = re.sub(CLOUDPATH_REGEXP, '', cloudpath, count=1)
 
-  if proto in ALLOWED_FORMATS:
-    raise error # e.g. gs://graphene://
-  elif proto in ALLOWED_PROTOCOLS:
-    if protocol is None:
-      protocol = proto
-    else:
-      raise error # e.g. gs://gs:// 
+  fmt = m.group('fmt') or 'precomputed'
+  proto = m.group('proto')
+  endpoint = None
 
-  (proto, _) = pop_protocol(cloudpath)
-  if proto and not (proto in ('http','https') and proto == 's3'):
-    raise error # e.g. gs://gs://gs://
+  if proto in ('http', 'https'):
+    cloudpath = proto + "://" + cloudpath
+    parse = urllib.parse.urlparse(cloudpath)
+    endpoint = parse.scheme + "://" + parse.netloc
+    cloudpath = cloudpath.replace(endpoint, '')
+    if cloudpath and cloudpath[0] == '/':
+      cloudpath = cloudpath[1:]
+  elif proto == 's3' and cloudpath[:4] == 'http':
+    parse = urllib.parse.urlparse(cloudpath)
+    endpoint = parse.scheme + "://" + parse.netloc
+    cloudpath = cloudpath.replace(endpoint, '')
+    if cloudpath and cloudpath[0] == '/':
+      cloudpath = cloudpath[1:]
 
-  return (fmt, protocol, cloudpath)
+  return (fmt, proto, endpoint, cloudpath)
 
 def extract(cloudpath, windows=None):
   """
@@ -105,31 +110,37 @@ def extract(cloudpath, windows=None):
   if len(cloudpath) == 0:
     return ExtractedPath('','','','','')
 
-  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)/') # posix /what/a/great/path  
+  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)(?:/|$)') # posix /what/a/great/path  
   error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
 
-  fmt, protocol, cloudpath = extract_format_protocol(cloudpath)
-  
+  fmt, protocol, host, cloudpath = extract_format_protocol(cloudpath)
+
   if windows is None:
     windows = sys.platform == 'win32'
 
   if protocol == 'file' and not windows:
     cloudpath = toabs(cloudpath)
 
-  host = None
-  if cloudpath.startswith('http://') or cloudpath.startswith('https://'):
-    parse = urllib.parse.urlparse(cloudpath)
-    host = parse.scheme + "://" + parse.netloc
-    cloudpath = parse.path
-    if cloudpath.startswith('/') or cloudpath.startswith('\\'):
-      cloudpath = cloudpath[1:]
-
   bucket = None
   if protocol in ('gs', 's3', 'matrix'):
     match = re.match(bucket_re, cloudpath)
+    print(cloudpath)
     if not match:
       raise error
     (bucket,) = match.groups()
+    print(bucket)
+    cloudpath = cloudpath.replace(bucket, '')
+    print(cloudpath)
+    if cloudpath and cloudpath[0] == '/':
+      cloudpath = cloudpath[1:]
+    bucket = bucket.replace('/', '')
+
+  (proto, _) = pop_protocol(cloudpath)
+  if proto is not None:
+    raise error
+
+  if protocol is None:
+    raise error
 
   return ExtractedPath(
     fmt, protocol, bucket, 
