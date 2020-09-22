@@ -390,14 +390,14 @@ class GoogleCloudStorageInterface(StorageInterface):
     except google.cloud.exceptions.NotFound as err:
       return (None, None, None, None)
 
-    # hash_type = "md5"
-    # hash_value = blob.md5_hash if blob.component_count is None else None
+    hash_type = "md5"
+    hash_value = blob.md5_hash if blob.component_count is None else None
 
-    # if hash_value is None and blob.crc32c is not None:
-    #   hash_type = "crc32c"
-    #   hash_value = blob.crc32c
+    if hash_value is None and blob.crc32c is not None:
+      hash_type = "crc32c"
+      hash_value = blob.crc32c
 
-    return (content, blob.content_encoding, None, None)
+    return (content, blob.content_encoding, hash_value, hash_type)
 
   @retry
   def size(self, file_path):
