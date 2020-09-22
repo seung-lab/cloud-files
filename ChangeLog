@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.12.1
+------
+
+* fix(GCS): disable md5 and crc checking temporarily
+* fix(interfaces): retry should never have been commented out
+* chore: update changelog
+
 0.12.0
 ------
 
