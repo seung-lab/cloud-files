@@ -370,7 +370,7 @@ def test_path_extraction():
   ExtractedPath = paths.ExtractedPath
   def shoulderror(url):
     try:
-        print(paths.extract(url))
+        pth = paths.extract(url)
         assert False, url
     except exceptions.UnsupportedProtocolError:
         pass
@@ -413,8 +413,6 @@ def test_path_extraction():
   
   match = re.match(r'((?:(?:\w:\\\\)|/).+?)\b', lib.toabs('.'))
   bucket, = match.groups()
-  
-  print(bucket, curintermediate)
 
   assert (paths.extract('s3://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
@@ -518,7 +516,6 @@ def test_windows_path_extraction():
   assert extract.host is None
 
   extract = paths.extract('precomputed://https://storage.googleapis.com/neuroglancer-public-data/kasthuri2011/ground_truth', windows=True)
-  print(extract, type(extract))
   assert extract.format == 'precomputed'
   assert extract.protocol == 'https'
   assert extract.bucket == None

@@ -124,13 +124,10 @@ def extract(cloudpath, windows=None):
   bucket = None
   if protocol in ('gs', 's3', 'matrix'):
     match = re.match(bucket_re, cloudpath)
-    print(cloudpath)
     if not match:
       raise error
     (bucket,) = match.groups()
-    print(bucket)
     cloudpath = cloudpath.replace(bucket, '')
-    print(cloudpath)
     if cloudpath and cloudpath[0] == '/':
       cloudpath = cloudpath[1:]
     bucket = bucket.replace('/', '')
