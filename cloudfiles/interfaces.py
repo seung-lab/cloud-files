@@ -63,14 +63,12 @@ class StorageInterface(object):
     self.release_connection()
 
 class FileInterface(StorageInterface):
-  def __init__(self, path, secrets=None, endpoint=None):
+  def __init__(self, path, secrets=None):
     super(StorageInterface, self).__init__()
     self._path = path
 
   def get_path_to_file(self, file_path):
-    return os.path.join(
-      self._path.basepath, self._path.layer, file_path
-    )
+    return os.path.join(self._path.path, file_path)
 
   def put_file(
     self, file_path, content, 
@@ -216,14 +214,14 @@ class FileInterface(StorageInterface):
     return iter(_radix_sort(filenames))
 
 class MemoryInterface(StorageInterface):
-  def __init__(self, path, secrets=None, endpoint=None):
+  def __init__(self, path, secrets=None):
     super(StorageInterface, self).__init__()
     self._path = path
-    self._data = MEM_POOL[path.bucket].get_connection(secrets, endpoint)
+    self._data = MEM_POOL[path.bucket].get_connection(secrets, None)
 
   def get_path_to_file(self, file_path):
     return os.path.join(
-      self._path.basepath, self._path.layer, file_path
+      self._path.path, file_path
     )
 
   def put_file(
@@ -350,14 +348,14 @@ class GoogleCloudStorageInterface(StorageInterface):
   exists_batch_size = Batch._MAX_BATCH_SIZE
   delete_batch_size = Batch._MAX_BATCH_SIZE
 
-  def __init__(self, path, secrets=None, endpoint=None):
+  def __init__(self, path, secrets=None):
     super(StorageInterface, self).__init__()
     global GC_POOL
     self._path = path
-    self._bucket = GC_POOL[path.bucket].get_connection(secrets, endpoint)
+    self._bucket = GC_POOL[path.bucket].get_connection(secrets, None)
     
   def get_path_to_file(self, file_path):
-    return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
+    return posixpath.join(self._path.path, file_path)
 
   @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
@@ -478,15 +476,12 @@ class GoogleCloudStorageInterface(StorageInterface):
     GC_POOL[self._path.bucket].release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
-  def __init__(self, path, secrets=None, endpoint=None):
+  def __init__(self, path, secrets=None):
     super(StorageInterface, self).__init__()
     self._path = path
 
   def get_path_to_file(self, file_path):
-    path = posixpath.join(
-      self._path.basepath, self._path.layer, file_path
-    )
-    return self._path.protocol + '://' + path
+    return posixpath.join(self._path.host, self._path.path, file_path)
 
   # @retry
   def delete_file(self, file_path):
@@ -543,14 +538,14 @@ class S3Interface(StorageInterface):
   # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Bucket.delete_objects
   # claims batch size limit is 1000
   delete_batch_size = 1000
-  def __init__(self, path, secrets=None, endpoint=None):
+  def __init__(self, path, secrets=None):
     super(StorageInterface, self).__init__()
     global S3_POOL
     self._path = path
-    self._conn = S3_POOL[path.protocol][path.bucket].get_connection(secrets, endpoint)
+    self._conn = S3_POOL[path.protocol][path.bucket].get_connection(secrets, path.host)
 
   def get_path_to_file(self, file_path):
-    return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
+    return posixpath.join(self._path.path, file_path)
 
   @retry
   def put_file(

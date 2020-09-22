@@ -84,9 +84,10 @@ class CloudFiles(object):
     self.secrets = secrets
     self.num_threads = num_threads
     self.green = bool(green)
-    self.endpoint = endpoint
 
     self._path = paths.extract(cloudpath)
+    if endpoint:
+      self._path = paths.ExtractedPath(host=endpoint, **self._path)
     self._interface_cls = get_interface_class(self._path.protocol)
 
     if self._path.protocol == 'mem':
@@ -101,8 +102,7 @@ class CloudFiles(object):
   def _get_connection(self):
     return self._interface_cls(
       self._path, 
-      secrets=self.secrets, 
-      endpoint=self.endpoint
+      secrets=self.secrets,
     )
 
   def get(self, paths, total=None, raw=False):
