@@ -1,10 +1,12 @@
 from six.moves import queue as Queue
+import json
 import threading
 import time
 from functools import partial
 
 import boto3 
 from google.cloud.storage import Client
+from google.oauth2 import service_account
 import tenacity
 
 from .secrets import google_credentials, aws_credentials
@@ -99,6 +101,8 @@ class S3ConnectionPool(ConnectionPool):
   def _create_connection(self, secrets=None, endpoint=None):
     if secrets is None:
       secrets = self.credentials
+    if isinstance(secrets, str):
+      secrets = json.loads(secrets)
 
     additional_args = {}
     if endpoint is not None:
@@ -139,6 +143,12 @@ class GCloudBucketPool(ConnectionPool):
   def _create_connection(self, secrets=None, endpoint=None):
     if secrets is None:
       secrets = self.credentials
+    
+    if isinstance(secrets, str):
+      secrets = json.loads(secrets)
+    if isinstance(secrets, dict):
+      secrets = service_account.Credentials.from_service_account_info(secrets)
+
     if endpoint is not None:
       raise ValueError("The endpoint argument is not supported for Google Cloud Storage. Got: " + str(endpoint))
 
