@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.13.0
+------
+
+* feat: reenable md5 for GCS (#24)
+* chore: update ChangeLog
+* feat: simplifying the paths engine to support e.g. gs://bucket datasets (#23)
+
 0.12.1
 ------
 
