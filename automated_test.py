@@ -603,3 +603,27 @@ def test_slice_notation():
   assert sorted([ f['path'] for f in cf[:0] ]) == sorted([ str(i) for i in range(N) ])[:0]
   assert [ f['content'] for f in cf[:0] ] == [ content ] * 0
 
+
+def test_to_https_protocol():
+  from cloudfiles.paths import extract, to_https_protocol, ExtractedPath
+
+  pth = to_https_protocol("gs://my_bucket/to/heaven")
+  assert pth == "https://storage.googleapis.com/my_bucket/to/heaven"
+
+  pth = to_https_protocol("s3://my_bucket/to/heaven")
+  assert pth == "https://s3.amazonaws.com/my_bucket/to/heaven"
+
+  pth = to_https_protocol("matrix://my_bucket/to/heaven")
+  assert pth == "https://s3-hpcrc.rc.princeton.edu/my_bucket/to/heaven"
+
+  pth = to_https_protocol("file://my_bucket/to/heaven")
+  assert pth == "file://my_bucket/to/heaven"
+
+  pth = to_https_protocol("mem://my_bucket/to/heaven")
+  assert pth == "mem://my_bucket/to/heaven"
+
+  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'to/heaven', None)
+  pth = to_https_protocol(pth)
+  assert pth == extract("https://storage.googleapis.com/my_bucket/to/heaven")
+
+
