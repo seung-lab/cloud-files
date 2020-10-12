@@ -41,9 +41,14 @@ def mkregexp():
 CLOUDPATH_REGEXP = re.compile(mkregexp())
 
 def ascloudpath(epath):
-  pth = epath.path
-  if epath.host:
-    pth = posixpath.join(pth.host, epath.path)
+  pth = ''
+  lst = [ epath.host, epath.bucket, epath.path ]
+  while lst:
+    elem = lst.pop(0)
+    if not elem:
+      continue
+    pth = posixpath.join(pth, elem)
+
   return "{}://{}://{}".format(
     epath.format, epath.protocol, pth
   )
@@ -145,6 +150,11 @@ def extract(cloudpath, windows=None):
   )
 
 def to_https_protocol(cloudpath):
+  if isinstance(cloudpath, ExtractedPath):
+    if cloudpath.protocol in ('gs', 's3', 'matrix'):
+      return extract(to_https_protocol(ascloudpath(cloudpath)))
+    return cloudpath
+
   cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
   cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
   cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
