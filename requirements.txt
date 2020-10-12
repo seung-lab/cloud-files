@@ -9,6 +9,7 @@ google-cloud-storage>=1.31.1
 google-crc32c>=1.0.0
 protobuf>=3.3.0
 requests>=2.22.0
+six>=1.14.0
 tenacity>=4.10.0
 tqdm
 urllib3[secure,brotli]>=1.25.7
