@@ -1,5 +1,5 @@
-from six.moves import queue as Queue
 import json
+import queue
 import threading
 import time
 from functools import partial
@@ -40,7 +40,7 @@ class ConnectionPool(object):
   be serviced.
   """
   def __init__(self):
-    self.pool = Queue.Queue(maxsize=0)
+    self.pool = queue.Queue(maxsize=0)
     self.outstanding = 0
     self._lock = threading.Lock()
 
@@ -55,7 +55,7 @@ class ConnectionPool(object):
       try:        
         conn = self.pool.get(block=False)
         self.pool.task_done()
-      except Queue.Empty:
+      except queue.Empty:
         conn = self._create_connection(secrets, endpoint)
       finally:
         self.outstanding += 1
@@ -81,7 +81,7 @@ class ConnectionPool(object):
         conn = self.pool.get()
         self.close(conn)
         self.pool.task_done()
-      except Queue.Empty:
+      except queue.Empty:
         break
 
     with self._lock:

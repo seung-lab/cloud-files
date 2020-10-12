@@ -1,7 +1,4 @@
-from __future__ import print_function
-
-from six.moves import queue as Queue
-from six.moves import range
+import queue
 from functools import partial
 import threading
 import time
@@ -15,8 +12,8 @@ class ThreadedQueue(object):
   def __init__(self, n_threads, queue_size=0, progress=None):
     self._n_threads = n_threads
 
-    self._queue = Queue.Queue(maxsize=queue_size) # 0 = infinite size
-    self._error_queue = Queue.Queue(maxsize=queue_size)
+    self._queue = queue.Queue(maxsize=queue_size) # 0 = infinite size
+    self._error_queue = queue.Queue(maxsize=queue_size)
     self._threads = ()
     self._terminate = threading.Event()
 
@@ -144,7 +141,7 @@ class ThreadedQueue(object):
     while not terminate_evt.is_set():
       try:
         fn = self._queue.get(block=True, timeout=0.01)
-      except Queue.Empty:
+      except queue.Empty:
         continue # periodically check if the thread is supposed to die
 
       fn = partial(fn, interface)
@@ -189,7 +186,7 @@ class ThreadedQueue(object):
       self._error_queue.task_done()
       self.kill_threads()
       raise err
-    except Queue.Empty:
+    except queue.Empty:
       pass
 
   def wait(self, progress=None):

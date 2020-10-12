@@ -1,5 +1,3 @@
-import six
-
 import base64
 import binascii
 from collections import defaultdict

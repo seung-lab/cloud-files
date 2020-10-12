@@ -1,5 +1,4 @@
-import six
-from six.moves import queue as Queue
+from queue import Queue
 from collections import defaultdict
 import itertools
 import json

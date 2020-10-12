@@ -1,4 +1,4 @@
-from six import StringIO, BytesIO
+from io import BytesIO
 
 import copy
 import gzip
