@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.13.1
+------
+
+* chore: update changelog
+* fix(secrets): correctly parse string and dict secrets
+
 0.13.0
 ------
 
