@@ -49,9 +49,12 @@ def ascloudpath(epath):
       continue
     pth = posixpath.join(pth, elem)
 
-  return "{}://{}://{}".format(
-    epath.format, epath.protocol, pth
-  )
+  if not (pth[:4] == 'http' and epath.protocol in ('http', 'https')):
+    pth = f"{epath.protocol}://{pth}"
+
+  if epath.format:
+    return f"{epath.format}://" + pth
+  return pth
 
 def pop_protocol(cloudpath):
   protocol_re = re.compile(r'(\w+)://')
