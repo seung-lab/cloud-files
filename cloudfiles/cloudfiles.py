@@ -191,6 +191,8 @@ class CloudFiles(object):
       ret = download(paths[0])
       if multiple_return:
         return [ ret ]
+      elif ret['error']:
+        raise ret['error']
       else:
         return ret['content']
 
@@ -235,6 +237,9 @@ class CloudFiles(object):
       if content is None:
         return None
       return json.loads(content.decode('utf8'))
+
+    if not multiple_return and contents and contents[0]['error']:
+      raise contents[0]['error']
 
     contents = [ decode(content) for content in contents ]
     if multiple_return:
