@@ -164,15 +164,16 @@ class CloudFiles(object):
       try:
         with self._get_connection() as conn:
           content, encoding, server_hash, server_hash_type = conn.get_file(path, start=start, end=end)
-        if not raw:
-          content = compression.decompress(content, encoding, filename=path)
-
+        
         # md5s don't match for partial reads
         if start is None and end is None:
           if server_hash_type == "md5":
             check_md5(path, content, server_hash)
           elif server_hash_type == "crc32c":
             check_crc32c(path, content, server_hash)
+        
+        if not raw:
+          content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
         error = err
 
