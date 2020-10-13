@@ -263,8 +263,10 @@ class MemoryInterface(StorageInterface):
     else:
       encoding = None
 
-    slc = slice(start, end)
-    return (self._data[path][slc], encoding, None, None)
+    result = self._data.get(path, None)
+    if result:
+      result = result[slice(start, end)]
+    return (result, encoding, None, None)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
