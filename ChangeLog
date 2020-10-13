@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+1.13.2
+------
+
+* chore: update changelog
+* fix(ascloudpath): incorporates buckets (#25)
+
 0.13.1
 ------
 
