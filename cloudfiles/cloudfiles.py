@@ -131,7 +131,7 @@ class CloudFiles(object):
           }
         ]
     """
-    paths, mutliple_return = toiter(paths, is_iter=True)
+    paths, multiple_return = toiter(paths, is_iter=True)
 
     def check_md5(path, content, server_hash):
       if server_hash is None:
@@ -189,7 +189,7 @@ class CloudFiles(object):
 
     if total == 1:
       ret = download(paths[0])
-      if mutliple_return:
+      if multiple_return:
         return [ ret ]
       else:
         return ret['content']
