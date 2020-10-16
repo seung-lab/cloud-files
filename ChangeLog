@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+1.14.0
+------
+
+* chore: drop python 3.5, adds tests for py3.9
+* fix: make ascloudpath handle https correctly
+* fix(md5): need to check md5 before decompressing
+* fix(MemoryInterface): errors when fetching non-existent file
+* fix(get,get\_json): raise errors for scalar inputs for get
+* refactor: "multiple" misspelled
+* chore: update changelog
+
 1.13.2
 ------
 
