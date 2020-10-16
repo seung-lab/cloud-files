@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from collections import defaultdict
 import os
 import json
@@ -9,8 +7,8 @@ from google.oauth2 import service_account
 from .lib import mkdir, colorize
 
 HOME = os.path.expanduser('~')
-CLOUD_VOLUME_DIR = mkdir(os.path.join(HOME, '.cloudvolume', 'secrets'))
-CLOUD_FILES_DIR = mkdir(os.path.join(HOME, '.cloudfiles', 'secrets'))
+CLOUD_VOLUME_DIR = os.path.join(HOME, '.cloudvolume', 'secrets')
+CLOUD_FILES_DIR = os.path.join(HOME, '.cloudfiles', 'secrets')
 
 def secretpath(filepath):
   preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
