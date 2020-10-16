@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+1.14.1
+------
+
+* chore: update changelog
+* fix(secrets): don't create empty directories (#27)
+
 1.14.0
 ------
 
