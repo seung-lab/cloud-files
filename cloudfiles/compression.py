@@ -2,6 +2,7 @@ from io import BytesIO
 
 import copy
 import gzip
+import deflate
 import sys
 
 import brotli
@@ -148,16 +149,8 @@ def compress(content, method='gzip', compress_level=None):
 def gzip_compress(content, compresslevel=None):
   if compresslevel is None:
     compresslevel = 9
-  
-  stringio = BytesIO()
-  gzip_obj = gzip.GzipFile(mode='wb', fileobj=stringio, compresslevel=compresslevel)
 
-  if sys.version_info < (3,):
-    content = str(content)
-
-  gzip_obj.write(content)
-  gzip_obj.close()
-  return stringio.getvalue()
+  return deflate.gzip_compress(content, compresslevel)
 
 def gunzip(content):
   """ 
@@ -176,9 +169,7 @@ def gunzip(content):
       hex(first_two_bytes[0]), hex(first_two_bytes[1]), hex(gzip_magic_numbers[0]), hex(gzip_magic_numbers[1])
     ))
 
-  stringio = BytesIO(content)
-  with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
-    return gfile.read()
+  return deflate.gzip_decompress(content)
 
 def brotli_compress(content, quality=None):
   if quality is None:
