@@ -4,6 +4,11 @@ import copy
 import gzip
 import sys
 
+try:
+  import deflate
+except ImportError:
+  deflate = None
+
 import brotli
 import zstandard as zstd
 
@@ -148,16 +153,15 @@ def compress(content, method='gzip', compress_level=None):
 def gzip_compress(content, compresslevel=None):
   if compresslevel is None:
     compresslevel = 9
-  
+
+  if deflate:
+    return deflate.gzip_compress(content, compresslevel)
+
   stringio = BytesIO()
   gzip_obj = gzip.GzipFile(mode='wb', fileobj=stringio, compresslevel=compresslevel)
-
-  if sys.version_info < (3,):
-    content = str(content)
-
   gzip_obj.write(content)
   gzip_obj.close()
-  return stringio.getvalue()
+  return stringio.getvalue()  
 
 def gunzip(content):
   """ 
@@ -175,6 +179,9 @@ def gunzip(content):
     raise DecompressionError('File is not in gzip format. Magic numbers {}, {} did not match {}, {}.'.format(
       hex(first_two_bytes[0]), hex(first_two_bytes[1]), hex(gzip_magic_numbers[0]), hex(gzip_magic_numbers[1])
     ))
+
+  if deflate:
+    return deflate.gzip_decompress(content)
 
   stringio = BytesIO(content)
   with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
