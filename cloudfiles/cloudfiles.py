@@ -8,6 +8,7 @@ import re
 from functools import partial
 import types
 
+import simdjson
 from tqdm import tqdm
 
 import google.cloud.storage 
@@ -237,7 +238,7 @@ class CloudFiles(object):
       content = content['content']
       if content is None:
         return None
-      return json.loads(content.decode('utf8'))
+      return simdjson.loads(content.decode('utf8'))
 
     if not multiple_return and contents and contents[0]['error']:
       raise contents[0]['error']
