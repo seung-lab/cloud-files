@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+1.15.0
+------
+
+* perf: use libdeflate to improve gzip decompression (#28)
+* chore: update changelog
+
 1.14.1
 ------
 
