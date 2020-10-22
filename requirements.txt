@@ -2,7 +2,6 @@ boto3>=1.4.7
 brotli
 crc32c
 chardet>=3.0.4
-deflate
 gevent
 google-auth>=1.10.0
 google-cloud-core>=1.1.0
