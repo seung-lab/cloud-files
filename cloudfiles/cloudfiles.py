@@ -364,7 +364,11 @@ class CloudFiles(object):
       'cache_control': cache_control,
     }, raw=raw)
 
-  def put_jsons(self, files, total=None):
+  def put_jsons(
+    self, files,     
+    compress=None, compression_level=None, 
+    cache_control=None, total=None, raw=False
+  ):
     """
     Write one or more files as JSON.
 
@@ -391,7 +395,8 @@ class CloudFiles(object):
 
     return self.puts( 
       (jsonify_file(file) for file in files), 
-      content_type='application/json', total=total
+      compress=compress, compression_level=compression_level,
+      content_type='application/json', total=total, raw=raw
     )
 
   def put_json(
