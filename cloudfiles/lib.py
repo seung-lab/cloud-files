@@ -1,7 +1,7 @@
 import base64
 import hashlib
 import itertools
-import json
+import orjson
 import os.path
 import time
 import types
@@ -73,28 +73,8 @@ def sip(iterable, block_size):
   if len(block) > 0:
     yield block
 
-class NumpyEncoder(json.JSONEncoder):
-  def default(self, obj):
-    try:
-      import numpy as np
-    except ImportError:
-      try:
-        return json.JSONEncoder.default(self, obj)
-      except TypeError:
-        if 'numpy' in str(type(obj)):
-          print(yellow("Type " + str(type(obj)) + " requires a numpy installation to encode. Try `pip install numpy`."))
-        raise
-
-    if isinstance(obj, np.ndarray):
-      return obj.tolist()
-    if isinstance(obj, np.integer):
-      return int(obj)
-    if isinstance(obj, np.floating):
-      return float(obj)
-    return json.JSONEncoder.default(self, obj)
-
 def jsonify(obj, **kwargs):
-  return json.dumps(obj, cls=NumpyEncoder, **kwargs)
+  return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY, **kwargs)
 
 def first(lst):
   if isinstance(lst, types.GeneratorType):

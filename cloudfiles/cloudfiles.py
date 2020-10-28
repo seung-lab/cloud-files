@@ -1,14 +1,13 @@
 from queue import Queue
 from collections import defaultdict
 import itertools
-import json
 import os.path
 import posixpath
 import re
 from functools import partial
 import types
 
-import simdjson
+import orjson
 from tqdm import tqdm
 
 import google.cloud.storage 
@@ -238,7 +237,7 @@ class CloudFiles(object):
       content = content['content']
       if content is None:
         return None
-      return simdjson.loads(content.decode('utf8'))
+      return orjson.loads(content.decode('utf8'))
 
     if not multiple_return and contents and contents[0]['error']:
       raise contents[0]['error']
@@ -377,15 +376,13 @@ class CloudFiles(object):
     """
     files = toiter(files)
 
-    tojson = lambda x: jsonify(x).encode('utf-8')
-
     def jsonify_file(file):
       if isinstance(file, list):
-        return [ file[0], tojson(file[1]) ]
+        return [ file[0], jsonify(file[1]) ]
       elif isinstance(file, tuple):
-        return (file[0], tojson(file[1]))
+        return (file[0], jsonify(file[1]))
       else:
-        file['content'] = tojson(file['content'])
+        file['content'] = jsonify(file['content'])
         return file
 
     total = totalfn(files, total)
