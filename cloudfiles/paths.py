@@ -56,6 +56,10 @@ def ascloudpath(epath):
     return f"{epath.format}://" + pth
   return pth
 
+def has_protocol(cloudpath):
+  m = re.match(CLOUDPATH_REGEXP, cloudpath)
+  return m.group('proto')
+
 def pop_protocol(cloudpath):
   protocol_re = re.compile(r'(\w+)://')
 

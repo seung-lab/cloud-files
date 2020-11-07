@@ -8,6 +8,11 @@ setuptools.setup(
   extras_require={
     "deflate": [ "deflate" ],
   },
+  entry_points={
+    "console_scripts": [
+      "cloudfiles=cli:main"
+    ],
+  },
   pbr=True
 )
 
