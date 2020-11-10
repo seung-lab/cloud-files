@@ -3,20 +3,7 @@
 CloudFiles: Fast access to cloud storage and local FS.
 ========
 
-```bash
-## COMMAND LINE TOOL ##
-# list cloud and local directories
-cloudfiles ls gs://bucket-folder/
-# parallel file transfer, no decompression
-cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
-# change compression type to brotli
-cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
-# Get human readable file sizes from anywhere
-cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
-```
-
 ```python
-### PYTHON LIBRARY ###
 from cloudfiles import CloudFiles
 
 cf = CloudFiles('gs://bucket', progress=True) # s3://, https://, and file:// also supported
@@ -322,6 +309,17 @@ Second, it uses an exponential random window backoff to retry failed connections
 Third, for Google Cloud Storage (GCS) and S3 endpoints, we compute the md5 digest both sending and receiving to ensure data corruption did not occur in transit and that the server sent the full response. We cannot validate the digest for partial ("Range") reads. For [composite objects](https://cloud.google.com/storage/docs/composite-objects) (GCS) we can check the [crc32c](https://pypi.org/project/crc32c/) check-sum which catches transmission errors but not tampering (though MD5 isn't secure at all anymore). We are unable to perform validation for [multi-part uploads](https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html) (S3). Using custom encryption keys may also create validation problems.
 
 ## CloudFiles CLI Tool
+
+```bash
+# list cloud and local directories
+cloudfiles ls gs://bucket-folder/
+# parallel file transfer, no decompression
+cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
+# change compression type to brotli
+cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
+# Get human readable file sizes from anywhere
+cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
+```
 
 The bundled CLI tool has a number of advantages vs. `gsutil` when it comes to transfers.
 
