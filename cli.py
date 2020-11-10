@@ -138,5 +138,58 @@ def _cp(src, dst, compression, progress, block_size, paths):
     reencode=compression, block_size=block_size
   )
 
+@main.command()
+def rm():
+  """Coming Soon: Delete files."""
+  print("Not implemented.")
 
+@main.command()
+@click.argument('paths', nargs=-1)
+@click.option('-c', '--grand-total', is_flag=True, default=False, help="Sum a grand total of all inputs.")
+@click.option('-s', '--summarize', is_flag=True, default=False, help="Sum a total for each input argument.")
+@click.option('-h', '--human-readable', is_flag=True, default=False, help='Human-readable" output.  Use unit suffixes: Byte, Kilobyte, Megabyte, Gigabyte, Terabyte and Petabyte.')
+def du(paths, grand_total, summarize, human_readable):
+  """Display disk usage statistics."""
+  results = []
+  for path in paths:
+    npath = normalize_path(path)
+    if ispathdir(path):
+      cf = CloudFiles(npath, green=True)
+      results.append(cf.size(cf.list()))
+    else:
+      cf = CloudFiles(os.path.dirname(npath), green=True)
+      results.append({ path: cf.size(os.path.basename(npath)) })
+
+  def SI(val):
+    if not human_readable:
+      return val
+
+    if val < 1024:
+      return f"{val} Byte"
+    elif val < 2**20:
+      return f"{(val / 2**10):.2f} KiB"
+    elif val < 2**30:
+      return f"{(val / 2**20):.2f} MiB"
+    elif val < 2**40:
+      return f"{(val / 2**30):.2f} GiB"
+    elif val < 2**50:
+      return f"{(val / 2**40):.2f} TiB"
+    elif val < 2**60:
+      return f"{(val / 2**50):.2f} PiB"
+    else:
+      return f"{(val / 2**60):.2f} EiB"
+
+  summary = {}
+  for path, res in zip(paths, results):
+    summary[path] = sum(res.values())
+    if summarize:
+      print(f"{SI(summary[path])}\t{path}")
+
+  if not summarize:
+    for res in results:
+      for pth, size in res.items():
+        print(f"{SI(size)}\t{pth}")
+
+  if grand_total:
+    print(f"{SI(sum(summary.values()))}\ttotal") 
 
