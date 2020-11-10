@@ -5,14 +5,22 @@ import os.path
 
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
-from cloudfiles.paths import has_protocol
-from cloudfiles.lib import toabs, sip
+from cloudfiles.paths import extract, has_protocol
+from cloudfiles.lib import toabs, sip, green, red
 import click
 
 def normalize_path(cloudpath):
   if not has_protocol(cloudpath):
     return "file://" + toabs(cloudpath)
   return cloudpath
+
+def ispathdir(cloudpath):
+  expath = extract(normalize_path(cloudpath))
+  return (
+    (expath.protocol != "file" and cloudpath[-1] == "/")
+    or (expath.protocol == "file" and cloudpath[-1] == os.path.sep)
+    or (expath.protocol == "file" and os.path.isdir(expath.path))
+  )
 
 @click.group()
 # @click.option('-p', '--parallel', default=1, help='Number of parallel processes.')
@@ -27,13 +35,14 @@ def license():
     print(f.read())
 
 @main.command()
+@click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.')
 @click.argument("cloudpath")
-def ls(cloudpath):
+def ls(flat, cloudpath):
   """Recursively lists the contents of a directory."""
   cloudpath = normalize_path(cloudpath)
   cf = CloudFiles(cloudpath, green=True)
 
-  for pathset in sip(cf.list(), 1000):
+  for pathset in sip(cf.list(flat=flat), 1000):
     print("\n".join(pathset))
 
 @main.command()
@@ -41,7 +50,9 @@ def ls(cloudpath):
 @click.argument("destination")
 @click.option('-r', '--recursive', is_flag=True, default=False, help='Recursive copy.')
 @click.option('-c', '--compression', default='same', help="Destination compression type. Options: same (default), none, gzip, br, zstd")
-def cp(source, destination, recursive, compression):
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
+@click.option('-b', '--block-size', default=128, help="Number of files to download at a time.")
+def cp(source, destination, recursive, compression, progress, block_size):
   """
   Copy one or more files from a source to destination.
 
@@ -49,28 +60,45 @@ def cp(source, destination, recursive, compression):
   tool is more efficient because the files never leave
   Google's network.
   """
-  source = normalize_path(source)
-  destination = normalize_path(destination)
+  nsrc = normalize_path(source)
+  ndest = normalize_path(destination)
 
-  cfsrc = CloudFiles(os.path.dirname(source), green=True)
-  path = os.path.basename(source)
+  # spath = extract(nsrc)
+  # dpath = extract(ndest)
+
+  issrcdir = ispathdir(source)
+  isdestdir = ispathdir(destination)
+
+  if issrcdir:
+    srcpath = nsrc
+  else:
+    srcpath = os.path.dirname(nsrc)
+  
+  if issrcdir and not recursive:
+    print(f"cloudfiles: {source} is a directory (not copied).")
+    return
+
+  cfsrc = CloudFiles(srcpath, green=True)
 
   flat = False
-  if path[-2:] == "**":
-    recursive = True
-    path = path[:-2]
-  elif path[-1:] == "*":
-    recursive = True
-    flat = True
-    path = path[:-1]
+  # if srcpath[-2:] == "**":
+  #   recursive = True
+  #   srcpath = srcpath[:-2]
+  # elif srcpath[-1:] == "*":
+  #   recursive = True
+  #   flat = True
+  #   srcpath = srcpath[:-1]
 
+  xferpaths = os.path.basename(nsrc)
   if recursive:
-    path = cfsrc.list(prefix=path, flat=flat)
+    xferpaths = cfsrc.list(flat=flat)
 
-  if recursive:
-    cfdest = CloudFiles(destination, green=True)
+  if isdestdir:
+    destpath = ndest
   else:
-    cfdest = CloudFiles(os.path.dirname(destination), green=True)
+    destpath = os.path.dirname(ndest)
+
+  cfdest = CloudFiles(destpath, green=True, progress=progress)
 
   if compression == "same":
     compression = None
@@ -78,12 +106,26 @@ def cp(source, destination, recursive, compression):
     compression = False
 
   if recursive:
-    cfsrc.transfer_to(cfdest, paths=path, reencode=compression)
+    cfsrc.transfer_to(
+      cfdest, paths=xferpaths, 
+      reencode=compression, block_size=block_size
+    )
   else:
-    downloaded = cfsrc.get(path, raw=True)
+    downloaded = cfsrc.get(xferpaths, raw=True)
     if compression is not None:
       downloaded = transcode(downloaded, compression, in_place=True)
-    cfdest.put(os.path.basename(destination), downloaded, raw=True)
+
+    if isdestdir:
+      cfdest.put(os.path.basename(nsrc), downloaded, raw=True)
+    else:
+      cfdest.put(os.path.basename(ndest), downloaded, raw=True)
+
+@main.command()
+def test():
+  print(green("PASS"))
+
+
+
 
 
 
