@@ -147,7 +147,7 @@ def rm():
 @click.argument('paths', nargs=-1)
 @click.option('-c', '--grand-total', is_flag=True, default=False, help="Sum a grand total of all inputs.")
 @click.option('-s', '--summarize', is_flag=True, default=False, help="Sum a total for each input argument.")
-@click.option('-h', '--human-readable', is_flag=True, default=False, help='Human-readable" output.  Use unit suffixes: Byte, Kilobyte, Megabyte, Gigabyte, Terabyte and Petabyte.')
+@click.option('-h', '--human-readable', is_flag=True, default=False, help='"Human-readable" output. Use unit suffixes: Bytes, KiB, MiB, GiB, TiB, PiB, and EiB.')
 def du(paths, grand_total, summarize, human_readable):
   """Display disk usage statistics."""
   results = []
@@ -165,7 +165,7 @@ def du(paths, grand_total, summarize, human_readable):
       return val
 
     if val < 1024:
-      return f"{val} Byte"
+      return f"{val} Bytes"
     elif val < 2**20:
       return f"{(val / 2**10):.2f} KiB"
     elif val < 2**30:
