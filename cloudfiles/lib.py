@@ -83,7 +83,7 @@ def sip(iterable, block_size):
     yield block
 
 def jsonify(obj, **kwargs):
-  return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY, **kwargs)
+  return orjson.dumps(obj, option=(orjson.OPT_SERIALIZE_NUMPY|orjson.OPT_NON_STR_KEYS), **kwargs)
 
 def first(lst):
   if isinstance(lst, types.GeneratorType):

@@ -15,7 +15,7 @@ import google.cloud.storage
 from . import compression, paths
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
-  mkdir, toiter, scatter, jsonify, 
+  mkdir, toiter, scatter, jsonify, nvl, 
   duplicates, first, sip, STRING_TYPES, 
   md5, crc32c, decode_crc32c_b64
 )
@@ -104,7 +104,7 @@ class CloudFiles(object):
       secrets=self.secrets,
     )
 
-  def get(self, paths, total=None, raw=False):
+  def get(self, paths, total=None, raw=False, progress=None):
     """
     Download one or more files.
 
@@ -132,6 +132,7 @@ class CloudFiles(object):
         ]
     """
     paths, multiple_return = toiter(paths, is_iter=True)
+    progress = nvl(progress, self.progress)
 
     def check_md5(path, content, server_hash):
       if server_hash is None:
@@ -200,7 +201,7 @@ class CloudFiles(object):
     return schedule_jobs(
       fns=( partial(download, path) for path in paths ), 
       concurrency=self.num_threads, 
-      progress=self.progress,
+      progress=progress,
       total=total,
       green=self.green,
     )
@@ -251,7 +252,7 @@ class CloudFiles(object):
     self, files, 
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
-    total=None, raw=False
+    total=None, raw=False, progress=None
   ):
     """
     Writes one or more files at a given location.
@@ -281,8 +282,12 @@ class CloudFiles(object):
     raw: upload without applying additional compression but 
       label the Content-Encoding using the compress parameter. 
       This is useful for file transfers.
+    progress: selectively enable or disable progress just for this
+      function call. If progress is a string, it sets the 
+      text of the progress bar.
     """
     files = toiter(files)
+    progress = nvl(progress, self.progress)
 
     def todict(file):
       if isinstance(file, tuple):
@@ -329,7 +334,7 @@ class CloudFiles(object):
     schedule_jobs(
       fns=fns,
       concurrency=self.num_threads,
-      progress=(desc if self.progress else None),
+      progress=(desc if progress else None),
       total=total,
       green=self.green,
     )
@@ -367,7 +372,8 @@ class CloudFiles(object):
   def put_jsons(
     self, files,     
     compress=None, compression_level=None, 
-    cache_control=None, total=None, raw=False
+    cache_control=None, total=None, raw=False,
+    progress=None
   ):
     """
     Write one or more files as JSON.
@@ -394,7 +400,8 @@ class CloudFiles(object):
     return self.puts( 
       (jsonify_file(file) for file in files), 
       compress=compress, compression_level=compression_level,
-      content_type='application/json', total=total, raw=raw
+      content_type='application/json', total=total, raw=raw,
+      progress=progress
     )
 
   def put_json(
@@ -423,13 +430,16 @@ class CloudFiles(object):
       'cache_control': cache_control,
     })
 
-  def exists(self, paths, total=None):
+  def exists(self, paths, total=None, progress=None):
     """
     Test if the given file paths exist.
 
     paths: one or more file paths relative to the cloudpath.
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
+    progress: selectively enable or disable progress just for this
+      function call. If progress is a string, it sets the 
+      text of the progress bar.
 
     Returns:
       If paths is a scalar:
@@ -442,6 +452,7 @@ class CloudFiles(object):
         }
     """
     paths, return_multiple = toiter(paths, is_iter=True)
+    progress = nvl(progress, self.progress)
     results = {}
 
     def exist_thunk(paths):
@@ -453,7 +464,7 @@ class CloudFiles(object):
     desc = self._progress_description('Existence Testing')
     schedule_jobs(
       fns=( partial(exist_thunk, paths) for paths in sip(paths, batch_size) ),
-      progress=(desc if self.progress else None),
+      progress=(desc if progress else None),
       concurrency=self.num_threads,
       total=totalfn(paths, total),
       green=self.green,
@@ -463,11 +474,12 @@ class CloudFiles(object):
       return results
     return first(results.values())
 
-  def size(self, paths, total=None):
+  def size(self, paths, total=None, progress=None):
     """
     Get the size in bytes of one or more files in its stored state.
     """
     paths, return_multiple = toiter(paths, is_iter=True)
+    progress = nvl(progress, self.progress)
     results = {}
 
     def size_thunk(path):
@@ -477,7 +489,7 @@ class CloudFiles(object):
     desc = self._progress_description('Measuring Sizes')
     schedule_jobs(
       fns=( partial(size_thunk, path) for path in paths ),
-      progress=(desc if self.progress else None),
+      progress=(desc if progress else None),
       concurrency=self.num_threads,
       total=totalfn(paths, total),
       green=self.green,
@@ -487,7 +499,7 @@ class CloudFiles(object):
       return results
     return first(results.values())
 
-  def delete(self, paths, total=None):
+  def delete(self, paths, total=None, progress=None):
     """
     Delete one or more files.
 
@@ -495,10 +507,14 @@ class CloudFiles(object):
       to the class instance's cloudpath.
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
+    progress: selectively enable or disable progress just for this
+      function call. If progress is a string, it sets the 
+      text of the progress bar.
 
     Returns: void
     """
     paths = toiter(paths)
+    progress = nvl(progress, self.progress)
 
     def thunk_delete(path):
       with self._get_connection() as conn:
@@ -510,7 +526,7 @@ class CloudFiles(object):
 
     schedule_jobs(
       fns=( partial(thunk_delete, path) for path in sip(paths, batch_size) ),
-      progress=(desc if self.progress else None),
+      progress=(desc if progress else None),
       concurrency=self.num_threads,
       total=totalfn(paths, total),
       green=self.green,
@@ -558,7 +574,7 @@ class CloudFiles(object):
     """
     if isinstance(cf_dest, STRING_TYPES):
       cf_dest = CloudFiles(
-        cf_dest, progress=self.progress, 
+        cf_dest, progress=False, 
         green=self.green, num_threads=self.num_threads,
       )
 
@@ -582,18 +598,22 @@ class CloudFiles(object):
     """
     if isinstance(cf_src, STRING_TYPES):
       cf_src = CloudFiles(
-        cf_src, progress=self.progress, 
+        cf_src, progress=False, 
         green=self.green, num_threads=self.num_threads,
       )
 
     if paths is None:
       paths = cf_src
 
-    for block_paths in sip(paths, block_size):
-      downloaded = cf_src.get(block_paths, raw=True)
-      if reencode is not None:
-        downloaded = compression.transcode(downloaded, reencode, in_place=True)
-      self.puts(downloaded, raw=True)
+    total = totalfn(paths, None)
+
+    with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
+      for block_paths in sip(paths, block_size):
+        downloaded = cf_src.get(block_paths, raw=True, progress=False)
+        if reencode is not None:
+          downloaded = compression.transcode(downloaded, reencode, in_place=True)
+        self.puts(downloaded, raw=True, progress=False)
+        pbar.update(len(block_paths))
 
   def __getitem__(self, key):
     if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], STRING_TYPES):
