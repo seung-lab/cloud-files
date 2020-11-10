@@ -63,20 +63,10 @@ def cp(source, destination, recursive, compression, progress, block_size):
   nsrc = normalize_path(source)
   ndest = normalize_path(destination)
 
-  # spath = extract(nsrc)
-  # dpath = extract(ndest)
-
   issrcdir = ispathdir(source)
   isdestdir = ispathdir(destination)
 
-  if issrcdir:
-    srcpath = nsrc
-  else:
-    srcpath = os.path.dirname(nsrc)
-  
-  if issrcdir and not recursive:
-    print(f"cloudfiles: {source} is a directory (not copied).")
-    return
+  srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
 
   cfsrc = CloudFiles(srcpath, green=True)
 
@@ -90,15 +80,15 @@ def cp(source, destination, recursive, compression, progress, block_size):
     flat = True
     prefix = os.path.basename(nsrc[:-1])
 
+  if issrcdir and not recursive:
+    print(f"cloudfiles: {source} is a directory (not copied).")
+    return
+
   xferpaths = os.path.basename(nsrc)
   if recursive:
     xferpaths = cfsrc.list(prefix=prefix, flat=flat)
 
-  if isdestdir:
-    destpath = ndest
-  else:
-    destpath = os.path.dirname(ndest)
-
+  destpath = ndest if isdestdir else os.path.dirname(ndest)
   cfdest = CloudFiles(destpath, green=True, progress=progress)
 
   if compression == "same":
