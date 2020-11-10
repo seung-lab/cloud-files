@@ -3,7 +3,20 @@
 CloudFiles: Fast access to cloud storage and local FS.
 ========
 
+```bash
+## COMMAND LINE TOOL ##
+# list cloud and local directories
+cloudfiles ls gs://bucket-folder/
+# parallel file transfer, no decompression
+cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
+# change compression type to brotli
+cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
+# Get human readable file sizes from anywhere
+cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
+```
+
 ```python
+### PYTHON LIBRARY ###
 from cloudfiles import CloudFiles
 
 cf = CloudFiles('gs://bucket', progress=True) # s3://, https://, and file:// also supported
@@ -43,6 +56,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 5. Supports HTTP Range reads.
 6. Supports green threads, which are important for achieving maximum performance on virtualized servers.
 7. High efficiency transfers that avoid compression/decompression cycles.
+8. Bundled CLI tool.
 
 ## Installation 
 
@@ -306,6 +320,22 @@ First, it uses a connection pool to avoid needing to reestablish connections or 
 Second, it uses an exponential random window backoff to retry failed connections and requests. The exponential backoff allows increasing breathing room for an overloaded server and the random window decorrelates independent attempts by a cluster. If the backoff was not growing, the retry attempts by a large cluster would be too rapid fire or inefficiently slow. If the attempts were not decorrellated, then regardless of the backoff, the servers will often all try again around the same time. We backoff seven times starting from 0.5 seconds to 60 seconds, doubling the random window each time.
 
 Third, for Google Cloud Storage (GCS) and S3 endpoints, we compute the md5 digest both sending and receiving to ensure data corruption did not occur in transit and that the server sent the full response. We cannot validate the digest for partial ("Range") reads. For [composite objects](https://cloud.google.com/storage/docs/composite-objects) (GCS) we can check the [crc32c](https://pypi.org/project/crc32c/) check-sum which catches transmission errors but not tampering (though MD5 isn't secure at all anymore). We are unable to perform validation for [multi-part uploads](https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html) (S3). Using custom encryption keys may also create validation problems.
+
+## CloudFiles CLI Tool
+
+The bundled CLI tool has a number of advantages vs. `gsutil` when it comes to transfers.
+
+1. No decompression of file transfers (unless you want to).
+2. Can shift compression format.
+3. Easily control the number of parallel processes.
+4. Green threads make core utilization more efficient.
+5. Optionally uses libdeflate for faster gzip decompression.
+
+It also has some disadvantages:  
+
+1. gs:// to gs:// transfers are looped through the executing machine.
+2. Doesn't support all commands.
+3. File suffixes may be added to signify compression type on the local filesystem (e.g. `.gz`, `.br`, or `.zstd`). `cloudfiles ls` will list them without the extension and they will be converted into `Content-Encoding` on cloud storage.
 
 ## Credits
 

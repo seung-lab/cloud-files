@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+1.16.0
+------
+
+* perf: try using orjson (#29)
+
+1.15.1
+------
+
+* fix: add missing options to put\_jsons
+* chore: update changelog
+
 1.15.0
 ------
 

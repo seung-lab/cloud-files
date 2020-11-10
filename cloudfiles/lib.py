@@ -58,6 +58,15 @@ def mkdir(path):
 
   return path
 
+def nvl(*args):
+  """Return the leftmost argument that is not None."""
+  if len(args) < 2:
+    raise IndexError("nvl takes at least two arguments.")
+  for arg in args:
+    if arg is not None:
+      return arg
+  return args[-1]
+
 def sip(iterable, block_size):
   """Sips a fixed size from the iterable."""
   ct = 0
@@ -74,7 +83,7 @@ def sip(iterable, block_size):
     yield block
 
 def jsonify(obj, **kwargs):
-  return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY, **kwargs)
+  return orjson.dumps(obj, option=(orjson.OPT_SERIALIZE_NUMPY|orjson.OPT_NON_STR_KEYS), **kwargs)
 
 def first(lst):
   if isinstance(lst, types.GeneratorType):
