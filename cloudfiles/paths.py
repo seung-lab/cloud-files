@@ -56,7 +56,7 @@ def ascloudpath(epath):
     return f"{epath.format}://" + pth
   return pth
 
-def has_protocol(cloudpath):
+def get_protocol(cloudpath):
   m = re.match(CLOUDPATH_REGEXP, cloudpath)
   return m.group('proto')
 

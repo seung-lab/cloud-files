@@ -1,17 +1,22 @@
 import gevent.monkey
-gevent.monkey.patch_all(threads=False)
+gevent.monkey.patch_all(thread=False)
 
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+import multiprocessing as mp
 import os.path
+from tqdm import tqdm
 
 import click
+import pathos.pools
 
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
-from cloudfiles.paths import extract, has_protocol
+from cloudfiles.paths import extract, get_protocol
 from cloudfiles.lib import toabs, sip
 
 def normalize_path(cloudpath):
-  if not has_protocol(cloudpath):
+  if not get_protocol(cloudpath):
     return "file://" + toabs(cloudpath)
   return cloudpath
 
@@ -24,9 +29,14 @@ def ispathdir(cloudpath):
   )
 
 @click.group()
-# @click.option('-p', '--parallel', default=1, help='Number of parallel processes.')
-def main():
-  pass
+@click.option('-p', '--parallel', default=1, help='Number of parallel processes. <= 0 for all cores.')
+@click.pass_context
+def main(ctx, parallel):
+  parallel = int(parallel)
+  if parallel <= 0:
+    parallel = mp.cpu_count()
+  ctx.ensure_object(dict)
+  ctx.obj["parallel"] = parallel
 
 @main.command()
 def license():
@@ -53,7 +63,8 @@ def ls(flat, cloudpath):
 @click.option('-c', '--compression', default='same', help="Destination compression type. Options: same (default), none, gzip, br, zstd")
 @click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
 @click.option('-b', '--block-size', default=128, help="Number of files to download at a time.")
-def cp(source, destination, recursive, compression, progress, block_size):
+@click.pass_context
+def cp(ctx, source, destination, recursive, compression, progress, block_size):
   """
   Copy one or more files from a source to destination.
 
@@ -64,44 +75,51 @@ def cp(source, destination, recursive, compression, progress, block_size):
   nsrc = normalize_path(source)
   ndest = normalize_path(destination)
 
+  ctx.ensure_object(dict)
+  parallel = int(ctx.obj.get("parallel", 1))
+
   issrcdir = ispathdir(source)
   isdestdir = ispathdir(destination)
 
   srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
 
-  cfsrc = CloudFiles(srcpath, green=True)
-
-  flat = False
+  flat = not recursive
+  many = recursive
   prefix = ""
   if nsrc[-2:] == "**":
-    recursive = True
+    many = True
+    flat = False
     prefix = os.path.basename(nsrc[:-2])
   elif nsrc[-1:] == "*":
-    recursive = True
+    many = True
     flat = True
     prefix = os.path.basename(nsrc[:-1])
 
-  if issrcdir and not recursive:
+  if issrcdir and not many:
     print(f"cloudfiles: {source} is a directory (not copied).")
     return
 
   xferpaths = os.path.basename(nsrc)
-  if recursive:
-    xferpaths = cfsrc.list(prefix=prefix, flat=flat)
+  if many:
+    xferpaths = CloudFiles(srcpath, green=True).list(prefix=prefix, flat=flat)
 
   destpath = ndest if isdestdir else os.path.dirname(ndest)
-  cfdest = CloudFiles(destpath, green=True, progress=progress)
 
   if compression == "same":
     compression = None
   elif compression == "none":
     compression = False
 
-  if recursive:
-    cfsrc.transfer_to(
-      cfdest, paths=xferpaths, 
-      reencode=compression, block_size=block_size
-    )
+  if many:
+    if parallel == 1:
+      _cp(srcpath, destpath, compression, progress, block_size, xferpaths)
+      return 
+    # print(xferpaths, list(xferpaths))
+    fn = partial(_cp, srcpath, destpath, compression, False, block_size)
+    with tqdm(desc="Transferring", disable=(not progress)) as pbar:
+      with pathos.pools.ProcessPool(parallel) as executor:
+        for _ in executor.imap(fn, sip(xferpaths, block_size)):
+          pbar.update(block_size)
   else:
     downloaded = cfsrc.get(xferpaths, raw=True)
     if compression is not None:
@@ -112,7 +130,13 @@ def cp(source, destination, recursive, compression, progress, block_size):
     else:
       cfdest.put(os.path.basename(ndest), downloaded, raw=True)
 
-
+def _cp(src, dst, compression, progress, block_size, paths):
+  cfsrc = CloudFiles(src, green=True, progress=progress)
+  cfdest = CloudFiles(dst, green=True, progress=progress)
+  cfsrc.transfer_to(
+    cfdest, paths=paths, 
+    reencode=compression, block_size=block_size
+  )
 
 
 
