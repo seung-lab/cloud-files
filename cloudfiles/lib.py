@@ -58,6 +58,15 @@ def mkdir(path):
 
   return path
 
+def nvl(*args):
+  """Return the leftmost argument that is not None."""
+  if len(args) < 2:
+    raise IndexError("nvl takes at least two arguments.")
+  for arg in args:
+    if arg is not None:
+      return arg
+  return args[-1]
+
 def sip(iterable, block_size):
   """Sips a fixed size from the iterable."""
   ct = 0
