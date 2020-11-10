@@ -3,11 +3,12 @@ gevent.monkey.patch_all(threads=False)
 
 import os.path
 
+import click
+
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, has_protocol
-from cloudfiles.lib import toabs, sip, green, red
-import click
+from cloudfiles.lib import toabs, sip
 
 def normalize_path(cloudpath):
   if not has_protocol(cloudpath):
@@ -110,11 +111,6 @@ def cp(source, destination, recursive, compression, progress, block_size):
       cfdest.put(os.path.basename(nsrc), downloaded, raw=True)
     else:
       cfdest.put(os.path.basename(ndest), downloaded, raw=True)
-
-@main.command()
-def test():
-  print(green("PASS"))
-
 
 
 
