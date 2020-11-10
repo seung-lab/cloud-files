@@ -81,17 +81,18 @@ def cp(source, destination, recursive, compression, progress, block_size):
   cfsrc = CloudFiles(srcpath, green=True)
 
   flat = False
-  # if srcpath[-2:] == "**":
-  #   recursive = True
-  #   srcpath = srcpath[:-2]
-  # elif srcpath[-1:] == "*":
-  #   recursive = True
-  #   flat = True
-  #   srcpath = srcpath[:-1]
+  prefix = ""
+  if nsrc[-2:] == "**":
+    recursive = True
+    prefix = os.path.basename(nsrc[:-2])
+  elif nsrc[-1:] == "*":
+    recursive = True
+    flat = True
+    prefix = os.path.basename(nsrc[:-1])
 
   xferpaths = os.path.basename(nsrc)
   if recursive:
-    xferpaths = cfsrc.list(flat=flat)
+    xferpaths = cfsrc.list(prefix=prefix, flat=flat)
 
   if isdestdir:
     destpath = ndest
