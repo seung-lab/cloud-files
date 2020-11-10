@@ -3,7 +3,20 @@
 CloudFiles: Fast access to cloud storage and local FS.
 ========
 
+```bash
+## COMMAND LINE TOOL ##
+# list cloud and local directories
+cloudfiles ls gs://bucket-folder/
+# parallel file transfer, no decompression
+cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
+# change compression type to brotli
+cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
+# Get human readable file sizes from anywhere
+cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
+```
+
 ```python
+### PYTHON LIBRARY ###
 from cloudfiles import CloudFiles
 
 cf = CloudFiles('gs://bucket', progress=True) # s3://, https://, and file:// also supported
@@ -43,6 +56,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 5. Supports HTTP Range reads.
 6. Supports green threads, which are important for achieving maximum performance on virtualized servers.
 7. High efficiency transfers that avoid compression/decompression cycles.
+8. Bundled CLI tool.
 
 ## Installation 
 
