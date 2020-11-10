@@ -139,11 +139,6 @@ def _cp(src, dst, compression, progress, block_size, paths):
   )
 
 @main.command()
-def rm():
-  """Coming Soon: Delete files."""
-  print("Not implemented.")
-
-@main.command()
 @click.argument('paths', nargs=-1)
 @click.option('-c', '--grand-total', is_flag=True, default=False, help="Sum a grand total of all inputs.")
 @click.option('-s', '--summarize', is_flag=True, default=False, help="Sum a total for each input argument.")
