@@ -53,6 +53,23 @@ def ls(flat, cloudpath):
   for pathset in sip(cf.list(flat=flat), 1000):
     print("\n".join(pathset))
 
+def get_mfp(path, recursive):
+  """many,flat,prefix"""
+  path = normalize_path(path)
+  flat = not recursive
+  many = recursive
+  prefix = ""
+  if path[-2:] == "**":
+    many = True
+    flat = False
+    prefix = os.path.basename(path[:-2])
+  elif path[-1:] == "*":
+    many = True
+    flat = True
+    prefix = os.path.basename(path[:-1])
+
+  return (many, flat, prefix)
+
 @main.command()
 @click.argument("source")
 @click.argument("destination")
@@ -79,19 +96,8 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
   isdestdir = ispathdir(destination)
 
   srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
-
-  flat = not recursive
-  many = recursive
-  prefix = ""
-  if nsrc[-2:] == "**":
-    many = True
-    flat = False
-    prefix = os.path.basename(nsrc[:-2])
-  elif nsrc[-1:] == "*":
-    many = True
-    flat = True
-    prefix = os.path.basename(nsrc[:-1])
-
+  many, flat, prefix = get_mfp(nsrc, recursive)
+  
   if issrcdir and not many:
     print(f"cloudfiles: {source} is a directory (not copied).")
     return
@@ -136,6 +142,48 @@ def _cp(src, dst, compression, progress, block_size, paths):
     cfdest, paths=paths, 
     reencode=compression, block_size=block_size
   )
+
+@main.command()
+@click.argument('paths', nargs=-1)
+@click.option('-r', '--recursive', is_flag=True, default=False, help='Descend into directories.')
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
+@click.option('-b', '--block-size', default=128, help="Number of files to process at a time.")
+@click.pass_context
+def rm(ctx, paths, recursive, progress, block_size):
+  """Remove file objects."""
+  ctx.ensure_object(dict)
+  parallel = int(ctx.obj.get("parallel", 1))
+
+  for path in paths:
+    many, flat, prefix = get_mfp(path, recursive)
+    if ispathdir(path) and not many:
+      print(f"cloudfiles: {path}: is a directory.")
+      return
+
+  for path in paths:
+    _rm(path, recursive, progress, parallel, block_size)
+
+def _rm(path, recursive, progress, parallel, block_size):
+  npath = normalize_path(path)
+  many, flat, prefix = get_mfp(path, recursive)
+
+  cfpath = npath if ispathdir(path) else os.path.dirname(npath)
+  xferpaths = os.path.basename(npath)
+  if many:
+    xferpaths = CloudFiles(cfpath, green=True).list(prefix=prefix, flat=flat)
+
+  if parallel == 1 or not many:
+    __rm(cfpath, progress, xferpaths)
+    return 
+  
+  fn = partial(__rm, cfpath, False)
+  with tqdm(desc="Deleting", disable=(not progress)) as pbar:
+    with pathos.pools.ProcessPool(parallel) as executor:
+      for _ in executor.imap(fn, sip(xferpaths, block_size)):
+        pbar.update(block_size)
+
+def __rm(cloudpath, progress, paths):
+  CloudFiles(cloudpath, green=True, progress=progress).delete(paths)
 
 @main.command()
 @click.argument('paths', nargs=-1)

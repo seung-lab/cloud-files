@@ -317,6 +317,8 @@ cloudfiles ls gs://bucket-folder/
 cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
 # change compression type to brotli
 cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
+# decompress
+cloudfiles cp -c none s3://bkt/file.txt gs://bkt2/
 # Get human readable file sizes from anywhere
 cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
 ```

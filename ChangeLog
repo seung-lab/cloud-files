@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+1.17.3
+------
+
+* fix(cli): ensure license file can be found for "cloudfiles license" command
 * fix(cli): broke single file xfer while implementing multiprocessing
 * chore: update changelog
 
