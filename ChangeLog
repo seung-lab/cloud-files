@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+1.17.1
+------
+
+* fix: make sure cli can be accessed after installation
+
 1.17.0
 ------
 
