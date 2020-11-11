@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+1.17.2
+------
+
+* refactor: make a cloudfiles\_cli package
+* chore: update changelog
+
 1.17.1
 ------
 
