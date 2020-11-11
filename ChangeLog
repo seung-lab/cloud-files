@@ -1,6 +1,9 @@
 CHANGES
 =======
 
+* fix(cli): broke single file xfer while implementing multiprocessing
+* chore: update changelog
+
 1.17.2
 ------
 
