@@ -10,7 +10,7 @@ setuptools.setup(
   },
   entry_points={
     "console_scripts": [
-      "cloudfiles=cli:main"
+      "cloudfiles=cloudfiles_cli:main"
     ],
   },
   pbr=True

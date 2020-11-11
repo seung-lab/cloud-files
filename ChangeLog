@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+1.17.0
+------
+
+* fix: requests isn't matched with urlllib3 1.26.0
+* docs: adjust placement of CLI example
+* feat(cli): added cp, ls, and license commands (#31)
+
 1.16.0
 ------
 
