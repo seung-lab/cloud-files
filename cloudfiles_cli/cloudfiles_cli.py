@@ -111,17 +111,19 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
     if parallel == 1:
       _cp(srcpath, destpath, compression, progress, block_size, xferpaths)
       return 
-    # print(xferpaths, list(xferpaths))
+
     fn = partial(_cp, srcpath, destpath, compression, False, block_size)
     with tqdm(desc="Transferring", disable=(not progress)) as pbar:
       with pathos.pools.ProcessPool(parallel) as executor:
         for _ in executor.imap(fn, sip(xferpaths, block_size)):
           pbar.update(block_size)
   else:
+    cfsrc = CloudFiles(srcpath, green=True, progress=progress)
     downloaded = cfsrc.get(xferpaths, raw=True)
     if compression is not None:
       downloaded = transcode(downloaded, compression, in_place=True)
 
+    cfdest = CloudFiles(destpath, green=True, progress=progress)
     if isdestdir:
       cfdest.put(os.path.basename(nsrc), downloaded, raw=True)
     else:
