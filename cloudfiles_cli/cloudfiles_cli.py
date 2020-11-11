@@ -1,6 +1,3 @@
-import gevent.monkey
-gevent.monkey.patch_all(thread=False)
-
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import multiprocessing as mp
