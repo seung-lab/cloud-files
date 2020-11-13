@@ -671,10 +671,13 @@ def test_cli_rm():
   subprocess.run(["cloudfiles", "rm", "-r", test_dir])
   assert os.listdir(test_dir) == []
 
-  mkfiles()
-  out = subprocess.run(["cloudfiles", "rm", test_dir], capture_output=True)
-  assert b'is a directory' in out.stdout 
-  assert len(os.listdir(test_dir)) == N
+  try:
+    mkfiles()
+    out = subprocess.run(["cloudfiles", "rm", test_dir], capture_output=True)
+    assert b'is a directory' in out.stdout 
+    assert len(os.listdir(test_dir)) == N
+  except TypeError: # python3.6 doesn't support capture_output
+    pass
 
   mkfiles()
   subprocess.run(["cloudfiles", "rm", test_dir + "/*"])
