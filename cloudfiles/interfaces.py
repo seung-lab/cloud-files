@@ -366,6 +366,8 @@ class GoogleCloudStorageInterface(StorageInterface):
       blob.content_encoding = "br"
     elif compress in GZIP_TYPES:
       blob.content_encoding = "gzip"
+    elif compress == "zstd":
+      blob.content_encoding = "zstd"
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
