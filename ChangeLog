@@ -1,6 +1,14 @@
 CHANGES
 =======
 
+1.18.0
+------
+
+* test: add exception for python3.6
+* test: add some tests of the rm cli command
+* fix(secrets): describe use of GOOGLE\_APPLICATION\_CREDENTIALS
+* feat(cli): add rm command
+
 1.17.3
 ------
 

@@ -321,6 +321,8 @@ cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
 cloudfiles cp -c none s3://bkt/file.txt gs://bkt2/
 # Get human readable file sizes from anywhere
 cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
+# remove files
+cloudfiles rm ./tmp gs://bkt/dir/file s3://bkt/dir/file
 ```
 
 The bundled CLI tool has a number of advantages vs. `gsutil` when it comes to transfers.
