@@ -650,4 +650,62 @@ def test_ascloudpath():
   assert ascloudpath(pth) == "precomputed://s3://https://some.domain.com/my_bucket/of/heaven"
 
 
+def test_cli_rm():
+  import subprocess
+  from cloudfiles.lib import mkdir, touch
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  test_dir = os.path.join(test_dir, "testfiles")
+
+  N = 100
+
+  def mkfiles():
+    try:
+      shutil.rmtree(test_dir)
+    except FileNotFoundError:
+      pass
+    mkdir(test_dir)
+    for i in range(N):
+      touch(os.path.join(test_dir, str(i)))
+
+  mkfiles()
+  subprocess.run(["cloudfiles", "rm", "-r", test_dir])
+  assert os.listdir(test_dir) == []
+
+  mkfiles()
+  out = subprocess.run(["cloudfiles", "rm", test_dir], capture_output=True)
+  assert b'is a directory' in out.stdout 
+  assert len(os.listdir(test_dir)) == N
+
+  mkfiles()
+  subprocess.run(["cloudfiles", "rm", test_dir + "/*"])
+  assert os.listdir(test_dir) == []
+
+  mkfiles()
+  subprocess.run(["cloudfiles", "rm", test_dir + "/**"])
+  assert os.listdir(test_dir) == []
+
+  mkfiles()
+  subprocess.run(["cloudfiles", "rm", test_dir + "/0"])
+  assert set(os.listdir(test_dir)) == set([ str(_) for _ in range(1, N) ])
+
+  mkfiles()
+  subprocess.run(["cloudfiles", "rm", test_dir + "/0", test_dir + "/1"])
+  assert set(os.listdir(test_dir)) == set([ str(_) for _ in range(2, N) ])
+
+  mkfiles()
+  subprocess.run(["cloudfiles", "rm", test_dir + "/1*"])
+  res = set([ str(_) for _ in range(N) ])
+  res.remove("1")
+  for x in range(10, 20):
+    res.remove(str(x))
+  assert set(os.listdir(test_dir)) == res
+
+  touch("./cloudfiles-deletable-test-file")
+  subprocess.run(["cloudfiles", "rm", "./cloudfiles-deletable-test-file"])
+  assert not os.path.exists("./cloudfiles-deletable-test-file")
+
+  try:
+    shutil.rmtree(test_dir)
+  except FileNotFoundError:
+    pass
 

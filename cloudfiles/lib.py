@@ -58,6 +58,10 @@ def mkdir(path):
 
   return path
 
+def touch(path):
+  mkdir(os.path.dirname(path))
+  open(path, 'a').close()
+
 def nvl(*args):
   """Return the leftmost argument that is not None."""
   if len(args) < 2:
