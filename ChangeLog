@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+1.18.1
+------
+
+* fix: set zstd for GCS content-encoding
+* docs: show how to use rm command
+
 1.18.0
 ------
 
