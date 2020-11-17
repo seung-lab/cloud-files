@@ -1,6 +1,8 @@
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
+import re
 import multiprocessing as mp
+import pprint
 import os.path
 from tqdm import tqdm
 
@@ -10,7 +12,7 @@ import pathos.pools
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
-from cloudfiles.lib import toabs, sip
+from cloudfiles.lib import toabs, sip, toiter, first
 
 def normalize_path(cloudpath):
   if not get_protocol(cloudpath):
@@ -234,4 +236,32 @@ def du(paths, grand_total, summarize, human_readable):
 
   if grand_total:
     print(f"{SI(sum(summary.values()))}\ttotal") 
+
+@main.command()
+@click.argument('paths', nargs=-1)
+def head(paths):
+  results = {}
+  for path in paths:
+    npath = normalize_path(path)
+    npath = re.sub(r'\*+$', '', path)
+    many, flat, prefix = get_mfp(path, False)
+    if many:
+      cf = CloudFiles(npath, green=True)
+      res = cf.head(cf.list(prefix=prefix, flat=flat))
+      results.update(res)
+    else:
+      cf = CloudFiles(os.path.dirname(npath), green=True)
+      results[path] = cf.head(os.path.basename(npath))
+
+  pp = pprint.PrettyPrinter(indent=2)
+
+  if len(paths) == 1 and len(results) == 1:
+    val = first(results.values())
+    if val is not None:
+      print(val)
+    else:
+      print("cloudfiles: head: File not found: {}".format(paths[0]))
+  elif len(paths) > 0:
+    pp.pprint(results)
+
 
