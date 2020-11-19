@@ -474,6 +474,28 @@ class CloudFiles(object):
       return results
     return first(results.values())
 
+  def head(self, paths, total=None, progress=None):
+    paths, return_multiple = toiter(paths, is_iter=True)
+    progress = nvl(progress, self.progress)
+    results = {}
+
+    def size_thunk(path):
+      with self._get_connection() as conn:
+        results[path] = conn.head(path)
+    
+    desc = self._progress_description('Measuring Sizes')
+    schedule_jobs(
+      fns=( partial(size_thunk, path) for path in paths ),
+      progress=(desc if progress else None),
+      concurrency=self.num_threads,
+      total=totalfn(paths, total),
+      green=self.green,
+    )
+
+    if return_multiple:
+      return results
+    return first(results.values())   
+
   def size(self, paths, total=None, progress=None):
     """
     Get the size in bytes of one or more files in its stored state.

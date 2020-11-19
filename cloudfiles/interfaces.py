@@ -100,6 +100,9 @@ class FileInterface(StorageInterface):
       with open(path, 'wb') as f:
         f.write(content)
 
+  def head(self, file_path):
+    raise NotImplementedError()
+
   def get_file(self, file_path, start=None, end=None):
     path = self.get_path_to_file(file_path)
 
@@ -268,6 +271,9 @@ class MemoryInterface(StorageInterface):
       result = result[slice(start, end)]
     return (result, encoding, None, None)
 
+  def head(self, file_path):
+    raise NotImplementedError()
+
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
 
@@ -402,6 +408,25 @@ class GoogleCloudStorageInterface(StorageInterface):
     return (content, blob.content_encoding, hash_value, hash_type)
 
   @retry
+  def head(self, file_path):
+    key = self.get_path_to_file(file_path)
+    blob = self._bucket.get_blob(key)
+    return {
+      "Cache-Control": blob.cache_control,
+      "Content-Length": blob.size,
+      "Content-Type": blob.content_type,
+      "ETag": blob.etag,
+      "Last-Modified": blob.time_created,
+      "Content-Md5": blob.md5_hash,
+      "Content-Crc32c": blob.crc32c,
+      "Content-Encoding": blob.content_encoding,
+      "Content-Disposition": blob.content_disposition,
+      "Content-Language": blob.content_language,
+      "Storage-Class": blob.storage_class,
+      "Component-Count": blob.component_count,
+    }
+
+  @retry
   def size(self, file_path):
     key = self.get_path_to_file(file_path)
     return self._bucket.get_blob(key).size
@@ -494,6 +519,9 @@ class HttpInterface(StorageInterface):
 
   # @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
+    raise NotImplementedError()
+
+  def head(self, file_path):
     raise NotImplementedError()
 
   @retry
@@ -620,6 +648,32 @@ class S3Interface(StorageInterface):
         return (None, None, None, None)
       else:
         raise
+
+  @retry
+  def head(self, file_path):
+    try:
+      response = self._conn.head_object(
+        Bucket=self._path.bucket,
+        Key=self.get_path_to_file(file_path),
+      )
+      return {
+        "Cache-Control": response.get("CacheControl", None),
+        "Content-Length": response.get("ContentLength", None),
+        "Content-Type": response.get("ContentType", None),
+        "ETag": response.get("ETag", None),
+        "Last-Modified": response.get("LastModified", None),
+        "Content-Md5": response["ResponseMetadata"]["HTTPHeaders"].get("content-md5", None),
+        "Content-Encoding": response.get("ContentEncoding", None),
+        "Content-Disposition": response.get("ContentDisposition", None),
+        "Content-Language": response.get("ContentLanguage", None),
+        "Storage-Class": response.get("StorageClass", None),
+        "Request-Charged": response.get("RequestCharged", None),
+        "Parts-Count": response.get("PartsCount", None),
+      }
+    except botocore.exceptions.ClientError as e:
+      if e.response['Error']['Code'] == "404":
+        return None
+      raise
 
   @retry
   def size(self, file_path):
