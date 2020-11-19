@@ -3,6 +3,7 @@ brotli
 crc32c
 chardet>=3.0.4
 click
+deflate>=0.2.0
 gevent
 google-auth>=1.10.0
 google-cloud-core>=1.1.0
