@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+1.19.0
+------
+
+* feat(cli): add head command (#33)
+* chore: upgrade deflate to a standard install (#34)
+* chore: update changelog
+
 1.18.1
 ------
 

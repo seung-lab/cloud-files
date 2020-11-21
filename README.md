@@ -52,6 +52,8 @@ pip install cloud-files
 pip install cloud-files[test] # to enable testing with pytest
 ```
 
+If you run into trouble installing dependenies, make sure you're using at least Python3.6 and you have updated pip. Some dependencies require manylinux2010 or manylinux2014 binaries which earlier versions of pip do not search for.
+
 ### Credentials
 
 You may wish to install credentials under `~/.cloudvolume/secrets`. CloudFiles is descended from CloudVolume, and for now we'll leave the same configuration structure in place. 
