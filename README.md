@@ -50,7 +50,6 @@ CloudFiles was developed to access files from object storage without ever touchi
 ```bash
 pip install cloud-files
 pip install cloud-files[test] # to enable testing with pytest
-pip install cloud-files[deflate] # simd gzip decompress via libdeflate
 ```
 
 ### Credentials
