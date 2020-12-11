@@ -68,18 +68,30 @@ def dl(cloudpaths, raw=False, **kwargs):
   """
   cloudpaths, is_multiple = toiter(cloudpaths, is_iter=True)
   clustered = defaultdict(list)
+  total = 0
   for path in cloudpaths:
     epath = paths.extract(path)
     bucketpath = paths.asbucketpath(epath)
     clustered[bucketpath].append(epath.path)
+    total += 1
+
+  progress = kwargs.get("progress", False)
+  pbar = tqdm(total=total, desc="Downloading", disable=(not progress))
+
+  try:
+    del kwargs["progress"]
+  except KeyError:
+    pass
 
   content = []
   for bucketpath, keys in clustered.items():
     cf = CloudFiles(bucketpath, **kwargs)
-    sub_content = cf.get(keys, raw=raw)
+    sub_content = cf.get(keys, raw=raw, progress=pbar)
     for sct in sub_content:
       sct["fullpath"] = posixpath.join(bucketpath, sct["path"])
     content += sub_content
+
+  pbar.close()
 
   if not is_multiple:
     return content[0]
