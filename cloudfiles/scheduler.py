@@ -20,7 +20,11 @@ def schedule_threaded_jobs(
   
   desc = progress if isinstance(progress, STRING_TYPES) else None
 
-  pbar = tqdm(total=total, desc=desc, disable=(not progress))
+  if isinstance(progress, tqdm):
+    pbar = progress
+  else:
+    pbar = tqdm(total=total, desc=desc, disable=(not progress))
+
   results = []
   
   def updatefn(fn):
@@ -50,7 +54,11 @@ def schedule_green_jobs(
 
   desc = progress if isinstance(progress, STRING_TYPES) else None
 
-  pbar = tqdm(total=total, desc=desc, disable=(not progress))
+  if isinstance(progress, tqdm):
+    pbar = progress
+  else:
+    pbar = tqdm(total=total, desc=desc, disable=(not progress))
+
   results = []
   
   def updatefn(fn):
@@ -89,7 +97,15 @@ def schedule_jobs(
   if concurrency < 0:
     raise ValueError("concurrency value cannot be negative: {}".format(concurrency))
   elif concurrency == 0:
-    return [ fn() for fn in tqdm(fns, disable=(not progress), desc=progress) ]
+    if isinstance(progress, tqdm):
+      pbar = progress
+      results = []
+      for fn in fns:
+        results.append(fn())
+        pbar.update()
+      return results
+    else:
+      return [ fn() for fn in tqdm(fns, disable=(not progress), desc=progress) ]
 
   if green:
     return schedule_green_jobs(fns, concurrency, progress, total)
