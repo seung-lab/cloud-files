@@ -4,7 +4,9 @@ CloudFiles: Fast access to cloud storage and local FS.
 ========
 
 ```python
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, dl
+
+results = dl(["gs://bucket/file1", "gs://bucket2/file2", ... ]) # shorthand
 
 cf = CloudFiles('gs://bucket', progress=True) # s3://, https://, and file:// also supported
 results = cf.get(['file1', 'file2', 'file3', ..., 'fileN']) # threaded
