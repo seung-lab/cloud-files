@@ -160,11 +160,11 @@ binary = cf['filename'][0:5] # same result, fetches 11 bytes
 binaries = cf[:100] # download the first 100 files
 ```
 
-`get` supports several different styles of input. The simplest takes a scalar filename and returns the contents of that file. However, you can also specify lists of filenames, a byte range request, and lists of byte range requests. You can provide a generator or iterator as input as well. 
+`get` supports several different styles of input. The simplest takes a scalar filename and returns the contents of that file. However, you can also specify lists of filenames, a byte range request, and lists of byte range requests. You can provide a generator or iterator as input as well. Order is not guaranteed.
 
 When more than one file is provided at once, the download will be threaded using preemptive or cooperative (green) threads depending on the `green` setting. If `progress` is set to true, a progress bar will be displayed that counts down the number of files to download.
 
-`get_json` is the same as get but it will parse the returned binary as JSON data encoded as utf8 and returns a dictionary.
+`get_json` is the same as get but it will parse the returned binary as JSON data encoded as utf8 and returns a dictionary. Order is guaranteed.
 
 Cloud Cost: Usually about $0.40 per million requests.
 

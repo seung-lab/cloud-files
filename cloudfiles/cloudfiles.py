@@ -132,7 +132,7 @@ class CloudFiles(object):
 
   def get(self, paths, total=None, raw=False, progress=None):
     """
-    Download one or more files.
+    Download one or more files. Return order is not guaranteed to match input.
 
     paths: scalar or iterable of:
       filename (strings)
@@ -235,6 +235,7 @@ class CloudFiles(object):
   def get_json(self, paths, total=None):
     """
     Download one or more JSON files and decode them into a python object.
+    Return order is guaranteed to match input.
 
     paths: scalar or iterable of:
       filename (strings)
