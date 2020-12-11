@@ -59,6 +59,32 @@ def totalfn(files, total):
   except TypeError:
     return None
   
+def dl(cloudpaths, raw=False, **kwargs):
+  """
+  Shorthand for downloading files with CloudFiles.get.
+  You can use full paths from multiple buckets and services
+  and they'll be noted with key "fullpath" in each returned 
+  dict.
+  """
+  cloudpaths, is_multiple = toiter(cloudpaths, is_iter=True)
+  clustered = defaultdict(list)
+  for path in cloudpaths:
+    epath = paths.extract(path)
+    bucketpath = paths.asbucketpath(epath)
+    clustered[bucketpath].append(epath.path)
+
+  content = []
+  for bucketpath, keys in clustered.items():
+    cf = CloudFiles(bucketpath, **kwargs)
+    sub_content = cf.get(keys, raw=raw)
+    for sct in sub_content:
+      sct["fullpath"] = posixpath.join(bucketpath, sct["path"])
+    content += sub_content
+
+  if not is_multiple:
+    return content[0]
+  return content
+
 class CloudFiles(object):
   """
   CloudFiles is a multithreaded key-value object

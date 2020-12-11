@@ -56,6 +56,23 @@ def ascloudpath(epath):
     return f"{epath.format}://" + pth
   return pth
 
+def asbucketpath(cloudpath):
+  """
+  Returns the cloudpath containing the information needed to 
+  connect to a bucket without the sub path.
+  """
+  if isinstance(cloudpath, str):
+    epath = extract(cloudpath)
+  elif isinstance(cloudpath, ExtractedPath):
+    epath = cloudpath
+  else:
+    raise TypeError(f"Input must be str or ExtractedPath. Got: {cloudpath}")
+
+  return ascloudpath(ExtractedPath(
+    epath.format, epath.protocol, epath.bucket, 
+    None, epath.host
+  ))
+
 def get_protocol(cloudpath):
   m = re.match(CLOUDPATH_REGEXP, cloudpath)
   return m.group('proto')
