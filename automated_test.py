@@ -7,6 +7,7 @@ import time
 from moto import mock_s3
 
 def rmtree(path):
+  path = path.replace("file://", "")
   if os.path.exists(path):
     shutil.rmtree(path)
 
@@ -40,12 +41,7 @@ def s3(aws_credentials):
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))
 def test_read_write(s3, protocol, num_threads, green):
   from cloudfiles import CloudFiles, exceptions
-  if protocol == 'file':
-    path = '/tmp/cloudfiles/rw'
-    rmtree(path)
-    url = 'file://' + path
-  else:
-    url = '{}://cloudfiles/rw'.format(protocol)
+  url = compute_url(protocol, "rw")
 
   cf = CloudFiles(url, num_threads=num_threads, green=green)
   
@@ -80,7 +76,23 @@ def test_read_write(s3, protocol, num_threads, green):
   cf.delete('info')
 
   if protocol == 'file':
-    rmtree(path)
+    rmtree(url)
+
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))
+def test_get_json_order(s3, protocol):
+  from cloudfiles import CloudFiles
+  url = compute_url(protocol, 'get_json_order')
+  cf = CloudFiles(url)
+
+  N = 5300
+  cf.put_jsons(( (str(z), [ z ]) for z in range(N) ))
+
+  contents = cf.get_json(( str(z) for z in range(N) ))
+
+  for z, content in enumerate(contents):
+    assert content[0] == z
+
+  cf.delete(( str(z) for z in range(N) ))
 
 @pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("compress", (None, 'gzip','br','zstd'))

@@ -220,25 +220,26 @@ class CloudFiles(object):
 
     Returns:
       if paths is scalar:
-        object
+        decoded json object
       else:
-        [
-          {
-            'path': path, 
-            'content': object, 
-            'byte_range': (start, end),
-            'error': error,
-          }
-        ]
+        [ decoded json objects ]
     """
     paths, multiple_return = toiter(paths, is_iter=True)
-    contents = self.get(paths, total=total)
 
     def decode(content):
       content = content['content']
       if content is None:
         return None
       return orjson.loads(content.decode('utf8'))
+
+    desc = self.progress if isinstance(self.progress, str) else "Downloading JSON"
+
+    contents = []
+    with tqdm(total=totalfn(paths, total), desc=desc, disable=(not self.progress)) as pbar:
+      for paths_chunk in sip(paths, 2000):
+        contents_chunk = self.get(paths_chunk, total=total, progress=pbar)
+        pathidx = { content["path"]: content for content in contents_chunk }
+        contents.extend(( pathidx[pth] for pth in paths_chunk ))
 
     if not multiple_return and contents and contents[0]['error']:
       raise contents[0]['error']
