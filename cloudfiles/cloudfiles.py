@@ -75,7 +75,7 @@ def dl(cloudpaths, raw=False, **kwargs):
     clustered[bucketpath].append(epath.path)
     total += 1
 
-  progress = kwargs.get("progress", False)
+  progress = kwargs.get("progress", False) and total > 1
   pbar = tqdm(total=total, desc="Downloading", disable=(not progress))
 
   try:
