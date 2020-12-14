@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+* feat: add progress bar total when possible
+* fix: for stdin strip longest common prefix
+* fix: don't allow copying many files to an existing file
+* feat(cli cp): allow stdin as source
+
 1.20.0
 ------
 

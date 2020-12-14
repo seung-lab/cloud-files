@@ -323,6 +323,8 @@ cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
 cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
 # decompress
 cloudfiles cp -c none s3://bkt/file.txt gs://bkt2/
+# pass from stdin (use "-" for source argument)
+find some_dir | cloudfiles cp - s3://bkt/
 # Get human readable file sizes from anywhere
 cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
 # remove files
