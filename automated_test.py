@@ -668,8 +668,20 @@ def test_cli_cp():
   test_dir = os.path.dirname(os.path.abspath(__file__))
   srcdir = os.path.join(test_dir, "testfiles_src")
   destdir = os.path.join(test_dir, "testfiles_dest")
-  print(destdir)
   N = 100
+
+  try:
+    shutil.rmtree(srcdir)
+  except FileNotFoundError:
+    pass
+
+  if os.path.isfile(f"{destdir}"):
+    os.remove(destdir)
+
+  try:
+    shutil.rmtree(destdir)
+  except FileNotFoundError:
+    pass
 
   def mkfiles(mkdirname):
     try:
@@ -681,9 +693,36 @@ def test_cli_cp():
       touch(os.path.join(mkdirname, str(i)))
 
   mkfiles(srcdir)
+
   subprocess.run(["cloudfiles", "cp", "-r", srcdir, destdir])
   assert len(os.listdir(srcdir)) == N
   assert os.listdir(srcdir) == os.listdir(destdir)
+  shutil.rmtree(destdir)
+
+  subprocess.run(["cloudfiles", "cp", "-r", srcdir  + "/1*", destdir])
+  assert set(os.listdir(destdir)) == set([ "1"] + [ str(i) for i in range(10, 20) ])
+
+  shutil.rmtree(destdir)
+  subprocess.run(["cloudfiles", "cp", srcdir + "/**", destdir])
+  assert os.listdir(srcdir) == os.listdir(destdir)
+
+  shutil.rmtree(destdir)
+  subprocess.run(["cloudfiles", "cp", srcdir + "/*", destdir])
+  assert os.listdir(srcdir) == os.listdir(destdir)
+
+  shutil.rmtree(destdir)
+  subprocess.run(f"find {srcdir} -type f | cloudfiles cp - {destdir}", shell=True)
+  assert os.listdir(srcdir) == os.listdir(destdir)
+
+  shutil.rmtree(destdir)
+  mkdir(destdir)
+  subprocess.run(f"cloudfiles cp {srcdir}/10 {destdir}", shell=True)
+  assert os.listdir(destdir) == ["10"]
+
+  shutil.rmtree(destdir)
+  subprocess.run(f"cloudfiles cp {srcdir}/10 {destdir}", shell=True)
+  assert os.path.isfile(f"{destdir}")
+  os.remove(destdir)
 
   try:
     shutil.rmtree(srcdir)

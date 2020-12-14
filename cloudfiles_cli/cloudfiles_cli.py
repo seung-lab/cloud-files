@@ -2,6 +2,7 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import re
 import multiprocessing as mp
+import posixpath
 import pprint
 import os.path
 from tqdm import tqdm
@@ -14,6 +15,15 @@ from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
 from cloudfiles.lib import toabs, sip, toiter, first
+
+def cloudpathjoin(cloudpath, *args):
+  cloudpath = normalize_path(cloudpath)
+  proto = get_protocol(cloudpath)
+  if proto == "file":
+    # join function can strip "file://"
+    return "file://" + os.path.join(cloudpath, *args).replace("file://", "")
+  else:
+    return posixpath.join(cloudpath, *args)
 
 def normalize_path(cloudpath):
   if not get_protocol(cloudpath):
@@ -112,7 +122,10 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
   xferpaths = os.path.basename(nsrc)
   if use_stdin:
     xferpaths = sys.stdin.readlines()
-    xferpaths = ( x.replace("\n", "") for x in xferpaths )
+    xferpaths = [ x.replace("\n", "") for x in xferpaths ]
+    prefix = os.path.commonprefix(xferpaths)
+    xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
+    srcpath = cloudpathjoin(srcpath, prefix)
   elif many:
     xferpaths = CloudFiles(srcpath, green=True).list(prefix=prefix, flat=flat)
 
