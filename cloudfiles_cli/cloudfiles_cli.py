@@ -147,8 +147,14 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
       _cp(srcpath, destpath, compression, progress, block_size, xferpaths)
       return 
 
+    total = None
+    try:
+      total = len(xferpaths)
+    except TypeError:
+      pass
+
     fn = partial(_cp, srcpath, destpath, compression, False, block_size)
-    with tqdm(desc="Transferring", disable=(not progress)) as pbar:
+    with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
       with pathos.pools.ProcessPool(parallel) as executor:
         for _ in executor.imap(fn, sip(xferpaths, block_size)):
           pbar.update(block_size)
