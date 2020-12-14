@@ -1,6 +1,20 @@
 CHANGES
 =======
 
+1.20.0
+------
+
+* fix: don't show progress bar for single input
+* feat: add consistent progress bar to dl
+* docs: show how to use dl
+* docs: note that order is guaranteed for get\_json
+* feat: adds dl function
+* fix: preserve order for get\_json (#36)
+* docs: add highlight about libdeflate
+* docs: add note about supported platforms
+* docs: advice about updating pip
+* docs: remove obsolete installation option
+
 1.19.0
 ------
 

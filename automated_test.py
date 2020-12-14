@@ -662,6 +662,40 @@ def test_ascloudpath():
   assert ascloudpath(pth) == "precomputed://s3://https://some.domain.com/my_bucket/of/heaven"
 
 
+def test_cli_cp():
+  import subprocess
+  from cloudfiles.lib import mkdir, touch
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  srcdir = os.path.join(test_dir, "testfiles_src")
+  destdir = os.path.join(test_dir, "testfiles_dest")
+  print(destdir)
+  N = 100
+
+  def mkfiles(mkdirname):
+    try:
+      shutil.rmtree(mkdirname)
+    except FileNotFoundError:
+      pass
+    mkdir(mkdirname)
+    for i in range(N):
+      touch(os.path.join(mkdirname, str(i)))
+
+  mkfiles(srcdir)
+  subprocess.run(["cloudfiles", "cp", "-r", srcdir, destdir])
+  assert len(os.listdir(srcdir)) == N
+  assert os.listdir(srcdir) == os.listdir(destdir)
+
+  try:
+    shutil.rmtree(srcdir)
+  except FileNotFoundError:
+    pass
+
+  try:
+    shutil.rmtree(destdir)
+  except FileNotFoundError:
+    pass
+
+
 def test_cli_rm():
   import subprocess
   from cloudfiles.lib import mkdir, touch

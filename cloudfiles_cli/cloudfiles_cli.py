@@ -5,6 +5,7 @@ import multiprocessing as mp
 import pprint
 import os.path
 from tqdm import tqdm
+import sys
 
 import click
 import pathos.pools
@@ -84,38 +85,47 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
   """
   Copy one or more files from a source to destination.
 
+  If source is "-" read newline delimited filenames from stdin.
+
   Note that for gs:// to gs:// transfers, the gsutil
   tool is more efficient because the files never leave
   Google's network.
   """
+  use_stdin = (source == '-')
+
   nsrc = normalize_path(source)
   ndest = normalize_path(destination)
 
   ctx.ensure_object(dict)
   parallel = int(ctx.obj.get("parallel", 1))
 
-  issrcdir = ispathdir(source)
+  issrcdir = ispathdir(source) and use_stdin == False
   isdestdir = ispathdir(destination)
 
   srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
   many, flat, prefix = get_mfp(nsrc, recursive)
-  
+
   if issrcdir and not many:
     print(f"cloudfiles: {source} is a directory (not copied).")
     return
 
   xferpaths = os.path.basename(nsrc)
-  if many:
+  if use_stdin:
+    xferpaths = sys.stdin.readlines()
+    xferpaths = ( x.replace("\n", "") for x in xferpaths )
+  elif many:
     xferpaths = CloudFiles(srcpath, green=True).list(prefix=prefix, flat=flat)
 
-  destpath = ndest if isdestdir else os.path.dirname(ndest)
+  destpath = ndest
+  if isinstance(xferpaths, str):
+    destpath = ndest if isdestdir else os.path.dirname(ndest)
 
   if compression == "same":
     compression = None
   elif compression == "none":
     compression = False
 
-  if many:
+  if not isinstance(xferpaths, str):
     if parallel == 1:
       _cp(srcpath, destpath, compression, progress, block_size, xferpaths)
       return 
