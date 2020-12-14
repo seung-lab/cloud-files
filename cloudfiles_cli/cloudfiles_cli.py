@@ -119,6 +119,10 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
   destpath = ndest
   if isinstance(xferpaths, str):
     destpath = ndest if isdestdir else os.path.dirname(ndest)
+  elif not isdestdir:
+    if os.path.exists(ndest.replace("file://", "")):
+      print(f"cloudfiles: {ndest} is not a directory (not copied).")
+      return
 
   if compression == "same":
     compression = None
