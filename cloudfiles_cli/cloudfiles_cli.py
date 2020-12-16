@@ -237,9 +237,19 @@ def _cp(src, dst, compression, progress, block_size, paths):
 @click.option('-b', '--block-size', default=128, help="Number of files to process at a time.")
 @click.pass_context
 def rm(ctx, paths, recursive, progress, block_size):
-  """Remove file objects."""
+  """
+  Remove file objects.
+
+  Note that if the only path provided is "-",
+  rm will read the paths from STDIN separated by 
+  newlines.
+  """
   ctx.ensure_object(dict)
   parallel = int(ctx.obj.get("parallel", 1))
+
+  if len(paths) == 1 and paths[0] == "-":
+    paths = sys.stdin.readlines()
+    paths = [ path[:-1] for path in paths ] # clip "\n"
 
   for path in paths:
     many, flat, prefix = get_mfp(path, recursive)
