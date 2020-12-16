@@ -61,9 +61,15 @@ def license():
 def ls(flat, cloudpath):
   """Recursively lists the contents of a directory."""
   cloudpath = normalize_path(cloudpath)
-  cf = CloudFiles(cloudpath, green=True)
 
-  for pathset in sip(cf.list(flat=flat), 1000):
+  _, flt, prefix = get_mfp(cloudpath, True)
+  epath = extract(cloudpath)
+  if len(epath.path) > 0:
+    cloudpath = os.path.dirname(cloudpath)
+  flat = flat or flt
+
+  cf = CloudFiles(cloudpath, green=True)
+  for pathset in sip(cf.list(prefix=prefix, flat=flat), 1000):
     print("\n".join(pathset))
 
 def get_mfp(path, recursive):
