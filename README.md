@@ -331,7 +331,9 @@ cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
 cloudfiles rm ./tmp gs://bkt/dir/file s3://bkt/dir/file
 ```
 
-The bundled CLI tool has a number of advantages vs. `gsutil` when it comes to transfers.
+### `cp` Pros and Cons
+
+For the cp command, the bundled CLI tool has a number of advantages vs. `gsutil` when it comes to transfers.
 
 1. No decompression of file transfers (unless you want to).
 2. Can shift compression format.
@@ -344,6 +346,17 @@ It also has some disadvantages:
 1. gs:// to gs:// transfers are looped through the executing machine.
 2. Doesn't support all commands.
 3. File suffixes may be added to signify compression type on the local filesystem (e.g. `.gz`, `.br`, or `.zstd`). `cloudfiles ls` will list them without the extension and they will be converted into `Content-Encoding` on cloud storage.
+
+### `ls` Generative Expressions
+
+For the `ls` command, we support (via the `-e` flag) simple generative expressions that enable querying multiple prefixes at once. A generative expression is denoted `[chars]` where `c`,`h`,`a`,`r`, & `s` will be inserted individually into the position where the expression appears. Multiple expressions are allowed and produce a cartesian product of resulting strings. This functionality is very limited at the moment but we intend to improve it.
+
+```bash
+cloudfiles ls -e "gs://bucket/prefix[ab]"
+# equivalent to:
+# cloudfiles ls gs://bucket/prefixa
+# cloudfiles ls gs://bucket/prefixb
+```
 
 ## Credits
 
