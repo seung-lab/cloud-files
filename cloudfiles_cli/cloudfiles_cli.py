@@ -57,10 +57,11 @@ def license():
     print(f.read())
 
 @main.command()
+@click.option('--shortpath', is_flag=True, default=False, help='Don\'t print the common base path for each listed path.')
 @click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.')
 @click.option('-e','--expr',is_flag=True, default=False, help='Use a limited regexp language (e.g. [abc123]\{3\}) to generate prefixes.')
 @click.argument("cloudpath")
-def ls(flat, expr, cloudpath):
+def ls(shortpath, flat, expr, cloudpath):
   """Recursively lists the contents of a directory."""
   cloudpath = normalize_path(cloudpath)
 
@@ -96,6 +97,8 @@ def ls(flat, expr, cloudpath):
 
   iterables = itertools.chain(*iterables)
   for pathset in sip(iterables, 1000):
+    if not shortpath:
+      pathset = [ cloudpathjoin(cloudpath, pth) for pth in pathset ]
     print("\n".join(pathset))
 
 def exprgen(prefix, matches):
