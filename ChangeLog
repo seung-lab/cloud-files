@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+1.21.0
+------
+
+* docs: show how to use stdin input
 * feat: add progress bar total when possible
 * fix: for stdin strip longest common prefix
 * fix: don't allow copying many files to an existing file

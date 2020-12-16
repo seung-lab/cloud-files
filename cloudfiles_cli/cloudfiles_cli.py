@@ -1,5 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
+import itertools
 import re
 import multiprocessing as mp
 import posixpath
@@ -57,20 +58,65 @@ def license():
 
 @main.command()
 @click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.')
+@click.option('-e','--expr',is_flag=True, default=False, help='Use a limited regexp language (e.g. [abc123]\{3\}) to generate prefixes.')
 @click.argument("cloudpath")
-def ls(flat, cloudpath):
+def ls(flat, expr, cloudpath):
   """Recursively lists the contents of a directory."""
   cloudpath = normalize_path(cloudpath)
 
   _, flt, prefix = get_mfp(cloudpath, True)
   epath = extract(cloudpath)
   if len(epath.path) > 0:
+    if prefix == "" and flt == False:
+      prefix = os.path.basename(cloudpath)
     cloudpath = os.path.dirname(cloudpath)
+
   flat = flat or flt
 
   cf = CloudFiles(cloudpath, green=True)
-  for pathset in sip(cf.list(prefix=prefix, flat=flat), 1000):
+  iterables = []
+  if expr:
+    # TODO: make this a reality using a parser
+    # match "[abc]{2}" or "[123]" meaning generate a 2 character cartesian
+    # product of a,b, and c or a 1 character cartesian product of 1,2,3
+    # e.g. aa, ab, ac, ba, bb, bc, ca, cb, cc
+    #      1, 2, 3
+    matches = re.findall(r'\[([a-zA-Z0-9]+)\]', prefix)
+
+    if len(matches):
+      iterables.extend(
+        [ cf.list(prefix=pfx, flat=flat) for pfx in exprgen(prefix, matches) ]
+      )
+    else:
+      iterables.append(
+        cf.list(flat=flat)
+      )
+  else:
+    iterables = [ cf.list(prefix=prefix, flat=flat) ]
+
+  iterables = itertools.chain(*iterables)
+  for pathset in sip(iterables, 1000):
     print("\n".join(pathset))
+
+def exprgen(prefix, matches):
+  """
+  Given a string "hello[world]" and matches := ["world"]
+  return ["hellow", "helloo", "hellor", "hellol", "hellod"]
+  """
+  if len(matches) == 0:
+    return [ prefix ]
+
+  match = matches[0]
+  prefixes = []
+  for char in match:
+    prefixes.append(prefix.replace(f"[{match}]", char, 1))
+  
+  finished_prefixes = []
+  for pfx in prefixes:
+    finished_prefixes += exprgen(pfx, matches[1:])
+
+  return finished_prefixes
+
 
 def get_mfp(path, recursive):
   """many,flat,prefix"""
