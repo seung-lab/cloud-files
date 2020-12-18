@@ -44,7 +44,12 @@ INTERFACES = {
 
 def parallelize(desc=None, returns_list=False):
   """
+  @parallelize 
+
   Allow multiprocess for methods that don't need to return anything.
+
+  desc: progress bar label
+  returns_list: accumulate results in a list and return it
 
   Enables the "parallel" argument to do something.
   """
