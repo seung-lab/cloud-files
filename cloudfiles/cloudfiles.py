@@ -1,6 +1,7 @@
 from queue import Queue
 from collections import defaultdict
-from functools import partial
+from functools import partial, wraps
+import inspect
 import math
 import multiprocessing
 import itertools
@@ -40,9 +41,6 @@ INTERFACES = {
   'https': HttpInterface,
   'mem': MemoryInterface,
 }
-
-from functools import wraps
-import inspect
 
 def parallelize(desc=None, returns_list=False):
   """
