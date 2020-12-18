@@ -1,13 +1,15 @@
 from queue import Queue
 from collections import defaultdict
+from functools import partial
+import math
 import itertools
 import os.path
 import posixpath
 import re
-from functools import partial
 import types
 
 import orjson
+import pathos.pools
 from tqdm import tqdm
 
 import google.cloud.storage 
@@ -111,7 +113,7 @@ class CloudFiles(object):
   def __init__(
     self, cloudpath, progress=False, 
     green=False, secrets=None, num_threads=20,
-    use_https=False, endpoint=None
+    use_https=False, endpoint=None, parallel=1
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -121,6 +123,7 @@ class CloudFiles(object):
     self.secrets = secrets
     self.num_threads = num_threads
     self.green = bool(green)
+    self.parallel = int(parallel)
 
     self._path = paths.extract(cloudpath)
     if endpoint:
@@ -142,7 +145,7 @@ class CloudFiles(object):
       secrets=self.secrets,
     )
 
-  def get(self, paths, total=None, raw=False, progress=None):
+  def get(self, paths, total=None, raw=False, progress=None, parallel=None):
     """
     Download one or more files. Return order is not guaranteed to match input.
 
@@ -153,6 +156,7 @@ class CloudFiles(object):
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
     raw: download without decompressing
+    parallel: number of concurrent processes
     
     Returns:
       if paths is scalar:
@@ -169,6 +173,37 @@ class CloudFiles(object):
           }
         ]
     """
+    parallel = nvl(parallel, self.parallel, 1)
+    if parallel == 1:
+      return self._get(paths, total, raw, progress)
+
+    total = totalfn(paths, total)
+
+    if total is not None and total < 0:
+      raise ValueError("total must be positive. Got: {total}")
+
+    block_size = 250
+    if total is not None:
+      block_size = max(self.num_threads, int(math.ceil(total / parallel)))
+      block_size = max(block_size, 1)
+      block_size = min(1250, block_size)
+
+    if isinstance(progress, tqdm):
+      pbar = progress
+    else:
+      pbar = tqdm(desc="Download", total=total, disable=(not progress))
+
+    results = []
+    fn = partial(self._get, progress=False, raw=raw)
+    with pathos.pools.ProcessPool(parallel) as executor:
+      for res in executor.imap(fn, sip(paths, block_size)):
+        results.extend(res)
+        pbar.update(block_size)
+    pbar.close()
+
+    return results
+
+  def _get(self, paths, total=None, raw=False, progress=None):
     paths, multiple_return = toiter(paths, is_iter=True)
     progress = nvl(progress, self.progress)
 
