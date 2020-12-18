@@ -2,6 +2,7 @@ from queue import Queue
 from collections import defaultdict
 from functools import partial
 import math
+import multiprocessing
 import itertools
 import os.path
 import posixpath
@@ -39,6 +40,101 @@ INTERFACES = {
   'https': HttpInterface,
   'mem': MemoryInterface,
 }
+
+from functools import wraps
+import inspect
+
+def parallelize(desc=None, returns_list=False):
+  """
+  Allow multiprocess for methods that don't need to return anything.
+
+  Enables the "parallel" argument to do something.
+  """
+  def decor(fn):
+    @wraps(fn)
+    def inner_decor(*args, **kwargs):
+      nonlocal fn
+      nonlocal desc
+      nonlocal returns_list
+
+      try:
+        sig = inspect.signature(fn).bind(*args, **kwargs)
+        parallel = sig.arguments.get("parallel", None)
+      except TypeError:
+        parallel = kwargs.get("parallel", None)
+        del kwargs["parallel"]
+        sig = inspect.signature(fn).bind_partial(*args, **kwargs)
+
+      params = sig.arguments
+      self = params.get("self", None)
+      del params["self"]
+      input_key, input_value = first(params.items())
+      del params[input_key]
+
+      parallel = nvl(parallel, self.parallel, 1)
+
+      if parallel == 1:
+        return fn(*args, **kwargs)
+
+      progress = params.get("progress", False)
+      params["progress"] = False
+      total = params.get("total", None)
+
+      if self is None:
+        fn = partial(fn, **params)
+      else:
+        fn = partial(fn, self, **params)
+      
+      return parallel_execute(
+        fn, input_value, parallel, total, progress, 
+        desc=desc, returns_list=returns_list
+      )
+  
+    return inner_decor
+  return decor
+
+def parallel_execute(
+    fn, inputs, parallel, 
+    total, progress, desc,
+    returns_list
+  ):
+  if parallel == 0:
+    parallel = multiprocessing.cpu_count()
+  elif parallel < 0:
+    raise ValueError(f"parallel must be >= 0. Got: {parallel}")
+
+  total = totalfn(inputs, total)
+
+  if total is not None and total < 0:
+    raise ValueError(f"total must be positive. Got: {total}")
+
+  block_size = 250
+  if total is not None:
+    block_size = max(20, int(math.ceil(total / parallel)))
+    block_size = max(block_size, 1)
+    block_size = min(1250, block_size)
+
+  if isinstance(progress, tqdm):
+    pbar = progress
+  else:
+    pbar = tqdm(desc=desc, total=total, disable=(not progress))
+
+  results = []
+  with pathos.pools.ProcessPool(parallel) as executor:
+    for res in executor.imap(fn, sip(inputs, block_size)):
+      if isinstance(res, int):
+        pbar.update(res)
+      elif isinstance(res, list):
+        pbar.update(len(res))
+      else:
+        pbar.update(block_size)
+
+      if returns_list:
+        results.extend(res)
+  pbar.close()
+
+  if returns_list:
+    return results
 
 def get_interface_class(protocol):
   if protocol in INTERFACES:
@@ -145,6 +241,7 @@ class CloudFiles(object):
       secrets=self.secrets,
     )
 
+  @parallelize(desc="Download", returns_list=True)
   def get(self, paths, total=None, raw=False, progress=None, parallel=None):
     """
     Download one or more files. Return order is not guaranteed to match input.
@@ -173,37 +270,6 @@ class CloudFiles(object):
           }
         ]
     """
-    parallel = nvl(parallel, self.parallel, 1)
-    if parallel == 1:
-      return self._get(paths, total, raw, progress)
-
-    total = totalfn(paths, total)
-
-    if total is not None and total < 0:
-      raise ValueError(f"total must be positive. Got: {total}")
-
-    block_size = 250
-    if total is not None:
-      block_size = max(self.num_threads, int(math.ceil(total / parallel)))
-      block_size = max(block_size, 1)
-      block_size = min(1250, block_size)
-
-    if isinstance(progress, tqdm):
-      pbar = progress
-    else:
-      pbar = tqdm(desc="Download", total=total, disable=(not progress))
-
-    results = []
-    fn = partial(self._get, progress=False, raw=raw)
-    with pathos.pools.ProcessPool(parallel) as executor:
-      for res in executor.imap(fn, sip(paths, block_size)):
-        results.extend(res)
-        pbar.update(len(res))
-    pbar.close()
-
-    return results
-
-  def _get(self, paths, total=None, raw=False, progress=None):
     paths, multiple_return = toiter(paths, is_iter=True)
     progress = nvl(progress, self.progress)
 
@@ -323,6 +389,7 @@ class CloudFiles(object):
       return contents
     return contents[0]
 
+  @parallelize(desc="Upload")
   def puts(
     self, files, 
     content_type=None, compress=None, 
@@ -363,27 +430,6 @@ class CloudFiles(object):
       text of the progress bar.
     parallel: number of concurrent processes (0 means all cores)
     """
-    parallel = nvl(parallel, self.parallel, 1)
-    if parallel == 1:
-      return self._puts(
-        files, content_type, compress, 
-        compression_level, cache_control,
-        total, raw, progress
-      )
-
-    fn = partial(self._puts, 
-      content_type=content_type, compress=compress, 
-      compression_level=compression_level, cache_control=cache_control,
-      total=total, raw=raw, progress=False
-    )
-    parallelize(fn, files, parallel, total, progress, desc="Upload")
-
-  def _puts(
-    self, files, 
-    content_type=None, compress=None, 
-    compression_level=None, cache_control=None,
-    total=None, raw=False, progress=None
-  ):
     files = toiter(files)
     progress = nvl(progress, self.progress)
 
@@ -428,7 +474,7 @@ class CloudFiles(object):
       return
 
     fns = ( partial(uploadfn, file) for file in files )
-    desc = self._progress_description('Uploading')
+    desc = self._progress_description("Upload")
     results = schedule_jobs(
       fns=fns,
       concurrency=self.num_threads,
@@ -620,6 +666,7 @@ class CloudFiles(object):
       return results
     return first(results.values())
 
+  @parallelize(desc="Delete")
   def delete(self, paths, total=None, progress=None, parallel=1):
     """
     Delete one or more files.
@@ -635,14 +682,6 @@ class CloudFiles(object):
 
     Returns: void
     """
-    parallel = nvl(parallel, self.parallel, 1)
-    if parallel == 1:
-      return self._delete(paths, total, progress, parallel)
-
-    fn = partial(self._delete, total=total, progress=False) 
-    parallelize(fn, paths, parallel, total, progress, desc="Delete")
-
-  def _delete(self, paths, total=None, progress=None):
     paths = toiter(paths)
     progress = nvl(progress, self.progress)
 
@@ -771,34 +810,3 @@ class CloudFiles(object):
 
   def __iter__(self):
     return self.list()
-
-def parallelize(
-    fn, inputs, parallel, 
-    total, progress, desc
-  ):
-  total = totalfn(inputs, total)
-
-  if total is not None and total < 0:
-    raise ValueError(f"total must be positive. Got: {total}")
-
-  block_size = 250
-  if total is not None:
-    block_size = max(20, int(math.ceil(total / parallel)))
-    block_size = max(block_size, 1)
-    block_size = min(1250, block_size)
-
-  if isinstance(progress, tqdm):
-    pbar = progress
-  else:
-    pbar = tqdm(desc=desc, total=total, disable=(not progress))
-
-  with pathos.pools.ProcessPool(parallel) as executor:
-    for res in executor.imap(fn, sip(inputs, block_size)):
-      if isinstance(res, int):
-        pbar.update(res)
-      elif isinstance(res, list):
-        pbar.update(len(res))
-      else:
-        pbar.update(block_size)
-  pbar.close()
-
