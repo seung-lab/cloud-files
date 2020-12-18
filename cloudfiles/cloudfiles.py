@@ -156,7 +156,7 @@ class CloudFiles(object):
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
     raw: download without decompressing
-    parallel: number of concurrent processes
+    parallel: number of concurrent processes (0 means all cores)
     
     Returns:
       if paths is scalar:
@@ -327,7 +327,8 @@ class CloudFiles(object):
     self, files, 
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
-    total=None, raw=False, progress=None
+    total=None, raw=False, progress=None,
+    parallel=1
   ):
     """
     Writes one or more files at a given location.
@@ -360,7 +361,50 @@ class CloudFiles(object):
     progress: selectively enable or disable progress just for this
       function call. If progress is a string, it sets the 
       text of the progress bar.
+    parallel: number of concurrent processes (0 means all cores)
     """
+    parallel = nvl(parallel, self.parallel, 1)
+    if parallel == 1:
+      return self._puts(
+        files, content_type, compress, 
+        compression_level, cache_control,
+        total, raw, progress
+      )
+
+    total = totalfn(files, total)
+
+    if total is not None and total < 0:
+      raise ValueError("total must be positive. Got: {total}")
+
+    block_size = 250
+    if total is not None:
+      block_size = max(self.num_threads, int(math.ceil(total / parallel)))
+      block_size = max(block_size, 1)
+      block_size = min(1250, block_size)
+
+    if isinstance(progress, tqdm):
+      pbar = progress
+    else:
+      pbar = tqdm(desc="Upload", total=total, disable=(not progress))
+
+    fn = partial(self._puts, 
+      content_type=content_type, compress=compress, 
+      compression_level=compression_level, cache_control=cache_control,
+      total=total, raw=raw, progress=False
+    )
+    with pathos.pools.ProcessPool(parallel) as executor:
+      for _ in executor.imap(fn, sip(files, block_size)):
+        pbar.update(block_size)
+    pbar.close()
+
+    return results
+
+  def _puts(
+    self, files, 
+    content_type=None, compress=None, 
+    compression_level=None, cache_control=None,
+    total=None, raw=False, progress=None
+  ):
     files = toiter(files)
     progress = nvl(progress, self.progress)
 
@@ -448,7 +492,7 @@ class CloudFiles(object):
     self, files,     
     compress=None, compression_level=None, 
     cache_control=None, total=None, raw=False,
-    progress=None
+    progress=None, parallel=1
   ):
     """
     Write one or more files as JSON.
@@ -476,7 +520,7 @@ class CloudFiles(object):
       (jsonify_file(file) for file in files), 
       compress=compress, compression_level=compression_level,
       content_type='application/json', total=total, raw=raw,
-      progress=progress
+      progress=progress, parallel=parallel
     )
 
   def put_json(
