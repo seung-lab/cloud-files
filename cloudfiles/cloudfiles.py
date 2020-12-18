@@ -1,13 +1,17 @@
 from queue import Queue
 from collections import defaultdict
+from functools import partial, wraps
+import inspect
+import math
+import multiprocessing
 import itertools
 import os.path
 import posixpath
 import re
-from functools import partial
 import types
 
 import orjson
+import pathos.pools
 from tqdm import tqdm
 
 import google.cloud.storage 
@@ -37,6 +41,103 @@ INTERFACES = {
   'https': HttpInterface,
   'mem': MemoryInterface,
 }
+
+def parallelize(desc=None, returns_list=False):
+  """
+  @parallelize 
+
+  Allow multiprocess for methods that don't need to return anything.
+
+  desc: progress bar label
+  returns_list: accumulate results in a list and return it
+
+  Enables the "parallel" argument to do something.
+  """
+  def decor(fn):
+    @wraps(fn)
+    def inner_decor(*args, **kwargs):
+      nonlocal fn
+      nonlocal desc
+      nonlocal returns_list
+
+      try:
+        sig = inspect.signature(fn).bind(*args, **kwargs)
+        parallel = sig.arguments.get("parallel", None)
+      except TypeError:
+        parallel = kwargs.get("parallel", None)
+        del kwargs["parallel"]
+        sig = inspect.signature(fn).bind_partial(*args, **kwargs)
+
+      params = sig.arguments
+      self = params.get("self", None)
+      del params["self"]
+      input_key, input_value = first(params.items())
+      del params[input_key]
+
+      parallel = nvl(parallel, self.parallel, 1)
+
+      if parallel == 1:
+        return fn(*args, **kwargs)
+
+      progress = params.get("progress", False)
+      params["progress"] = False
+      total = params.get("total", None)
+
+      if self is None:
+        fn = partial(fn, **params)
+      else:
+        fn = partial(fn, self, **params)
+      
+      return parallel_execute(
+        fn, input_value, parallel, total, progress, 
+        desc=desc, returns_list=returns_list
+      )
+  
+    return inner_decor
+  return decor
+
+def parallel_execute(
+    fn, inputs, parallel, 
+    total, progress, desc,
+    returns_list
+  ):
+  if parallel == 0:
+    parallel = multiprocessing.cpu_count()
+  elif parallel < 0:
+    raise ValueError(f"parallel must be >= 0. Got: {parallel}")
+
+  total = totalfn(inputs, total)
+
+  if total is not None and total < 0:
+    raise ValueError(f"total must be positive. Got: {total}")
+
+  block_size = 250
+  if total is not None:
+    block_size = max(20, int(math.ceil(total / parallel)))
+    block_size = max(block_size, 1)
+    block_size = min(1250, block_size)
+
+  if isinstance(progress, tqdm):
+    pbar = progress
+  else:
+    pbar = tqdm(desc=desc, total=total, disable=(not progress))
+
+  results = []
+  with pathos.pools.ProcessPool(parallel) as executor:
+    for res in executor.imap(fn, sip(inputs, block_size)):
+      if isinstance(res, int):
+        pbar.update(res)
+      elif isinstance(res, list):
+        pbar.update(len(res))
+      else:
+        pbar.update(block_size)
+
+      if returns_list:
+        results.extend(res)
+  pbar.close()
+
+  if returns_list:
+    return results
 
 def get_interface_class(protocol):
   if protocol in INTERFACES:
@@ -111,7 +212,7 @@ class CloudFiles(object):
   def __init__(
     self, cloudpath, progress=False, 
     green=False, secrets=None, num_threads=20,
-    use_https=False, endpoint=None
+    use_https=False, endpoint=None, parallel=1
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -121,6 +222,7 @@ class CloudFiles(object):
     self.secrets = secrets
     self.num_threads = num_threads
     self.green = bool(green)
+    self.parallel = int(parallel)
 
     self._path = paths.extract(cloudpath)
     if endpoint:
@@ -142,7 +244,8 @@ class CloudFiles(object):
       secrets=self.secrets,
     )
 
-  def get(self, paths, total=None, raw=False, progress=None):
+  @parallelize(desc="Download", returns_list=True)
+  def get(self, paths, total=None, raw=False, progress=None, parallel=None):
     """
     Download one or more files. Return order is not guaranteed to match input.
 
@@ -153,6 +256,7 @@ class CloudFiles(object):
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
     raw: download without decompressing
+    parallel: number of concurrent processes (0 means all cores)
     
     Returns:
       if paths is scalar:
@@ -288,11 +392,13 @@ class CloudFiles(object):
       return contents
     return contents[0]
 
+  @parallelize(desc="Upload")
   def puts(
     self, files, 
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
-    total=None, raw=False, progress=None
+    total=None, raw=False, progress=None,
+    parallel=1
   ):
     """
     Writes one or more files at a given location.
@@ -325,6 +431,7 @@ class CloudFiles(object):
     progress: selectively enable or disable progress just for this
       function call. If progress is a string, it sets the 
       text of the progress bar.
+    parallel: number of concurrent processes (0 means all cores)
     """
     files = toiter(files)
     progress = nvl(progress, self.progress)
@@ -370,14 +477,15 @@ class CloudFiles(object):
       return
 
     fns = ( partial(uploadfn, file) for file in files )
-    desc = self._progress_description('Uploading')
-    schedule_jobs(
+    desc = self._progress_description("Upload")
+    results = schedule_jobs(
       fns=fns,
       concurrency=self.num_threads,
       progress=(desc if progress else None),
       total=total,
       green=self.green,
     )
+    return len(results)
 
   def put(
     self, 
@@ -413,7 +521,7 @@ class CloudFiles(object):
     self, files,     
     compress=None, compression_level=None, 
     cache_control=None, total=None, raw=False,
-    progress=None
+    progress=None, parallel=1
   ):
     """
     Write one or more files as JSON.
@@ -441,7 +549,7 @@ class CloudFiles(object):
       (jsonify_file(file) for file in files), 
       compress=compress, compression_level=compression_level,
       content_type='application/json', total=total, raw=raw,
-      progress=progress
+      progress=progress, parallel=parallel
     )
 
   def put_json(
@@ -561,7 +669,8 @@ class CloudFiles(object):
       return results
     return first(results.values())
 
-  def delete(self, paths, total=None, progress=None):
+  @parallelize(desc="Delete")
+  def delete(self, paths, total=None, progress=None, parallel=1):
     """
     Delete one or more files.
 
@@ -572,6 +681,7 @@ class CloudFiles(object):
     progress: selectively enable or disable progress just for this
       function call. If progress is a string, it sets the 
       text of the progress bar.
+    parallel: number of concurrent processes (0 means all cores)
 
     Returns: void
     """
@@ -582,17 +692,18 @@ class CloudFiles(object):
       with self._get_connection() as conn:
         conn.delete_files(path)
 
-    desc = self._progress_description('Deleting')
+    desc = self._progress_description('Delete')
 
     batch_size = self._interface_cls.delete_batch_size
 
-    schedule_jobs(
+    results = schedule_jobs(
       fns=( partial(thunk_delete, path) for path in sip(paths, batch_size) ),
       progress=(desc if progress else None),
       concurrency=self.num_threads,
       total=totalfn(paths, total),
       green=self.green,
     )
+    return len(results)
 
   def list(self, prefix="", flat=False):
     """
@@ -702,4 +813,3 @@ class CloudFiles(object):
 
   def __iter__(self):
     return self.list()
-

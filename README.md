@@ -10,6 +10,7 @@ results = dl(["gs://bucket/file1", "gs://bucket2/file2", ... ]) # shorthand
 
 cf = CloudFiles('gs://bucket', progress=True) # s3://, https://, and file:// also supported
 results = cf.get(['file1', 'file2', 'file3', ..., 'fileN']) # threaded
+results = cf.get(paths, parallel=2) # threaded and two processes
 file1 = cf['file1']
 part  = cf['file1', 0:30] # first 30 bytes of file1
 
@@ -19,6 +20,8 @@ cf.puts([{
     'path': 'filename',
     'content': content,
 }, ... ]) # automatically threaded
+cf.puts(content, parallel=2) # threaded + two processes
+
 cf.put_jsons(...) # same as puts
 cf['filename'] = content
 
@@ -29,6 +32,7 @@ list(cf) # same as list(cf.list())
 cf.delete('filename')
 del cf['filename']
 cf.delete([ 'filename_1', 'filename_2', ... ]) # threaded
+cf.delete(paths, parallel=2) # threaded + two processes
 
 boolean = cf.exists('filename')
 results = cf.exists([ 'filename_1', ... ]) # threaded
@@ -38,7 +42,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 
 ## Highlights
 
-1. Fast file access with transparent threading.
+1. Fast file access with transparent threading and optionally multi-process.
 2. Google Cloud Storage, Amazon S3, local filesystems, and arbitrary web servers making hybrid or multi-cloud easy.
 3. Robust to flaky network connections. Uses exponential random window retries to avoid network collisions on a large cluster. Validates md5 for gcs and s3.
 4. gzip, brotli, and zstd compression.
@@ -47,6 +51,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 7. High efficiency transfers that avoid compression/decompression cycles.
 8. High speed gzip decompression using libdeflate (compared with zlib).
 9. Bundled CLI tool.
+10. Accepts iterator and generator input.
 
 ## Installation 
 
