@@ -607,20 +607,26 @@ class CloudFiles(object):
     progress = nvl(progress, self.progress)
     results = {}
 
+    total = totalfn(paths, total)
+    desc = self._progress_description("Exists")
+    if isinstance(progress, tqdm):
+      pbar = progress
+    else:
+      pbar = tqdm(total=total, desc=desc, disable=(not progress))
+
     def exist_thunk(paths):
       with self._get_connection() as conn:
         results.update(conn.files_exist(paths))
+        pbar.update(len(paths))
 
     batch_size = self._interface_cls.exists_batch_size
-    
-    desc = self._progress_description('Existence Testing')
     schedule_jobs(
       fns=( partial(exist_thunk, paths) for paths in sip(paths, batch_size) ),
-      progress=(desc if progress else None),
+      progress=False,
       concurrency=self.num_threads,
-      total=totalfn(paths, total),
       green=self.green,
     )
+    pbar.close()
 
     if return_multiple:
       return results
