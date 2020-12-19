@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+1.23.1
+------
+
+* fix: sometimes fn is a redundant partial function
+* chore: update changelog
+
 1.23.0
 ------
 
