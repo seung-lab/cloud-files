@@ -60,6 +60,9 @@ def parallelize(desc=None, returns_list=False):
       nonlocal desc
       nonlocal returns_list
 
+      while isinstance(fn, partial):
+        fn = fn.func
+
       try:
         sig = inspect.signature(fn).bind(*args, **kwargs)
         parallel = sig.arguments.get("parallel", None)
@@ -70,7 +73,8 @@ def parallelize(desc=None, returns_list=False):
 
       params = sig.arguments
       self = params.get("self", None)
-      del params["self"]
+      if "self" in params:
+        del params["self"]
       input_key, input_value = first(params.items())
       del params[input_key]
 
