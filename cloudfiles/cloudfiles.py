@@ -641,7 +641,7 @@ class CloudFiles(object):
       with self._get_connection() as conn:
         results[path] = conn.head(path)
     
-    desc = self._progress_description('Measuring Sizes')
+    desc = self._progress_description('Head')
     schedule_jobs(
       fns=( partial(size_thunk, path) for path in paths ),
       progress=(desc if progress else None),
