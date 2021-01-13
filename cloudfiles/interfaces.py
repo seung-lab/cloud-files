@@ -71,7 +71,8 @@ class FileInterface(StorageInterface):
   def put_file(
     self, file_path, content, 
     content_type, compress, 
-    cache_control=None
+    cache_control=None,
+    storage_class=None
   ):
     path = self.get_path_to_file(file_path)
     mkdir(os.path.dirname(path))
@@ -228,7 +229,8 @@ class MemoryInterface(StorageInterface):
   def put_file(
     self, file_path, content, 
     content_type, compress, 
-    cache_control=None
+    cache_control=None,
+    storage_class=None
   ):
     path = self.get_path_to_file(file_path)
 
@@ -364,7 +366,8 @@ class GoogleCloudStorageInterface(StorageInterface):
     return posixpath.join(self._path.path, file_path)
 
   @retry
-  def put_file(self, file_path, content, content_type, compress, cache_control=None):
+  def put_file(self, file_path, content, content_type,
+               compress, cache_control=None, storage_class=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
@@ -379,6 +382,8 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     if cache_control:
       blob.cache_control = cache_control
+    if storage_class:
+      blob.storage_class = storage_class
 
     blob.md5_hash = md5(content)
     blob.upload_from_string(content, content_type)
@@ -518,7 +523,8 @@ class HttpInterface(StorageInterface):
     raise NotImplementedError()
 
   # @retry
-  def put_file(self, file_path, content, content_type, compress, cache_control=None):
+  def put_file(self, file_path, content, content_type,
+               compress, cache_control=None, storage_class=None):
     raise NotImplementedError()
 
   def head(self, file_path):
@@ -581,7 +587,8 @@ class S3Interface(StorageInterface):
   def put_file(
     self, file_path, content, 
     content_type, compress, 
-    cache_control=None, ACL="bucket-owner-full-control"
+    cache_control=None, storage_class=None,
+    ACL="bucket-owner-full-control"
   ):
     key = self.get_path_to_file(file_path)
 
@@ -606,6 +613,8 @@ class S3Interface(StorageInterface):
 
     if cache_control:
       attrs['CacheControl'] = cache_control
+    if storage_class:
+      attrs['StorageClass'] = storage_class
 
     self._conn.put_object(**attrs)
 

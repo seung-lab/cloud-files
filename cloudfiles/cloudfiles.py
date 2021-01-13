@@ -401,7 +401,7 @@ class CloudFiles(object):
     self, files, 
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
-    total=None, raw=False, progress=None,
+    storage_class=None, total=None, raw=False, progress=None,
     parallel=1
   ):
     """
@@ -420,6 +420,8 @@ class CloudFiles(object):
           'compression_level': e.g. 6, # for gzip, brotli, or zstd
           'cache_control': specify the header the way you want 
               e.g. 'no-cache' or 'public; max-age=3600' etc
+          'storage_class': for relevant cloud providers, specify the storage class of the file
+              e.g. 'STANDARD', 'COLDLINE', etc.
         }
 
       If the additional fields are specified, they will override the 
@@ -467,6 +469,7 @@ class CloudFiles(object):
           content_type=file.get('content_type', content_type),
           compress=file_compress,
           cache_control=file.get('cache_control', cache_control),
+          storage_class=file.get('storage_class', storage_class)
         )
 
     if not isinstance(files, types.GeneratorType):
@@ -496,7 +499,7 @@ class CloudFiles(object):
     path, content,     
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
-    raw=False
+    storage_class=None, raw=False
   ):
     """
     Write a single file.
@@ -507,6 +510,7 @@ class CloudFiles(object):
     compress: None, 'gzip', 'br' (brotli), 'zstd'
     compression_level: (None or int) input to compressor, None means use default
     cache_control: (str) HTTP Cache-Control header.
+    storage_class: (str) Storage class for the file.
     raw: (bool) if true, content is pre-compressed and 
       will bypass the compressor
 
@@ -519,13 +523,14 @@ class CloudFiles(object):
       'compress': compress,
       'compression_level': compression_level,
       'cache_control': cache_control,
+      'storage_class': storage_class,
     }, raw=raw)
 
   def put_jsons(
     self, files,     
     compress=None, compression_level=None, 
-    cache_control=None, total=None, raw=False,
-    progress=None, parallel=1
+    cache_control=None, storage_class=None, total=None,
+    raw=False, progress=None, parallel=1
   ):
     """
     Write one or more files as JSON.
@@ -552,14 +557,15 @@ class CloudFiles(object):
     return self.puts( 
       (jsonify_file(file) for file in files), 
       compress=compress, compression_level=compression_level,
-      content_type='application/json', total=total, raw=raw,
+      content_type='application/json', storage_class=storage_class,
+      total=total, raw=raw,
       progress=progress, parallel=parallel
     )
 
   def put_json(
     self, path, content,
     compress=None, compression_level=None, 
-    cache_control=None
+    cache_control=None, storage_class=None
   ):
     """
     Write a single JSON file. Automatically supplies the
@@ -570,6 +576,7 @@ class CloudFiles(object):
     compress: None, 'gzip', 'br' (brotli), 'zstd'
     compression_level: (None or int) input to compressor, None means use default
     cache_control: (str) HTTP Cache-Control header.
+    storage_class: (str) Storage class for the file.
 
     Returns: void
     """
@@ -580,6 +587,7 @@ class CloudFiles(object):
       'compress': compress,
       'compression_level': compression_level,
       'cache_control': cache_control,
+      'storage_class': storage_class
     })
 
   def exists(self, paths, total=None, progress=None):
