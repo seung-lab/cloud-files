@@ -401,8 +401,8 @@ class CloudFiles(object):
     self, files, 
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
-    storage_class=None, total=None, raw=False, progress=None,
-    parallel=1
+    total=None, raw=False, progress=None,
+    parallel=1, storage_class=None
   ):
     """
     Writes one or more files at a given location.
@@ -421,7 +421,7 @@ class CloudFiles(object):
           'cache_control': specify the header the way you want 
               e.g. 'no-cache' or 'public; max-age=3600' etc
           'storage_class': for relevant cloud providers, specify the storage class of the file
-              e.g. 'STANDARD', 'COLDLINE', etc.
+              e.g. 'STANDARD', 'COLDLINE', etc. (note: these are vendor-specific)
         }
 
       If the additional fields are specified, they will override the 
@@ -499,7 +499,7 @@ class CloudFiles(object):
     path, content,     
     content_type=None, compress=None, 
     compression_level=None, cache_control=None,
-    storage_class=None, raw=False
+    raw=False, storage_class=None
   ):
     """
     Write a single file.
@@ -529,8 +529,9 @@ class CloudFiles(object):
   def put_jsons(
     self, files,     
     compress=None, compression_level=None, 
-    cache_control=None, storage_class=None, total=None,
-    raw=False, progress=None, parallel=1
+    cache_control=None, total=None,
+    raw=False, progress=None, parallel=1,
+    storage_class=None
   ):
     """
     Write one or more files as JSON.

@@ -587,8 +587,9 @@ class S3Interface(StorageInterface):
   def put_file(
     self, file_path, content, 
     content_type, compress, 
-    cache_control=None, storage_class=None,
-    ACL="bucket-owner-full-control"
+    cache_control=None,
+    ACL="bucket-owner-full-control",
+    storage_class=None
   ):
     key = self.get_path_to_file(file_path)
 
