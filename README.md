@@ -21,6 +21,7 @@ cf.puts([{
     'content': content,
 }, ... ]) # automatically threaded
 cf.puts(content, parallel=2) # threaded + two processes
+cf.puts(content, storage_class="NEARLINE") # apply vendor-specific storage class
 
 cf.put_jsons(...) # same as puts
 cf['filename'] = content
@@ -367,7 +368,7 @@ cloudfiles ls -e "gs://bucket/prefix[ab]"
 
 CloudFiles is derived from the [CloudVolume.Storage](https://github.com/seung-lab/cloud-volume/tree/master/cloudvolume/storage) system.  
 
-Storage was initially created by William Silversmith and Ignacio Tartavull. It was maintained and improved by William Silversmith and includes improvements by Nico Kemnitz (extremely fast exists) and Ben Falk (brotli).
+Storage was initially created by William Silversmith and Ignacio Tartavull. It was maintained and improved by William Silversmith and includes improvements by Nico Kemnitz (extremely fast exists) and Ben Falk (brotli). Manuel Castro added the ability to chose cloud storage class. 
 
 
 

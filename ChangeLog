@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+1.23.2
+------
+
+* fix: wrong progress text for "head"
+* fix: make progress bar for exists work right
+* chore: update changelog
+
 1.23.1
 ------
 
