@@ -1,4 +1,4 @@
-[![PyPI version](https://badge.fury.io/py/cloud-files.svg)](https://badge.fury.io/py/cloud-files) [![Build Status](https://travis-ci.com/seung-lab/cloud-files.svg?branch=master)](https://travis-ci.com/seung-lab/cloud-files)
+[![PyPI version](https://badge.fury.io/py/cloud-files.svg)](https://badge.fury.io/py/cloud-files) [![Python package](https://github.com/seung-lab/cloud-files/workflows/Python%20package/badge.svg)](https://github.com/seung-lab/cloud-files/actions)
 
 CloudFiles: Fast access to cloud storage and local FS.
 ========
