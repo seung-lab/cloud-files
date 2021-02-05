@@ -216,7 +216,8 @@ class CloudFiles(object):
   def __init__(
     self, cloudpath, progress=False, 
     green=False, secrets=None, num_threads=20,
-    use_https=False, endpoint=None, parallel=1
+    use_https=False, endpoint=None, parallel=1,
+    user_project=None
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -227,6 +228,7 @@ class CloudFiles(object):
     self.num_threads = num_threads
     self.green = bool(green)
     self.parallel = int(parallel)
+    self.user_project = user_project
 
     self._path = paths.extract(cloudpath)
     if endpoint:
@@ -246,6 +248,7 @@ class CloudFiles(object):
     return self._interface_cls(
       self._path, 
       secrets=self.secrets,
+      user_project=self.user_project
     )
 
   @parallelize(desc="Download", returns_list=True)

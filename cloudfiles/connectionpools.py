@@ -134,9 +134,10 @@ class S3ConnectionPool(ConnectionPool):
 
 
 class GCloudBucketPool(ConnectionPool):
-  def __init__(self, bucket):
+  def __init__(self, bucket, user_project=None):
     self.bucket = bucket
     self.project, self.credentials = google_credentials(bucket)
+    self.user_project = user_project
     super(GCloudBucketPool, self).__init__()
 
   @retry
@@ -157,7 +158,7 @@ class GCloudBucketPool(ConnectionPool):
       project=self.project,
     )
 
-    return client.bucket(self.bucket)
+    return client.bucket(self.bucket, user_project=self.user_project)
 
 class MemoryPool(ConnectionPool):
   def __init__(self, bucket):
