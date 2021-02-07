@@ -34,8 +34,8 @@ S3_POOL = None
 GC_POOL = None
 MEM_POOL = None
 
-S3ConnectionPoolParams = namedtuple('S3ConnectionPoolParams', 'service bucket_name user_project')
-GCloudBucketPoolParams = namedtuple('GCloudBucketPoolParams', 'bucket_name user_project')
+S3ConnectionPoolParams = namedtuple('S3ConnectionPoolParams', 'service bucket_name request_payer')
+GCloudBucketPoolParams = namedtuple('GCloudBucketPoolParams', 'bucket_name request_payer')
 MemoryPoolParams = namedtuple('MemoryPoolParams', 'bucket_name')
 
 def reset_connection_pools():
@@ -43,7 +43,7 @@ def reset_connection_pools():
   global GC_POOL
   global MEM_POOL
   S3_POOL = keydefaultdict(lambda params: S3ConnectionPool(params.service, params.bucket_name))
-  GC_POOL = keydefaultdict(lambda params: GCloudBucketPool(params.bucket_name, params.user_project))
+  GC_POOL = keydefaultdict(lambda params: GCloudBucketPool(params.bucket_name, params.request_payer))
   MEM_POOL = keydefaultdict(lambda params: MemoryPool(params.bucket_name))
   MEMORY_DATA = {}
 
@@ -66,11 +66,11 @@ class StorageInterface(object):
     self.release_connection()
 
 class FileInterface(StorageInterface):
-  def __init__(self, path, secrets=None, user_project=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     self._path = path
-    if user_project is not None:
-      raise ValueError("Setting RequestPayer for FileInterface is not supported. Must be None, got '{}'.".format(user_project))
+    if request_payer is not None:
+      raise ValueError("Setting RequestPayer for FileInterface is not supported. Must be None, got '{}'.".format(request_payer))
 
   def get_path_to_file(self, file_path):
     return os.path.join(self._path.path, file_path)
@@ -223,10 +223,10 @@ class FileInterface(StorageInterface):
     return iter(_radix_sort(filenames))
 
 class MemoryInterface(StorageInterface):
-  def __init__(self, path, secrets=None, user_project=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
-    if user_project is not None:
-      raise ValueError("Setting RequestPayer for FileInterface is not supported. Must be None, got '{}'.", user_project)
+    if request_payer is not None:
+      raise ValueError("Setting RequestPayer for FileInterface is not supported. Must be None, got '{}'.", request_payer)
     self._path = path
     self._data = MEM_POOL[MemoryPoolParams(path.bucket)].get_connection(secrets, None)
 
@@ -365,12 +365,12 @@ class GoogleCloudStorageInterface(StorageInterface):
   exists_batch_size = Batch._MAX_BATCH_SIZE
   delete_batch_size = Batch._MAX_BATCH_SIZE
 
-  def __init__(self, path, secrets=None, user_project=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     global GC_POOL
     self._path = path
-    self._user_project = user_project
-    self._bucket = GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._user_project)].get_connection(secrets, None)
+    self._request_payer = request_payer
+    self._bucket = GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)].get_connection(secrets, None)
     
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
@@ -515,14 +515,14 @@ class GoogleCloudStorageInterface(StorageInterface):
 
   def release_connection(self):
     global GC_POOL
-    GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._user_project)].release_connection(self._bucket)
+    GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)].release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
-  def __init__(self, path, secrets=None, user_project=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     self._path = path
-    if user_project is not None:
-      raise ValueError("Setting RequestPayer for HttpInterface is not supported. Must be None, got '{}'.".format(user_project))
+    if request_payer is not None:
+      raise ValueError("Setting RequestPayer for HttpInterface is not supported. Must be None, got '{}'.".format(request_payer))
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.host, self._path.path, file_path)
@@ -586,20 +586,20 @@ class S3Interface(StorageInterface):
   # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Bucket.delete_objects
   # claims batch size limit is 1000
   delete_batch_size = 1000
-  def __init__(self, path, secrets=None, user_project=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     global S3_POOL
 
-    if user_project is None:
+    if request_payer is None:
       self._additional_attrs = {}
-    elif user_project == 'requester':
-      self._additional_attrs = {'RequestPayer': user_project}
+    elif request_payer == 'requester':
+      self._additional_attrs = {'RequestPayer': request_payer}
     else:
-      raise ValueError("RequestPayer must either be None or 'requester', not '{}'.".format(user_project))
+      raise ValueError("RequestPayer must either be None or 'requester', not '{}'.".format(request_payer))
 
-    self._user_project = user_project
+    self._request_payer = request_payer
     self._path = path
-    self._conn = S3_POOL[S3ConnectionPoolParams(path.protocol, path.bucket, user_project)].get_connection(secrets, path.host)
+    self._conn = S3_POOL[S3ConnectionPoolParams(path.protocol, path.bucket, request_payer)].get_connection(secrets, path.host)
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
@@ -825,7 +825,7 @@ class S3Interface(StorageInterface):
 
   def release_connection(self):
     global S3_POOL
-    S3_POOL[S3ConnectionPoolParams(self._path.protocol, self._path.bucket, self._user_project)].release_connection(self._conn)
+    S3_POOL[S3ConnectionPoolParams(self._path.protocol, self._path.bucket, self._request_payer)].release_connection(self._conn)
 
 
 def _radix_sort(L, i=0):
