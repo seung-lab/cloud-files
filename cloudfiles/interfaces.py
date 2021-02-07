@@ -70,7 +70,7 @@ class FileInterface(StorageInterface):
     super(StorageInterface, self).__init__()
     self._path = path
     if request_payer is not None:
-      raise ValueError("Setting RequestPayer for FileInterface is not supported. Must be None, got '{}'.".format(request_payer))
+      raise ValueError("Specifying a request payer for the FileInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
   def get_path_to_file(self, file_path):
     return os.path.join(self._path.path, file_path)
@@ -226,7 +226,7 @@ class MemoryInterface(StorageInterface):
   def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     if request_payer is not None:
-      raise ValueError("Setting RequestPayer for FileInterface is not supported. Must be None, got '{}'.", request_payer)
+      raise ValueError("Specifying a request payer for the MemoryInterface is not supported. request_payer must be None, got '{}'.", request_payer)
     self._path = path
     self._data = MEM_POOL[MemoryPoolParams(path.bucket)].get_connection(secrets, None)
 
@@ -522,7 +522,7 @@ class HttpInterface(StorageInterface):
     super(StorageInterface, self).__init__()
     self._path = path
     if request_payer is not None:
-      raise ValueError("Setting RequestPayer for HttpInterface is not supported. Must be None, got '{}'.".format(request_payer))
+      raise ValueError("Specifying a request payer for the HttpInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.host, self._path.path, file_path)
@@ -595,7 +595,7 @@ class S3Interface(StorageInterface):
     elif request_payer == 'requester':
       self._additional_attrs = {'RequestPayer': request_payer}
     else:
-      raise ValueError("RequestPayer must either be None or 'requester', not '{}'.".format(request_payer))
+      raise ValueError("request_payer for S3Interface must either be None or 'requester', got '{}'.".format(request_payer))
 
     self._request_payer = request_payer
     self._path = path
