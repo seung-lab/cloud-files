@@ -158,7 +158,7 @@ class GCloudBucketPool(ConnectionPool):
       project=self.project,
     )
 
-    return client.bucket(self.bucket, request_payer=self.request_payer)
+    return client.bucket(self.bucket, user_project=self.request_payer)
 
 class MemoryPool(ConnectionPool):
   def __init__(self, bucket):
