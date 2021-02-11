@@ -122,7 +122,7 @@ from cloudfiles import CloudFiles
 cf = CloudFiles(
     cloudpath, progress=False, 
     green=False, secrets=None, num_threads=20,
-    use_https=False, endpoint=None
+    use_https=False, endpoint=None, request_payer=None
 )
 
 # cloudpath examples:
@@ -140,6 +140,9 @@ cf = CloudFiles('https://website.com/coolguy/') # arbitrary web server
 * num_threads: Number of simultaneous requests to make. Usually 20 per core is pretty close to optimal unless file sizes are extreme.
 * use_https: `gs://` and `s3://` require credentials to access their files. However, each has a read-only https endpoint that sometimes requires no credentials. If True, automatically convert `gs://` to `https://storage.googleapis.com/` and `s3://` to `https://s3.amazonaws.com/`.
 * endpoint: (s3 only) provide an alternate endpoint than the official Amazon servers. This is useful for accessing the various S3 emulators offered by on-premises deployments of object storage.  
+* request_payer: Specify the account that should be charged for requests towards the bucket, rather than the bucket owner.
+  * `gs://`: `request_payer` can be any Google Cloud project id. Please refer to the documentation for [more information](https://cloud.google.com/storage/docs/requester-pays).
+  * `s3://`: `request_payer` must be `"requester"`. The AWS account associated with the AWS_ACCESS_KEY_ID will be charged. Please refer to the documentation for [more information](https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html)
 
 The advantage of using `mem://` versus a `dict` has both the advantage of using identical interfaces in your code and it will use compression  automatically.
 

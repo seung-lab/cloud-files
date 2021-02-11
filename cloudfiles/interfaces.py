@@ -1,6 +1,6 @@
 import base64
 import binascii
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import json
 import os.path
 import posixpath
@@ -33,13 +33,18 @@ class keydefaultdict(defaultdict):
 S3_POOL = None
 GC_POOL = None
 MEM_POOL = None
+
+S3ConnectionPoolParams = namedtuple('S3ConnectionPoolParams', 'service bucket_name request_payer')
+GCloudBucketPoolParams = namedtuple('GCloudBucketPoolParams', 'bucket_name request_payer')
+MemoryPoolParams = namedtuple('MemoryPoolParams', 'bucket_name')
+
 def reset_connection_pools():
   global S3_POOL
   global GC_POOL
   global MEM_POOL
-  S3_POOL = keydefaultdict(lambda service: keydefaultdict(lambda bucket_name: S3ConnectionPool(service, bucket_name)))
-  GC_POOL = keydefaultdict(lambda bucket_name: GCloudBucketPool(bucket_name))
-  MEM_POOL = keydefaultdict(lambda bucket_name: MemoryPool(bucket_name))
+  S3_POOL = keydefaultdict(lambda params: S3ConnectionPool(params.service, params.bucket_name))
+  GC_POOL = keydefaultdict(lambda params: GCloudBucketPool(params.bucket_name, params.request_payer))
+  MEM_POOL = keydefaultdict(lambda params: MemoryPool(params.bucket_name))
   MEMORY_DATA = {}
 
 reset_connection_pools()
@@ -61,9 +66,11 @@ class StorageInterface(object):
     self.release_connection()
 
 class FileInterface(StorageInterface):
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     self._path = path
+    if request_payer is not None:
+      raise ValueError("Specifying a request payer for the FileInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
   def get_path_to_file(self, file_path):
     return os.path.join(self._path.path, file_path)
@@ -216,10 +223,12 @@ class FileInterface(StorageInterface):
     return iter(_radix_sort(filenames))
 
 class MemoryInterface(StorageInterface):
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
+    if request_payer is not None:
+      raise ValueError("Specifying a request payer for the MemoryInterface is not supported. request_payer must be None, got '{}'.", request_payer)
     self._path = path
-    self._data = MEM_POOL[path.bucket].get_connection(secrets, None)
+    self._data = MEM_POOL[MemoryPoolParams(path.bucket)].get_connection(secrets, None)
 
   def get_path_to_file(self, file_path):
     return os.path.join(
@@ -356,11 +365,12 @@ class GoogleCloudStorageInterface(StorageInterface):
   exists_batch_size = Batch._MAX_BATCH_SIZE
   delete_batch_size = Batch._MAX_BATCH_SIZE
 
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     global GC_POOL
     self._path = path
-    self._bucket = GC_POOL[path.bucket].get_connection(secrets, None)
+    self._request_payer = request_payer
+    self._bucket = GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)].get_connection(secrets, None)
     
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
@@ -505,12 +515,14 @@ class GoogleCloudStorageInterface(StorageInterface):
 
   def release_connection(self):
     global GC_POOL
-    GC_POOL[self._path.bucket].release_connection(self._bucket)
+    GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)].release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     self._path = path
+    if request_payer is not None:
+      raise ValueError("Specifying a request payer for the HttpInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.host, self._path.path, file_path)
@@ -574,11 +586,20 @@ class S3Interface(StorageInterface):
   # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Bucket.delete_objects
   # claims batch size limit is 1000
   delete_batch_size = 1000
-  def __init__(self, path, secrets=None):
+  def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
     global S3_POOL
+
+    if request_payer is None:
+      self._additional_attrs = {}
+    elif request_payer == 'requester':
+      self._additional_attrs = {'RequestPayer': request_payer}
+    else:
+      raise ValueError("request_payer for S3Interface must either be None or 'requester', got '{}'.".format(request_payer))
+
+    self._request_payer = request_payer
     self._path = path
-    self._conn = S3_POOL[path.protocol][path.bucket].get_connection(secrets, path.host)
+    self._conn = S3_POOL[S3ConnectionPoolParams(path.protocol, path.bucket, request_payer)].get_connection(secrets, path.host)
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
@@ -600,6 +621,7 @@ class S3Interface(StorageInterface):
       'ContentType': (content_type or 'application/octet-stream'),
       'ACL': ACL,
       'ContentMD5': md5(content),
+      **self._additional_attrs,
     }
 
     # keep gzip as default
@@ -627,7 +649,7 @@ class S3Interface(StorageInterface):
     None when the file doesn't exist.
     """
 
-    kwargs = {}
+    kwargs = self._additional_attrs.copy()
     if start is not None or end is not None:
       start = int(start) if start is not None else ''
       end = int(end - 1) if end is not None else ''
@@ -665,6 +687,7 @@ class S3Interface(StorageInterface):
       response = self._conn.head_object(
         Bucket=self._path.bucket,
         Key=self.get_path_to_file(file_path),
+        **self._additional_attrs,
       )
       return {
         "Cache-Control": response.get("CacheControl", None),
@@ -691,6 +714,7 @@ class S3Interface(StorageInterface):
       response = self._conn.head_object(
         Bucket=self._path.bucket,
         Key=self.get_path_to_file(file_path),
+        **self._additional_attrs,
       )
       return response['ContentLength']
     except botocore.exceptions.ClientError as e:
@@ -704,6 +728,7 @@ class S3Interface(StorageInterface):
       self._conn.head_object(
         Bucket=self._path.bucket,
         Key=self.get_path_to_file(file_path),
+        **self._additional_attrs,
       )
     except botocore.exceptions.ClientError as e:
       if e.response['Error']['Code'] == "404":
@@ -732,6 +757,7 @@ class S3Interface(StorageInterface):
     self._conn.delete_object(
       Bucket=self._path.bucket,
       Key=self.get_path_to_file(file_path),
+      **self._additional_attrs,
     )
 
   @retry
@@ -745,6 +771,7 @@ class S3Interface(StorageInterface):
           ],
           'Quiet': True
         },
+        **self._additional_attrs,
       )
 
   def list_files(self, prefix, flat=False):
@@ -764,6 +791,7 @@ class S3Interface(StorageInterface):
       kwargs = {
         'Bucket': self._path.bucket,
         'Prefix': path,
+        **self._additional_attrs
       }
 
       if continuation_token:
@@ -797,7 +825,7 @@ class S3Interface(StorageInterface):
 
   def release_connection(self):
     global S3_POOL
-    S3_POOL[self._path.protocol][self._path.bucket].release_connection(self._conn)
+    S3_POOL[S3ConnectionPoolParams(self._path.protocol, self._path.bucket, self._request_payer)].release_connection(self._conn)
 
 
 def _radix_sort(L, i=0):
