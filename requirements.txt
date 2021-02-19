@@ -18,4 +18,4 @@ tenacity>=4.10.0
 tqdm
 urllib3[secure,brotli]>=1.25.11,<1.26.0
 zstandard
-rsa>=4.6,!=4.7
+rsa>=4.6,!=4.7.0
