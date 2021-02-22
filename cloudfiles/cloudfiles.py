@@ -6,6 +6,7 @@ import math
 import multiprocessing
 import itertools
 import os.path
+import platform
 import posixpath
 import re
 import types
@@ -126,19 +127,30 @@ def parallel_execute(
   else:
     pbar = tqdm(desc=desc, total=total, disable=(not progress))
 
-  results = []
-  with pathos.pools.ProcessPool(parallel) as executor:
-    for res in executor.imap(fn, sip(inputs, block_size)):
-      if isinstance(res, int):
-        pbar.update(res)
-      elif isinstance(res, list):
-        pbar.update(len(res))
-      else:
-        pbar.update(block_size)
+  # Fix for MacOS which can segfault due to 
+  # urllib calling libdispatch which is not fork-safe
+  # https://bugs.python.org/issue30385
+  no_proxy = os.environ.get("no_proxy", "")
+  if platform.system().lower() == "darwin":
+    os.environ["no_proxy"] = "*"
 
-      if returns_list:
-        results.extend(res)
-  pbar.close()
+  results = []
+  try: 
+    with pathos.pools.ProcessPool(parallel) as executor:
+      for res in executor.imap(fn, sip(inputs, block_size)):
+        if isinstance(res, int):
+          pbar.update(res)
+        elif isinstance(res, list):
+          pbar.update(len(res))
+        else:
+          pbar.update(block_size)
+
+        if returns_list:
+          results.extend(res)
+  finally:  
+    if platform.system().lower() == "darwin":
+      os.environ["no_proxy"] = no_proxy
+    pbar.close()
 
   if returns_list:
     return results
