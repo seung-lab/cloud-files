@@ -797,3 +797,25 @@ def test_cli_rm():
   except FileNotFoundError:
     pass
 
+@pytest.mark.parametrize("green", (True, False))
+def test_exceptions_raised(green):
+  from cloudfiles import CloudFiles, exceptions
+  from cloudfiles.lib import mkdir
+  path = compute_url("file", "exceptions_raised")
+  cf = CloudFiles(path, green=green)
+
+  pth = mkdir(path.replace("file://", ""))
+  with open(f"{pth}/wontdecompress.gz", "wb") as f:
+    f.write(b"not a valid gzip stream")
+
+  try:
+    x = cf.get("wontdecompress" )
+    assert False
+  except exceptions.DecompressionError:
+    pass
+
+  cf.delete("wontdecompress")
+
+
+
+
