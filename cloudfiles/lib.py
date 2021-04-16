@@ -167,7 +167,6 @@ def calc_s3_multipart_etag(content, partsize):
 
     for i in range(0, len(content), partsize):
       chunk = content[i:i+partsize]
-      # import pdb; pdb.set_trace()
       md5_digests.append(hashlib.md5(chunk).digest())
     return hashlib.md5(b''.join(md5_digests)).hexdigest() + '-' + str(len(md5_digests))
 
@@ -177,7 +176,7 @@ def validate_s3_multipart_etag(content, etag):
 
   def factor_of_1MB():
     x = filesize / int(num_parts)
-    y = x % 1048576
+    y = x % 1048576 # 2**20 or 1 MiB
     return int(x + 1048576 - y)
 
   def possible_partsizes(partsize):
