@@ -163,12 +163,12 @@ def md5(binary):
 # https://teppen.io/2018/10/23/aws_s3_verify_etags/
 
 def calc_s3_multipart_etag(content, partsize):
-    md5_digests = []
+  md5_digests = []
 
-    for i in range(0, len(content), partsize):
-      chunk = content[i:i+partsize]
-      md5_digests.append(hashlib.md5(chunk).digest())
-    return hashlib.md5(b''.join(md5_digests)).hexdigest() + '-' + str(len(md5_digests))
+  for i in range(0, len(content), partsize):
+    chunk = content[i:i+partsize]
+    md5_digests.append(hashlib.md5(chunk).digest())
+  return hashlib.md5(b''.join(md5_digests)).hexdigest() + '-' + str(len(md5_digests))
 
 def validate_s3_multipart_etag(content, etag):
   filesize = len(content)
