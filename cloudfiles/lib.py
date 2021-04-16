@@ -158,3 +158,43 @@ def md5(binary):
   return base64.b64encode(
     hashlib.md5(binary).digest()
   ).decode('utf8')
+
+# Below code adapted from: 
+# https://teppen.io/2018/10/23/aws_s3_verify_etags/
+
+def calc_s3_multipart_etag(content, partsize):
+    md5_digests = []
+
+    for i in range(0, len(content), partsize):
+      chunk = content[i:i+partsize]
+      # import pdb; pdb.set_trace()
+      md5_digests.append(hashlib.md5(chunk).digest())
+    return hashlib.md5(b''.join(md5_digests)).hexdigest() + '-' + str(len(md5_digests))
+
+def validate_s3_multipart_etag(content, etag):
+  filesize = len(content)
+  num_parts = int(etag.split('-')[1])
+
+  def factor_of_1MB():
+    x = filesize / int(num_parts)
+    y = x % 1048576
+    return int(x + 1048576 - y)
+
+  def possible_partsizes(partsize):
+    return partsize < filesize and (float(filesize) / float(partsize)) <= num_parts
+
+  partsizes = [ 
+    8388608, # aws_cli/boto3 aka 8MiB (2**23)
+    15728640, # s3cmd (not quite 16 MiB??, 2**23.90689)
+    factor_of_1MB() # Used by many clients to upload large files
+  ]
+
+  for partsize in filter(possible_partsizes, partsizes):
+    if etag == calc_s3_multipart_etag(content, partsize):
+      return True
+
+  return False
+
+
+
+

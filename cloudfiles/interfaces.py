@@ -16,7 +16,8 @@ import tenacity
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
-from .lib import mkdir, sip, md5, PYTHON3
+from .exceptions import MD5IntegrityError
+from .lib import mkdir, sip, md5, PYTHON3, validate_s3_multipart_etag
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -669,12 +670,24 @@ class S3Interface(StorageInterface):
       # s3 etags return hex digests but we need the base64 encoding
       # to make uniform comparisons. 
       # example s3 etag: "31ee76261d87fed8cb9d4c465c48158c"
+      # example multipart s3 etag: "cd8d2616dfa6cc80a06a846d3b3f6f30-14"
+      # The -14 means 14 parts.
+
       etag = resp.get('ETag', None)
+      content = resp['Body'].read()
+
       if etag is not None:
         etag = etag.lstrip('"').rstrip('"')
-        etag = base64.b64encode(binascii.unhexlify(etag)).decode('utf8')
+        # AWS has special multipart validation
+        # so we handle it here... leaky abstraction.
+        if '-' in etag: 
+          if not validate_s3_multipart_etag(content, etag):
+            raise MD5IntegrityError(f"{file_path} failed its multipart md5 check. server md5: {etag}")
+          etag = None
+        else:
+          etag = base64.b64encode(binascii.unhexlify(etag)).decode('utf8')
 
-      return (resp['Body'].read(), encoding, etag, "md5")
+      return (content, encoding, etag, "md5")
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] == 'NoSuchKey':
         return (None, None, None, None)
