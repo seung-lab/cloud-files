@@ -183,8 +183,8 @@ def validate_s3_multipart_etag(content, etag):
     return partsize < filesize and (float(filesize) / float(partsize)) <= num_parts
 
   partsizes = [ 
-    8388608, # aws_cli/boto3 aka 8MiB (2**23)
-    15728640, # s3cmd (not quite 16 MiB??, 2**23.90689)
+    8388608, # aws_cli/boto3 aka 8MiB (8 * 2**20)
+    15728640, # s3cmd aka 15 MiB (15 * 2**20)
     factor_of_1MB() # Used by many clients to upload large files
   ]
 
