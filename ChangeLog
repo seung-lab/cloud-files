@@ -1,6 +1,45 @@
 CHANGES
 =======
 
+1.25.3
+------
+
+* fix: ensure all exceptions are raised (#48)
+
+1.25.2
+------
+
+* chore: bump rsa to working 4.7.2 (the auth bug should be fixed)
+
+1.25.1
+------
+
+* fix: segfault on MacOS parallel & dependency issues (#44)
+* chore: rsa issue fixed in 4.7.1, so only exclude 4.7.0
+
+1.25.0
+------
+
+* feat(requester pays): GCS and S3 (#41)
+* docs: rename "python package" to "test suite"
+* chore: rename python-package to test-suite
+* docs: replace travis badge with actions badge
+* chore: remove travis in favor of github actions
+* fix: ensure test dependencies are installed
+* test: remove flake8 test
+* Create python-package.yml
+
+1.24.1
+------
+
+* fix(external): rsa 4.7 (GCP dep) broken in multi-threading
+
+1.24.0
+------
+
+* docs: show how to use storage class
+* feat: allow user to specify storage\_class for cloud uploads (#39)
+
 1.23.2
 ------
 
