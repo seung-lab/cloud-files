@@ -724,6 +724,14 @@ def test_cli_cp():
   assert os.path.isfile(f"{destdir}")
   os.remove(destdir)
 
+  mkdir(destdir)
+  subprocess.run(f"cloudfiles cp {srcdir}/8 {srcdir}/9 {destdir}", shell=True)
+  assert sorted(os.listdir(destdir)) == ["8","9"]
+  shutil.rmtree(destdir)
+
+  subprocess.run(f"cloudfiles cp {destdir}", shell=True)
+  assert not os.path.exists(destdir)
+
   try:
     shutil.rmtree(srcdir)
   except FileNotFoundError:
