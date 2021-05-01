@@ -139,8 +139,8 @@ def get_mfp(path, recursive):
   return (many, flat, prefix)
 
 @main.command()
-@click.argument("source")
-@click.argument("destination")
+@click.argument("source", nargs=-1)
+@click.argument("destination", nargs=1)
 @click.option('-r', '--recursive', is_flag=True, default=False, help='Recursive copy.')
 @click.option('-c', '--compression', default='same', help="Destination compression type. Options: same (default), none, gzip, br, zstd")
 @click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
@@ -156,6 +156,14 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
   tool is more efficient because the files never leave
   Google's network.
   """
+  if len(source) > 1 and not ispathdir(destination):
+    print("cloudfiles: destination must be a directory for multiple source files.")
+    return
+
+  for src in source:
+    _cp_single(ctx, src, destination, recursive, compression, progress, block_size)
+
+def _cp_single(ctx, source, destination, recursive, compression, progress, block_size):
   use_stdin = (source == '-')
 
   nsrc = normalize_path(source)
