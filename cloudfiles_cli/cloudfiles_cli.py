@@ -223,6 +223,10 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
           pbar.update(block_size)
   else:
     cfsrc = CloudFiles(srcpath, green=True, progress=progress)
+    if not cfsrc.exists(xferpaths):
+      print(f"cloudfiles: source path not found: {cfsrc.abspath(xferpaths).replace('file://','')}")
+      return
+
     downloaded = cfsrc.get(xferpaths, raw=True)
     if compression is not None:
       downloaded = transcode(downloaded, compression, in_place=True)

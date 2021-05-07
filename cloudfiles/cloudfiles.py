@@ -263,6 +263,12 @@ class CloudFiles(object):
       request_payer=self.request_payer
     )
 
+  def abspath(self, path):
+    sep = posixpath.sep
+    if self._path.protocol == "file":
+      sep = os.path.sep
+    return sep.join((paths.asprotocolpath(self._path), path))
+
   @parallelize(desc="Download", returns_list=True)
   def get(self, paths, total=None, raw=False, progress=None, parallel=None):
     """

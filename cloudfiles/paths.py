@@ -41,6 +41,12 @@ def mkregexp():
 CLOUDPATH_REGEXP = re.compile(mkregexp())
 
 def ascloudpath(epath):
+  pth = asprotocolpath(epath)
+  if epath.format:
+    return f"{epath.format}://" + pth
+  return pth
+
+def asprotocolpath(epath):
   pth = ''
   lst = [ epath.host, epath.bucket, epath.path ]
   while lst:
@@ -51,10 +57,7 @@ def ascloudpath(epath):
 
   if not (pth[:4] == 'http' and epath.protocol in ('http', 'https')):
     pth = f"{epath.protocol}://{pth}"
-
-  if epath.format:
-    return f"{epath.format}://" + pth
-  return pth
+  return pth  
 
 def asbucketpath(cloudpath):
   """
