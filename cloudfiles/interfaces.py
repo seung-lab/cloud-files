@@ -570,8 +570,12 @@ class HttpInterface(StorageInterface):
                compress, cache_control=None, storage_class=None):
     raise NotImplementedError()
 
+  @retry
   def head(self, file_path):
-    raise NotImplementedError()
+    key = self.get_path_to_file(file_path)
+    resp = requests.head(key)
+    resp.raise_for_status()
+    return resp.headers
 
   @retry
   def get_file(self, file_path, start=None, end=None):
