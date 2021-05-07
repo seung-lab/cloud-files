@@ -1,6 +1,7 @@
 import base64
 import binascii
 from collections import defaultdict, namedtuple
+from datetime import datetime
 import json
 import os.path
 import posixpath
@@ -110,7 +111,36 @@ class FileInterface(StorageInterface):
         f.write(content)
 
   def head(self, file_path):
-    raise NotImplementedError()
+    path = self.get_path_to_file(file_path)
+
+    if os.path.exists(path + '.gz'):
+      encoding = "gzip"
+      path += '.gz'
+    elif os.path.exists(path + '.br'):
+      encoding = "br"
+      path += ".br"
+    elif os.path.exists(path + '.zstd'):
+      encoding = "zstd"
+      path += ".zstd"
+    else:
+      encoding = None   
+
+    statinfo = os.stat(path)
+
+    return {
+      "Cache-Control": None,
+      "Content-Length": statinfo.st_size,
+      "Content-Type": None,
+      "ETag": None,
+      "Last-Modified": datetime.utcfromtimestamp(statinfo.st_mtime),
+      "Content-Md5": None,
+      "Content-Encoding": encoding,
+      "Content-Disposition": None,
+      "Content-Language": None,
+      "Storage-Class": None,
+      "Request-Charged": None,
+      "Parts-Count": None,
+    }
 
   def get_file(self, file_path, start=None, end=None):
     path = self.get_path_to_file(file_path)
