@@ -194,8 +194,8 @@ class FileInterface(StorageInterface):
     filenames = []
 
     remove = layer_path
-    if len(remove) and remove[-1] != '/':
-      remove += '/'
+    if len(remove) and remove[-1] != os.path.sep:
+      remove += os.path.sep
 
     if flat:
       for file_path in glob(path):
