@@ -821,8 +821,8 @@ class CloudFiles(object):
           downloaded = compression.transcode(downloaded, reencode, in_place=True)
 
         if (
-              cf_src._path.protocol == "file" 
-          and cf_dest._path.protocol != "file" 
+              cf_src._path.protocol == "file"
+          and self._path.protocol != "file"
           and os.path.sep != posixpath.sep
         ):
           for download in downloaded:
