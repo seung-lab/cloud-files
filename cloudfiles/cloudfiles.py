@@ -819,6 +819,15 @@ class CloudFiles(object):
         downloaded = cf_src.get(block_paths, raw=True, progress=False)
         if reencode is not None:
           downloaded = compression.transcode(downloaded, reencode, in_place=True)
+
+        if (
+              cf_src._path.protocol == "file"
+          and self._path.protocol != "file"
+          and os.path.sep != posixpath.sep
+        ):
+          for download in downloaded:
+            download["path"] = posixpath.sep.join(download["path"].split(os.path.sep))
+
         self.puts(downloaded, raw=True, progress=False)
         pbar.update(len(block_paths))
 
