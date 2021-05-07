@@ -262,7 +262,7 @@ class MemoryInterface(StorageInterface):
     self._data = MEM_POOL[MemoryPoolParams(path.bucket)].get_connection(secrets, None)
 
   def get_path_to_file(self, file_path):
-    return os.path.join(
+    return posixpath.join(
       self._path.path, file_path
     )
 
