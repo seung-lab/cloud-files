@@ -125,7 +125,10 @@ class FileInterface(StorageInterface):
     else:
       encoding = None   
 
-    statinfo = os.stat(path)
+    try:
+      statinfo = os.stat(path)
+    except FileNotFoundError:
+      return None
 
     return {
       "Cache-Control": None,
