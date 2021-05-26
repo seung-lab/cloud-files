@@ -182,6 +182,9 @@ def to_https_protocol(cloudpath):
       return extract(to_https_protocol(ascloudpath(cloudpath)))
     return cloudpath
 
+  if "s3://http://" in cloudpath or "s3://https://" in cloudpath:
+    return cloudpath
+
   cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
   cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
   cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
