@@ -55,6 +55,9 @@ def test_read_write(s3, protocol, num_threads, green):
   assert cf['info2', :] == content[:]
   assert cf.get('nonexistentfile') is None
 
+  assert cf.get('info', return_dict=True) == { "info": content }
+  assert cf.get(['info', 'info2'], return_dict=True) == { "info": content, "info2": content }
+
   del cf['info2']
   assert cf.exists('info2') == False
 

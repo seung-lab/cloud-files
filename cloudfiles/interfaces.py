@@ -863,7 +863,6 @@ class S3Interface(StorageInterface):
         elif flat and '/' not in key.replace(path, ''):
           yield filename
 
-
     for filename in iterate(resp):
       yield filename
 

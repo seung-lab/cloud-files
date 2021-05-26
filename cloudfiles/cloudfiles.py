@@ -270,7 +270,11 @@ class CloudFiles(object):
     return sep.join((paths.asprotocolpath(self._path), path))
 
   @parallelize(desc="Download", returns_list=True)
-  def get(self, paths, total=None, raw=False, progress=None, parallel=None):
+  def get(
+    self, paths, total=None, 
+    raw=False, progress=None, parallel=None,
+    return_dict=False
+  ):
     """
     Download one or more files. Return order is not guaranteed to match input.
 
@@ -282,10 +286,14 @@ class CloudFiles(object):
       not support the `len` operator.
     raw: download without decompressing
     parallel: number of concurrent processes (0 means all cores)
-    
+    return_dict: Turn output into { path: binary } and drops the 
+      extra information. Errors will be raised immediately.
+
     Returns:
-      if paths is scalar:
-        binary
+      if return_dict:
+        { path: binary, path: binary } (errors raised immediately)
+      elif paths is scalar:
+        binary (errors raised immediately)
       else:
         [
           {
@@ -358,20 +366,34 @@ class CloudFiles(object):
 
     if total == 1:
       ret = download(paths[0])
-      if multiple_return:
+      if return_dict:
+        if ret['error']:
+          raise ret['error']
+        return { ret["path"]: ret["content"] }
+      elif multiple_return:
         return [ ret ]
       elif ret['error']:
         raise ret['error']
       else:
         return ret['content']
 
-    return schedule_jobs(
+    results = schedule_jobs(
       fns=( partial(download, path) for path in paths ), 
       concurrency=self.num_threads, 
       progress=progress,
       total=total,
       green=self.green,
     )
+
+    if not return_dict:
+      return results
+
+    output = {}
+    for res in results:
+      if res["error"]:
+        raise res["error"]
+      output[res["path"]] = res["content"]
+    return output
 
   def get_json(self, paths, total=None):
     """
