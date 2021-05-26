@@ -1,6 +1,32 @@
 CHANGES
 =======
 
+1.27.2
+------
+
+* fix(head): return None if FileNotFoundError
+* fix(mem): use a consistent path sep on Windows
+* fix(cli:cp): nicer error if source file doesn't exist
+
+1.27.1
+------
+
+* feat: add implementation of "head" to http operators
+* feat: add head method to file protocol
+* fix: transfer paths from windows correctly (#53)
+
+1.27.0
+------
+
+* test(cli:cp): check multiple arguments are allowed, one arg does nothing
+* feat(cli:cp): accept multiple source files to copy
+
+1.26.0
+------
+
+* docs: add credit for anonymous author from https://teppen.io/
+* feat: enable md5 validation for multipart s3 downloads (#50)
+
 1.25.3
 ------
 
