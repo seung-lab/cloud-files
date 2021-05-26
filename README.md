@@ -128,6 +128,7 @@ cf = CloudFiles(
 # cloudpath examples:
 cf = CloudFiles('gs://bucket/') # google cloud storage
 cf = CloudFiles('s3://bucket/') # Amazon S3
+cf = CloudFiles('s3://https://s3emulator.com/coolguy/') # alternate s3 endpoint
 cf = CloudFiles('file:///home/coolguy/') # local filesystem
 cf = CloudFiles('mem:///home/coolguy/') # in memory
 cf = CloudFiles('https://website.com/coolguy/') # arbitrary web server
