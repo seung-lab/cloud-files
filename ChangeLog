@@ -1,6 +1,14 @@
 CHANGES
 =======
 
+1.28.0
+------
+
+* feat(get): adds return\_dict argument
+* chore: update changelog
+* docs: show how to use alternate s3 syntax
+* fix: use\_https plays nice with s3://https://
+
 1.27.2
 ------
 
