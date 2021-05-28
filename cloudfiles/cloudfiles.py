@@ -365,7 +365,7 @@ class CloudFiles(object):
     total = totalfn(paths, total)
 
     if total == 1:
-      ret = download(paths[0])
+      ret = download(first(paths))
       if return_dict:
         if ret['error']:
           raise ret['error']
