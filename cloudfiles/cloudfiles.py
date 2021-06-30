@@ -358,6 +358,9 @@ class CloudFiles(object):
       except Exception as err:
         error = err
 
+      if raise_errors and error:
+        raise error
+
       return { 
         'path': path, 
         'content': content, 
@@ -371,9 +374,6 @@ class CloudFiles(object):
 
     if total == 1:
       ret = download(first(paths))
-      if raise_errors:
-        if ret['error']:
-          raise ret['error']
       if return_dict:
         return { ret["path"]: ret["content"] }
       elif multiple_return:
@@ -388,11 +388,6 @@ class CloudFiles(object):
       total=total,
       green=self.green,
     )
-
-    if raise_errors:
-      for res in results:
-        if res["error"]:
-          raise res["error"]
 
     if return_dict:
       return { res["path"]: res["content"] for res in results }  
