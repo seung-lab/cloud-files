@@ -273,7 +273,7 @@ class CloudFiles(object):
   def get(
     self, paths, total=None, 
     raw=False, progress=None, parallel=None,
-    return_dict=False
+    return_dict=False, raise_errors=True
   ):
     """
     Download one or more files. Return order is not guaranteed to match input.
@@ -288,6 +288,8 @@ class CloudFiles(object):
     parallel: number of concurrent processes (0 means all cores)
     return_dict: Turn output into { path: binary } and drops the 
       extra information. Errors will be raised immediately.
+    raise_errors: Raise the first error immediately instead 
+      of returning them as part of the output.
 
     Returns:
       if return_dict:
@@ -308,6 +310,9 @@ class CloudFiles(object):
     """
     paths, multiple_return = toiter(paths, is_iter=True)
     progress = nvl(progress, self.progress)
+    # return_dict prevents the user from having a chance
+    # to inspect errors, so we must raise here.
+    raise_errors = raise_errors or return_dict or (not multiple_return)
 
     def check_md5(path, content, server_hash):
       if server_hash is None:
@@ -366,14 +371,13 @@ class CloudFiles(object):
 
     if total == 1:
       ret = download(first(paths))
-      if return_dict:
+      if raise_errors:
         if ret['error']:
           raise ret['error']
+      if return_dict:
         return { ret["path"]: ret["content"] }
       elif multiple_return:
         return [ ret ]
-      elif ret['error']:
-        raise ret['error']
       else:
         return ret['content']
 
@@ -385,15 +389,15 @@ class CloudFiles(object):
       green=self.green,
     )
 
-    if not return_dict:
-      return results
+    if raise_errors:
+      for res in results:
+        if res["error"]:
+          raise res["error"]
 
-    output = {}
-    for res in results:
-      if res["error"]:
-        raise res["error"]
-      output[res["path"]] = res["content"]
-    return output
+    if return_dict:
+      return { res["path"]: res["content"] for res in results }  
+
+    return results
 
   def get_json(self, paths, total=None):
     """
@@ -430,9 +434,6 @@ class CloudFiles(object):
         contents_chunk = self.get(paths_chunk, total=total, progress=pbar)
         pathidx = { content["path"]: content for content in contents_chunk }
         contents.extend(( pathidx[pth] for pth in paths_chunk ))
-
-    if not multiple_return and contents and contents[0]['error']:
-      raise contents[0]['error']
 
     contents = [ decode(content) for content in contents ]
     if multiple_return:
