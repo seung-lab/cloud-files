@@ -820,7 +820,19 @@ def test_exceptions_raised(green):
     f.write(b"not a valid gzip stream")
 
   try:
-    x = cf.get("wontdecompress" )
+    x = cf.get("wontdecompress")
+    assert False
+  except exceptions.DecompressionError:
+    pass
+
+  try:
+    x = cf.get(["wontdecompress"], raise_errors=True)
+    assert False
+  except exceptions.DecompressionError:
+    pass
+
+  try:
+    x = cf.get(["wontdecompress"], return_dict=True)
     assert False
   except exceptions.DecompressionError:
     pass
