@@ -159,7 +159,7 @@ def extract(cloudpath, windows=None):
     if not match:
       raise error
     (bucket,) = match.groups()
-    cloudpath = cloudpath.replace(bucket, '')
+    cloudpath = cloudpath.replace(bucket, '', 1)
     if cloudpath and cloudpath[0] == '/':
       cloudpath = cloudpath[1:]
     bucket = bucket.replace('/', '')

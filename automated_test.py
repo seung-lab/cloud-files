@@ -493,6 +493,12 @@ def test_path_extraction():
   assert path.path == '/tmp/removeme/layer'
   assert path.host is None
 
+  assert (paths.extract('gs://username/a/username2/b/c/d') 
+      == ExtractedPath(
+        'precomputed', 'gs', 'username', 
+        'a/username2/b/c/d', None
+      ))
+
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_access_non_cannonical_minimal_path(s3, protocol):
   from cloudfiles import CloudFiles, exceptions
