@@ -111,13 +111,13 @@ def extract_format_protocol(cloudpath):
     cloudpath = proto + "://" + cloudpath
     parse = urllib.parse.urlparse(cloudpath)
     endpoint = parse.scheme + "://" + parse.netloc
-    cloudpath = cloudpath.replace(endpoint, '')
+    cloudpath = cloudpath.replace(endpoint, '', 1)
     if cloudpath and cloudpath[0] == '/':
       cloudpath = cloudpath[1:]
   elif proto == 's3' and cloudpath[:4] == 'http':
     parse = urllib.parse.urlparse(cloudpath)
     endpoint = parse.scheme + "://" + parse.netloc
-    cloudpath = cloudpath.replace(endpoint, '')
+    cloudpath = cloudpath.replace(endpoint, '', 1)
     if cloudpath and cloudpath[0] == '/':
       cloudpath = cloudpath[1:]
 
