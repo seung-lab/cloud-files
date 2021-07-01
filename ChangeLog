@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+2.0.0
+-----
+
+* BREAKING: feat(get): add raise\_errors flag enabled by default (#57)
+
+1.28.1
+------
+
+* chore: update changelog
+* fix(get): generators containing a single item don't crash
+
 1.28.0
 ------
 
