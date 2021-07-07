@@ -169,6 +169,20 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
   nsrc = normalize_path(source)
   ndest = normalize_path(destination)
 
+  # For more information see:
+  # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed
+  # Try to follow cp rules. If the directory exists,
+  # copy the base source directory into the dest directory
+  # If the directory does not exist, then we copy into
+  # the dest directory.
+  # Both x* and x** should not copy the base directory
+  if recursive and nsrc[-1] != "*":
+    if not (
+      CloudFiles(ndest)._path.protocol == "file" 
+      and not os.path.isdir(ndest.replace("file://", "", 1))
+    ):
+      ndest = cloudpathjoin(ndest, os.path.basename(nsrc))
+
   ctx.ensure_object(dict)
   parallel = int(ctx.obj.get("parallel", 1))
 

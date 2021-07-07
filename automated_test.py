@@ -703,9 +703,16 @@ def test_cli_cp():
 
   mkfiles(srcdir)
 
+  # cp -r has different behavior depending on if the dest 
+  # directory exists or not so we run the test twice
+  # in both conditions.
   subprocess.run(["cloudfiles", "cp", "-r", srcdir, destdir])
   assert len(os.listdir(srcdir)) == N
   assert os.listdir(srcdir) == os.listdir(destdir)
+
+  subprocess.run(["cloudfiles", "cp", "-r", srcdir, destdir])
+  assert len(os.listdir(srcdir)) == N
+  assert os.listdir(srcdir) == os.listdir(os.path.join(destdir, os.path.basename(srcdir)))
   shutil.rmtree(destdir)
 
   subprocess.run(["cloudfiles", "cp", "-r", srcdir  + "/1*", destdir])
