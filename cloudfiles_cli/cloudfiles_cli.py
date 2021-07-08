@@ -151,6 +151,7 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
   Copy one or more files from a source to destination.
 
   If source is "-" read newline delimited filenames from stdin.
+  If destination is "-" output to stdout.
 
   Note that for gs:// to gs:// transfers, the gsutil
   tool is more efficient because the files never leave
@@ -264,7 +265,6 @@ def _cp_stdout(src, paths):
   for res in cf.get(paths):
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
-    sys.stdout.write("\n")
 
 @main.command()
 @click.argument('paths', nargs=-1)
