@@ -48,6 +48,8 @@ def reset_connection_pools():
   GC_POOL = keydefaultdict(lambda params: GCloudBucketPool(params.bucket_name, params.request_payer))
   MEM_POOL = keydefaultdict(lambda params: MemoryPool(params.bucket_name))
   MEMORY_DATA = {}
+  import gc
+  gc.collect()
 
 reset_connection_pools()
 
