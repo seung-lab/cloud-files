@@ -151,12 +151,14 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
   Copy one or more files from a source to destination.
 
   If source is "-" read newline delimited filenames from stdin.
+  If destination is "-" output to stdout.
 
   Note that for gs:// to gs:// transfers, the gsutil
   tool is more efficient because the files never leave
   Google's network.
   """
-  if len(source) > 1 and not ispathdir(destination):
+  use_stdout = (destination == '-')
+  if len(source) > 1 and not ispathdir(destination) and not use_stdout:
     print("cloudfiles: destination must be a directory for multiple source files.")
     return
 
@@ -165,6 +167,10 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
 
 def _cp_single(ctx, source, destination, recursive, compression, progress, block_size):
   use_stdin = (source == '-')
+  use_stdout = (destination == '-')
+
+  if use_stdout:
+    progress = False # can't have the progress bar interfering
 
   nsrc = normalize_path(source)
   ndest = normalize_path(destination)
@@ -216,7 +222,11 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
     except TypeError:
       pass
 
-    fn = partial(_cp, srcpath, destpath, compression, False, block_size)
+    if use_stdout:
+      fn = partial(_cp_stdout, srcpath)
+    else:
+      fn = partial(_cp, srcpath, destpath, compression, False, block_size)
+
     with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
       with pathos.pools.ProcessPool(parallel) as executor:
         for _ in executor.imap(fn, sip(xferpaths, block_size)):
@@ -227,6 +237,10 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       print(f"cloudfiles: source path not found: {cfsrc.abspath(xferpaths).replace('file://','')}")
       return
 
+    if use_stdout:
+      _cp_stdout(srcpath, xferpaths)
+      return
+    
     downloaded = cfsrc.get(xferpaths, raw=True)
     if compression is not None:
       downloaded = transcode(downloaded, compression, in_place=True)
@@ -244,6 +258,13 @@ def _cp(src, dst, compression, progress, block_size, paths):
     cfdest, paths=paths, 
     reencode=compression, block_size=block_size
   )
+
+def _cp_stdout(src, paths):
+  paths = toiter(paths)
+  cf = CloudFiles(src, green=True, progress=False)
+  for res in cf.get(paths):
+    content = res["content"].decode("utf8")
+    sys.stdout.write(content)
 
 @main.command()
 @click.argument('paths', nargs=-1)
