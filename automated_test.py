@@ -360,6 +360,20 @@ def test_exists(s3, protocol):
   cf.delete('info')
 
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
+def test_isdir(s3, protocol):
+  from cloudfiles import CloudFiles, exceptions
+  url = compute_url(protocol, "isdir")
+
+  cf = CloudFiles(url, num_threads=5)
+  assert not cf.isdir()
+
+  content = b'some_string'
+  cf.put('info', content, compress=None)
+  
+  assert cf.isdir()
+  cf.delete('info')
+
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_access_non_cannonical_paths(s3, protocol):
   from cloudfiles import CloudFiles, exceptions
   if protocol == 'file':
