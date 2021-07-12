@@ -177,10 +177,9 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
   # the dest directory.
   # Both x* and x** should not copy the base directory
   if recursive and nsrc[-1] != "*":
-    if not (
-      CloudFiles(ndest)._path.protocol == "file" 
-      and not os.path.isdir(ndest.replace("file://", "", 1))
-    ):
+    if CloudFiles(ndest).isdir():
+      if nsrc[-1] == '/':
+        nsrc = nsrc[:-1]
       ndest = cloudpathjoin(ndest, os.path.basename(nsrc))
 
   ctx.ensure_object(dict)
