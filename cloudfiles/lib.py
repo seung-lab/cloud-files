@@ -91,11 +91,19 @@ def jsonify(obj, **kwargs):
 
 def first(lst):
   if isinstance(lst, types.GeneratorType):
-    return next(lst)
+    try:
+      return next(lst)
+    except StopIteration:
+      return None
   try:
     return lst[0]
   except TypeError:
-    return next(iter(lst))
+    try:
+      return next(iter(lst))
+    except StopIteration:
+      return None
+  except IndexError:
+    return None
 
 def toiter(obj, is_iter=False):
   if isinstance(obj, STRING_TYPES) or isinstance(obj, dict):

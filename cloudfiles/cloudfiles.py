@@ -630,6 +630,22 @@ class CloudFiles(object):
       'storage_class': storage_class
     })
 
+  def isdir(self, prefix=""):
+    """
+    Tests if the given path points to a directory.
+    This has a typical meaning on a filesystem,
+    but on object storage, since directories don't
+    exist, it just means "is there at least one object
+    located at or below this path".
+    """
+    if self._path.protocol == "file":
+      fullpath = paths.asfilepath(self._path)
+      fullpath = os.path.join(fullpath, prefix)
+      return os.path.isdir(fullpath)
+
+    res = first(self.list(prefix=prefix))
+    return res is not None
+
   def exists(self, paths, total=None, progress=None):
     """
     Test if the given file paths exist.
