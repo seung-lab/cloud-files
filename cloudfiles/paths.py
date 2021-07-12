@@ -40,6 +40,21 @@ def mkregexp():
 
 CLOUDPATH_REGEXP = re.compile(mkregexp())
 
+def asfilepath(epath):
+  """For paths known to be file protocol."""
+  if epath.protocol != "file":
+    raise ValueError(f"{epath.protocol} protocol must be \"file\".")
+
+  pth = ''
+  lst = [ epath.bucket, epath.path ]
+  while lst:
+    elem = lst.pop(0)
+    if not elem:
+      continue
+    pth = os.path.join(pth, elem)
+
+  return pth
+
 def ascloudpath(epath):
   pth = asprotocolpath(epath)
   if epath.format:
