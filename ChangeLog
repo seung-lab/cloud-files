@@ -1,6 +1,21 @@
 CHANGES
 =======
 
+3.0.0
+-----
+
+* redesign: make cp -r work more like ordinary cp (#58)
+* fix: try to ensure that all connections are garbage collected
+* feat(cli): adds stdout to cp (#59)
+* refactor(gcs): download\_as\_string -> download\_as\_bytes
+
+2.0.1
+-----
+
+* chore: update ChangeLog
+* fix: make sure we only replace one instance of https://host..
+* fix: don't delete bucket name from path
+
 2.0.0
 -----
 

@@ -10,10 +10,13 @@ import platform
 import posixpath
 import re
 import types
+import time
 
+import httpx
 import orjson
 import pathos.pools
 from tqdm import tqdm
+import trio
 
 import google.cloud.storage 
 
@@ -267,7 +270,10 @@ class CloudFiles(object):
     sep = posixpath.sep
     if self._path.protocol == "file":
       sep = os.path.sep
-    return sep.join((paths.asprotocolpath(self._path), path))
+    base = paths.asprotocolpath(self._path)
+    if base[-1] == sep:
+      base = base[:-1]
+    return sep.join((base, path))
 
   @parallelize(desc="Download", returns_list=True)
   def get(
@@ -335,16 +341,34 @@ class CloudFiles(object):
       if crc != server_hash:
         raise CRC32CIntegrityError("crc32c mismatch for {}: server {} ; client {}".format(path, server_hash, crc))
 
-    def download(path):
+    results = []
+    async def async_download(client, path):
       path, start, end = path_to_byte_range(path)
+      fullpath = self.abspath(path)
       error = None
       content = None
       encoding = None
       server_hash = None
       server_hash_type = None
+
+      headers = {}
+      if start is not None or end is not None:
+        start = int(start) if start is not None else ''
+        end = int(end - 1) if end is not None else ''
+        headers = { f"Range": "bytes={start}-{end}" }
+
       try:
-        with self._get_connection() as conn:
-          content, encoding, server_hash, server_hash_type = conn.get_file(path, start=start, end=end)
+        s = time.time()
+        response = await client.get(fullpath, headers=headers)
+        print(time.time() - s)
+        response.raise_for_status()
+
+        content = response.content
+        server_hash = None
+        server_hash_type = None
+
+        # with self._get_connection() as conn:
+        #   content, encoding, server_hash, server_hash_type = conn.get_file(path, start=start, end=end)
         
         # md5s don't match for partial reads
         if start is None and end is None:
@@ -353,41 +377,41 @@ class CloudFiles(object):
           elif server_hash_type == "crc32c":
             check_crc32c(path, content, server_hash)
         
-        if not raw:
-          content = compression.decompress(content, encoding, filename=path)
+        # if not raw:
+          # content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
         error = err
 
       if raise_errors and error:
         raise error
 
-      return { 
+      results.append({ 
         'path': path, 
         'content': content, 
         'byte_range': (start, end),
         'error': error,
         'compress': encoding,
         'raw': raw,
-      }
-    
+      })
+
+    async def download():
+      async with httpx.AsyncClient(http2=True) as client:
+        async with trio.open_nursery() as nursery:
+          for path in paths:
+            nursery.start_soon(async_download, client, path)
+
+    trio.run(download)
+
     total = totalfn(paths, total)
 
     if total == 1:
-      ret = download(first(paths))
+      ret = first(results)
       if return_dict:
         return { ret["path"]: ret["content"] }
       elif multiple_return:
         return [ ret ]
       else:
         return ret['content']
-
-    results = schedule_jobs(
-      fns=( partial(download, path) for path in paths ), 
-      concurrency=self.num_threads, 
-      progress=progress,
-      total=total,
-      green=self.green,
-    )
 
     if return_dict:
       return { res["path"]: res["content"] for res in results }  

@@ -16,6 +16,7 @@ requests>=2.22.0
 six>=1.14.0
 tenacity>=4.10.0
 tqdm
+trio~=0.19.0
 urllib3[secure]>=1.26.3
 zstandard
 rsa>=4.7.2
