@@ -327,9 +327,7 @@ class CloudFiles(object):
       computed_md5 = md5(content)
 
       if computed_md5.rstrip("==") != server_hash.rstrip("=="):
-        raise MD5IntegrityError("{} failed its md5 check. server md5: {} computed md5: {}".format(
-          path, server_hash, computed_md5
-        ))
+        raise MD5IntegrityError(f"{path} failed its md5 check. server md5: {server_hash} computed md5: {computed_md5}")
 
     def check_crc32c(path, content, server_hash):
       if server_hash is None:
@@ -340,6 +338,23 @@ class CloudFiles(object):
 
       if crc != server_hash:
         raise CRC32CIntegrityError("crc32c mismatch for {}: server {} ; client {}".format(path, server_hash, crc))
+
+    def parse_x_goog_hash(header):
+      header = header.replace(' ', '')
+      specifiers = header.split(",")
+      pattern = re.compile(r'([\w\d]+)=([\w\d\+/]+==)')
+      hashes = {}
+      for specifier in specifiers:
+        (hash_type, hash_sig) = re.match(pattern, specifier).groups()
+        hashes[hash_type] = hash_sig
+      return hashes
+
+    async def httpx_get_raw(client, path, headers):
+      raw = b''
+      async with client.stream("GET", path, headers=headers) as resp:
+        async for raw_bytes in resp.aiter_raw():
+          raw += raw_bytes
+      return resp, raw
 
     results = []
     async def async_download(client, path):
@@ -358,18 +373,21 @@ class CloudFiles(object):
         headers = { f"Range": "bytes={start}-{end}" }
 
       try:
-        s = time.time()
-        response = await client.get(fullpath, headers=headers)
-        print(time.time() - s)
+        response, content = await httpx_get_raw(client, fullpath, headers)
         response.raise_for_status()
 
-        content = response.content
         server_hash = None
         server_hash_type = None
 
-        # with self._get_connection() as conn:
-        #   content, encoding, server_hash, server_hash_type = conn.get_file(path, start=start, end=end)
-        
+        if "googleapis.com" in fullpath and "x-goog-hash" in response.headers:
+          sigs = parse_x_goog_hash(response.headers["x-goog-hash"])
+          if "md5" in sigs:
+            server_hash_type = "md5"
+            server_hash = sigs["md5"]
+          elif "crc32c" in sigs:
+            server_hash_type = "crc32c"
+            server_hash = sigs["crc32c"]
+
         # md5s don't match for partial reads
         if start is None and end is None:
           if server_hash_type == "md5":
@@ -377,8 +395,8 @@ class CloudFiles(object):
           elif server_hash_type == "crc32c":
             check_crc32c(path, content, server_hash)
         
-        # if not raw:
-          # content = compression.decompress(content, encoding, filename=path)
+        if not raw:
+          content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
         error = err
 
