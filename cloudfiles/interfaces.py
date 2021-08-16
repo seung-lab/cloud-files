@@ -540,7 +540,9 @@ class GoogleCloudStorageInterface(StorageInterface):
     """
     layer_path = self.get_path_to_file("")        
     path = posixpath.join(layer_path, prefix)
-    for blob in self._bucket.list_blobs(prefix=path):
+
+    delimiter = '/' if flat else None
+    for blob in self._bucket.list_blobs(prefix=path, delimiter=delimiter):
       filename = blob.name.replace(layer_path, '')
       if not filename:
         continue
