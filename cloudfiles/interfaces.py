@@ -847,6 +847,8 @@ class S3Interface(StorageInterface):
         'Prefix': path,
         **self._additional_attrs
       }
+      if flat:
+        kwargs['Delimiter'] = '/'
 
       if continuation_token:
         kwargs['ContinuationToken'] = continuation_token
