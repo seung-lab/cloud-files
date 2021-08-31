@@ -692,7 +692,8 @@ class S3Interface(StorageInterface):
     """
 
     kwargs = self._additional_attrs.copy()
-    if start is not None or end is not None:
+    range_request = start is not None or end is not None
+    if range_request:
       start = int(start) if start is not None else ''
       end = int(end - 1) if end is not None else ''
       kwargs['Range'] = "bytes={}-{}".format(start, end)
@@ -717,7 +718,7 @@ class S3Interface(StorageInterface):
       etag = resp.get('ETag', None)
       content = resp['Body'].read()
 
-      if etag is not None:
+      if etag is not None and not range_request:
         etag = etag.lstrip('"').rstrip('"')
         # AWS has special multipart validation
         # so we handle it here... leaky abstraction.
