@@ -315,6 +315,16 @@ def _rm(path, recursive, progress, parallel, block_size):
 
   cfpath = npath if ispathdir(path) else os.path.dirname(npath)
   xferpaths = os.path.basename(npath)
+  
+  # Correct the situation where on non-file:// systems
+  # rm -r s3://bucket/test incorreclty means test** 
+  # but on file it means test/ because it checks to see
+  # if there's a directory. The correct behavior is that
+  # on both it deletes rm -r test/.
+  proto = get_protocol(cfpath)
+  if proto != "file" and prefix == "" and xferpaths != "":
+    prefix = xferpaths + "/"
+
   if many:
     xferpaths = CloudFiles(cfpath, green=True).list(prefix=prefix, flat=flat)
 

@@ -1,3 +1,6 @@
+import gevent.monkey
+gevent.monkey.patch_all(thread=False)
+
 import os
 import pytest
 import re
@@ -834,6 +837,33 @@ def test_cli_rm():
     shutil.rmtree(test_dir)
   except FileNotFoundError:
     pass
+
+@pytest.mark.parametrize("slash", ["", "/"])
+@pytest.mark.parametrize("protocol", ["file", "s3"])
+def test_cli_rm_s3(s3, protocol, slash):
+  import subprocess
+  from cloudfiles import CloudFiles, exceptions
+
+  path = compute_url(protocol, "remove_cli")
+
+  cf = CloudFiles(path)
+  cf["test/wow"] = b"hello world"
+  cf["test2/wow"] = b"hello world"
+
+  # can't use subprocess b/c it can't access the s3 mock
+  import cloudfiles_cli.cloudfiles_cli
+  cloudfiles_cli.cloudfiles_cli._rm(
+    f"{path}/test{slash}",
+    recursive=True, 
+    progress=False, 
+    parallel=1,
+    block_size=128
+  )
+
+  assert list(cf) == [ "test2/wow" ]
+
+  del cf["test/wow"]
+  del cf["test2/wow"]
 
 @pytest.mark.parametrize("green", (True, False))
 def test_exceptions_raised(green):
