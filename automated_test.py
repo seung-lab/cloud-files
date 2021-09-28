@@ -1,3 +1,6 @@
+import gevent.monkey
+gevent.monkey.patch_all(thread=False)
+
 import os
 import pytest
 import re
@@ -773,7 +776,7 @@ def test_cli_cp():
     pass
 
 
-def test_cli_rm():
+def test_cli_rm_shell():
   import subprocess
   from cloudfiles.lib import mkdir, touch
   test_dir = os.path.dirname(os.path.abspath(__file__))
@@ -834,6 +837,85 @@ def test_cli_rm():
     shutil.rmtree(test_dir)
   except FileNotFoundError:
     pass
+
+@pytest.mark.parametrize("protocol", ["file", "s3"])
+def test_cli_rm_python(s3, protocol):
+  from cloudfiles_cli.cloudfiles_cli import _rm
+  from cloudfiles import CloudFiles, exceptions
+
+  test_dir = compute_url(protocol, "cli_rm_python")
+  cf = CloudFiles(test_dir)
+
+  N = 100
+
+  def mkfiles():
+    cf.delete(cf.list())
+    for i in range(N):
+      cf[str(i)] = b"hello world"
+
+  def run_rm(path, recursive=False):
+    _rm(
+      path, recursive=recursive, progress=False, 
+      parallel=1, block_size=128
+    )
+
+
+  mkfiles()
+  run_rm(test_dir, recursive=True)
+  assert list(cf) == []
+
+  mkfiles()
+  run_rm(test_dir, recursive=False)
+  assert len(list(cf)) == N
+
+  mkfiles()
+  run_rm(test_dir + "/*")
+  print(list(cf))
+  assert list(cf) == []
+
+  mkfiles()
+  run_rm(test_dir + "/**")
+  assert list(cf) == []
+
+  mkfiles()
+  run_rm(test_dir + "/0")
+  assert set(list(cf)) == set([ str(_) for _ in range(1, N) ])
+
+  mkfiles()
+  run_rm(test_dir + "/1*")
+  res = set([ str(_) for _ in range(N) ])
+  res.remove("1")
+  for x in range(10, 20):
+    res.remove(str(x))
+  assert set(list(cf)) == res
+
+  cf.delete(cf.list())
+
+
+@pytest.mark.parametrize("slash", ["", "/"])
+@pytest.mark.parametrize("protocol", ["file", "s3"])
+def test_cli_rm_recursive(s3, protocol, slash):
+  import cloudfiles_cli.cloudfiles_cli
+  from cloudfiles import CloudFiles, exceptions
+
+  path = compute_url(protocol, "remove_cli")
+  cf = CloudFiles(path)
+  cf["test/wow"] = b"hello world"
+  cf["test2/wow"] = b"hello world"
+
+  # can't use subprocess b/c it can't access the s3 mock
+  cloudfiles_cli.cloudfiles_cli._rm(
+    f"{path}/test{slash}",
+    recursive=True, 
+    progress=False, 
+    parallel=1,
+    block_size=128
+  )
+
+  assert list(cf) == [ "test2/wow" ]
+
+  del cf["test/wow"]
+  del cf["test2/wow"]
 
 @pytest.mark.parametrize("green", (True, False))
 def test_exceptions_raised(green):

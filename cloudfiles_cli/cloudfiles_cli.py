@@ -31,6 +31,13 @@ def normalize_path(cloudpath):
     return "file://" + toabs(cloudpath)
   return cloudpath
 
+def get_sep(cloudpath):
+  proto = get_protocol(cloudpath)
+  if proto == "file":
+    return os.path.sep
+  else:
+    return "/"
+
 def ispathdir(cloudpath):
   expath = extract(normalize_path(cloudpath))
   return (
@@ -310,11 +317,21 @@ def rm(ctx, paths, recursive, progress, block_size):
     _rm(path, recursive, progress, parallel, block_size)
 
 def _rm(path, recursive, progress, parallel, block_size):
+  # Correct the situation where on non-file:// systems
+  # rm -r s3://bucket/test incorreclty means test** 
+  # but on file it means test/ because it checks to see
+  # if there's a directory. The correct behavior is that
+  # on both it deletes rm -r test/.
+  sep = get_sep(path)
+  if recursive and path[-1] not in ("*", sep):
+    path += sep
+
   npath = normalize_path(path)
   many, flat, prefix = get_mfp(path, recursive)
 
   cfpath = npath if ispathdir(path) else os.path.dirname(npath)
   xferpaths = os.path.basename(npath)
+
   if many:
     xferpaths = CloudFiles(cfpath, green=True).list(prefix=prefix, flat=flat)
 
