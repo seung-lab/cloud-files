@@ -894,7 +894,7 @@ def test_cli_rm_python(s3, protocol):
 
 @pytest.mark.parametrize("slash", ["", "/"])
 @pytest.mark.parametrize("protocol", ["file", "s3"])
-def test_cli_rm_s3(s3, protocol, slash):
+def test_cli_rm_recursive(s3, protocol, slash):
   import cloudfiles_cli.cloudfiles_cli
   from cloudfiles import CloudFiles, exceptions
 
