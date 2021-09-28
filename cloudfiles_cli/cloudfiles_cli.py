@@ -327,7 +327,6 @@ def _rm(path, recursive, progress, parallel, block_size):
     path += sep
 
   npath = normalize_path(path)
-
   many, flat, prefix = get_mfp(path, recursive)
 
   cfpath = npath if ispathdir(path) else os.path.dirname(npath)
