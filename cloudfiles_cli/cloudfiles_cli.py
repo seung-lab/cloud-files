@@ -12,6 +12,7 @@ import sys
 import click
 import pathos.pools
 
+import cloudfiles
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
@@ -285,6 +286,26 @@ def _cp_stdout(src, paths):
   for res in cf.get(paths):
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
+
+@main.command()
+@click.argument("sources", nargs=-1)
+def cat(sources):
+  """Concatenate the contents of each input file and write to stdout."""
+  if '-' in sources and len(sources) == 1:
+    sources = sys.stdin.readlines()
+    sources = [ source[:-1] for source in sources ] # clip "\n"
+
+  for srcs in sip(sources, 10):
+    srcs = [ normalize_path(src) for src in srcs ]
+    order = { src: i for i, src in enumerate(srcs) }
+    files = cloudfiles.dl(srcs)
+    output = [ None for _ in range(len(srcs)) ]
+    for res in files:
+      fullpath = res["fullpath"].replace("precomputed://", "")
+      output[order[fullpath]] = res["content"].decode("utf8")
+    del files
+    for out in output:
+      sys.stdout.write(out)
 
 @main.command()
 @click.argument('paths', nargs=-1)
