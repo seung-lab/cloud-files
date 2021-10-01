@@ -475,18 +475,26 @@ def verify(source, target, only_matching, verbose, md5):
   source = normalize_path(source)
   target = normalize_path(target)
   if ispathdir(source) != ispathdir(target):
-    print("cloudfiles: verify source and target must both be single files or directories.")
+    print("cloudfiles: verify source and target must both be files or directories.")
     return
 
   if not md5 and (get_protocol(source) == "file" or get_protocol(target) == "file"):
     print("cloudfiles: verify source and target must be object storage without --md5 option. The filesystem does not store hash information.")
     return
 
-  cfsrc = CloudFiles(source)
-  src_files = set(list(cfsrc))
+  if ispathdir(source):
+    cfsrc = CloudFiles(source)
+    src_files = set(list(cfsrc))
+  else:
+    cfsrc = CloudFiles(os.path.dirname(source))
+    src_files = set([ os.path.basename(source) ])
   
-  cftarget = CloudFiles(target)
-  target_files = set(list(cftarget))
+  if ispathdir(target):
+    cftarget = CloudFiles(target)
+    target_files = set(list(cftarget))
+  else:
+    cftarget = CloudFiles(os.path.dirname(target))
+    target_files = set([ os.path.basename(target) ])  
   
   matching_files = src_files.intersection(target_files)
   mismatched_files = src_files | target_files
