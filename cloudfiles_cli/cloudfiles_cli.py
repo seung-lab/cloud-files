@@ -306,6 +306,9 @@ def cat(sources, byte_range):
     src = normalize_path(sources[0])
     cf = CloudFiles(os.path.dirname(src))
     download = cf[os.path.basename(src), byte_range[0]:byte_range[1]]
+    if download is None:
+      print(f'cloudfiles: {src} does not exist')
+      return
     sys.stdout.write(download.decode("utf8"))
     return
 
@@ -315,6 +318,9 @@ def cat(sources, byte_range):
     files = cloudfiles.dl(srcs)
     output = [ None for _ in range(len(srcs)) ]
     for res in files:
+      if res["content"] is None:
+        print(f'cloudfiles: {res["path"]} does not exist')
+        return
       fullpath = normalize_path(res["fullpath"].replace("precomputed://", ""))
       output[order[fullpath]] = res["content"].decode("utf8")
     del files

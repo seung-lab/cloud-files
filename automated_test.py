@@ -817,6 +817,12 @@ def test_cli_cat():
   rngtest("0-", "hello world")
   rngtest("6-11", "world")
 
+  out = subprocess.run(["cloudfiles", "cat", "doesnotexist"], capture_output=True)
+  assert 'does not exist' in out.stdout.decode("utf8")
+
+  out = subprocess.run(["cloudfiles", "cat", "-r", "0-5", "doesnotexist"], capture_output=True)
+  assert 'does not exist' in out.stdout.decode("utf8")
+
   try:
     shutil.rmtree(srcdir)
   except FileNotFoundError:
