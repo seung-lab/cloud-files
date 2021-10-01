@@ -187,9 +187,19 @@ def dl(cloudpaths, raw=False, **kwargs):
   clustered = defaultdict(list)
   total = 0
   for path in cloudpaths:
-    epath = paths.extract(path)
+    pth = path
+    byte_range = None
+    if isinstance(path, dict):
+      pth = path["path"]
+      byte_range = path["byte_range"]
+
+    epath = paths.extract(pth)
     bucketpath = paths.asbucketpath(epath)
-    clustered[bucketpath].append(epath.path)
+    clustered[bucketpath].append({ 
+      "path": epath.path,
+      "start": byte_range[0] if byte_range else None,
+      "end": byte_range[1] if byte_range else None,
+    })
     total += 1
 
   progress = kwargs.get("progress", False) and total > 1
