@@ -434,9 +434,10 @@ def populate_md5(cf, metadata, threshold=1e9):
   """threshold: parallel download up to this many bytes of files at once"""
   sz = lambda fname: metadata[fname]["Content-Length"]
   etag = lambda fname: metadata[fname]["ETag"] 
+  md5content = lambda fname: metadata[fname]["Content-Md5"]
 
   filenames = list(metadata.keys())
-  filenames = [ fname for fname in filenames if not etag(fname) ]
+  filenames = [ fname for fname in filenames if not etag(fname) and not md5content(fname) ]
 
   while filenames:
     filename = filenames.pop()
