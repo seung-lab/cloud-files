@@ -489,10 +489,10 @@ def verify(source, target, only_matching, verbose, md5):
   target_files = set(list(cftarget))
   
   matching_files = src_files.intersection(target_files)
+  mismatched_files = src_files | target_files
+  mismatched_files -= matching_files
 
   if not only_matching:
-    mismatched_files = src_files | target_files
-    mismatched_files -= matching_files
     if len(mismatched_files) > 0:
       if verbose:
         print(f"Extra source files:")
@@ -535,7 +535,7 @@ def verify(source, target, only_matching, verbose, md5):
       failed_files.append(filename)
 
   if not failed_files:
-    print(green(f"success. {len(matching_files)} files matching."))
+    print(green(f"success. {len(matching_files)} files matching. {len(mismatched_files)} ignored."))
     return
 
   if verbose:
@@ -560,5 +560,5 @@ def verify(source, target, only_matching, verbose, md5):
       print(f'{sm["Content-Length"]:<12} {tm["Content-Length"]:<12} {sm["Content-Encoding"] or "None":<4} {tm["Content-Encoding"] or "None":<4} {sm["ETag"] or "None":<34} {tm["ETag"] or "None":<34} {sm["Content-Md5"] or "None":<24} {tm["Content-Md5"] or "None":<24} {filename}')
     print("--")
 
-  print(red(f"failed. {len(failed_files)} failed. {len(matching_files) - len(failed_files)} succeeded."))
+  print(red(f"failed. {len(failed_files)} failed. {len(matching_files) - len(failed_files)} succeeded. {len(mismatched_files)} ignored."))
 
