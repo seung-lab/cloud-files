@@ -429,7 +429,8 @@ def head(paths):
 @click.argument("source")
 @click.argument("target")
 @click.option('-m', '--only-matching', is_flag=True, default=False, help="Only check files with matching filenames.", show_default=True)
-def verify(source, target, only_matching):
+@click.option('-v', '--verbose', is_flag=True, default=False, help="Output detailed information of failed matches.", show_default=True)
+def verify(source, target, only_matching, verbose):
   """
   Validates that the checksums of two files
   or two directories match.
@@ -452,8 +453,11 @@ def verify(source, target, only_matching):
     mismatched_files = src_files | target_files
     mismatched_files -= matching_files
     if len(mismatched_files) > 0:
-      # print(f"Extra files:")
-      # print("\n".join(mismatched_files))
+      if verbose:
+        print(f"Extra source files:")
+        print("\n".join(src_files - matching_files))
+        print(f"Extra target files:")
+        print("\n".join(target_files - matching_files))
       print(red(f"failed. {len(src_files)} source files, {len(target_files)} target files."))
       return
 
@@ -475,14 +479,14 @@ def verify(source, target, only_matching):
     print(green(f"success. {len(matching_files)} files matching."))
     return
 
-  failed_files.sort()
-
-  print("src bytes\ttarget bytes\tsrc etag\t\t\t\ttarget etag\t\t\t\tfilename")
-  for filename in failed_files:
-    sm = src_meta[filename]
-    tm = target_meta[filename]
-    print(f'{sm["Content-Length"]:<15}\t{tm["Content-Length"]:<15}\t{sm["ETag"]:<34}\t{tm["ETag"]:<34}\t{filename}')
-
-  print("--")
+  if verbose:
+    failed_files.sort()
+    print("src bytes\ttarget bytes\tsrc etag\t\t\t\ttarget etag\t\t\t\tfilename")
+    for filename in failed_files:
+      sm = src_meta[filename]
+      tm = target_meta[filename]
+      print(f'{sm["Content-Length"]:<15}\t{tm["Content-Length"]:<15}\t{sm["ETag"]:<34}\t{tm["ETag"]:<34}\t{filename}')
+    print("--")
+    
   print(red(f"failed. {len(failed_files)} failed. {len(matching_files) - len(failed_files)} succeeded."))
 
