@@ -463,7 +463,7 @@ def populate_md5(cf, metadata, threshold=1e9):
 @click.argument("target")
 @click.option('-m', '--only-matching', is_flag=True, default=False, help="Only check files with matching filenames.", show_default=True)
 @click.option('-v', '--verbose', is_flag=True, default=False, help="Output detailed information of failed matches.", show_default=True)
-@click.option('--md5', is_flag=True, default=False, help="Compute the md5 hash if the Etag is missing.", show_default=True)
+@click.option('--md5', is_flag=True, default=False, help="Compute the md5 hash if the Etag is missing. Can be slow!", show_default=True)
 def verify(source, target, only_matching, verbose, md5):
   """
   Validates that the checksums of two files
