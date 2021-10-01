@@ -15,7 +15,7 @@ import pathos.pools
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
-from cloudfiles.lib import toabs, sip, toiter, first
+from cloudfiles.lib import toabs, sip, toiter, first, red, green
 
 def cloudpathjoin(cloudpath, *args):
   cloudpath = normalize_path(cloudpath)
@@ -425,4 +425,64 @@ def head(paths):
   elif len(paths) > 0:
     pp.pprint(results)
 
+@main.command()
+@click.argument("source")
+@click.argument("target")
+@click.option('-m', '--only-matching', is_flag=True, default=False, help="Only check files with matching filenames.", show_default=True)
+def verify(source, target, only_matching):
+  """
+  Validates that the checksums of two files
+  or two directories match.
+  """
+  source = normalize_path(source)
+  target = normalize_path(target)
+  if ispathdir(source) != ispathdir(target):
+    print("cloudfiles: verify source and target must both be single files or directories.")
+    return
+
+  cfsrc = CloudFiles(source)
+  src_files = set(list(cfsrc))
+  
+  cftarget = CloudFiles(target)
+  target_files = set(list(cftarget))
+  
+  matching_files = src_files.intersection(target_files)
+
+  if not only_matching:
+    mismatched_files = src_files | target_files
+    mismatched_files -= matching_files
+    if len(mismatched_files) > 0:
+      # print(f"Extra files:")
+      # print("\n".join(mismatched_files))
+      print(red(f"failed. {len(src_files)} source files, {len(target_files)} target files."))
+      return
+
+  src_meta = cfsrc.head(matching_files)
+  target_meta = cftarget.head(matching_files)
+
+  failed_files = []
+  for filename in src_meta:
+    sm = src_meta[filename]
+    tm = target_meta[filename]
+    if sm["Content-Length"] != tm["Content-Length"]:
+      failed_files.append(filename)
+      continue
+    elif sm["ETag"] != tm["ETag"]:
+      failed_files.append(filename)
+      continue
+
+  if not failed_files:
+    print(green(f"success. {len(matching_files)} files matching."))
+    return
+
+  failed_files.sort()
+
+  print("src bytes\ttarget bytes\tsrc etag\t\t\t\ttarget etag\t\t\t\tfilename")
+  for filename in failed_files:
+    sm = src_meta[filename]
+    tm = target_meta[filename]
+    print(f'{sm["Content-Length"]:<15}\t{tm["Content-Length"]:<15}\t{sm["ETag"]:<34}\t{tm["ETag"]:<34}\t{filename}')
+
+  print("--")
+  print(red(f"failed. {len(failed_files)} failed. {len(matching_files) - len(failed_files)} succeeded."))
 
