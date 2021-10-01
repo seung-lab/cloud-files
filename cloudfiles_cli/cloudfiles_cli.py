@@ -481,12 +481,19 @@ def verify(source, target, only_matching, verbose):
 
   if verbose:
     failed_files.sort()
-    print("src bytes\ttarget bytes\tsrc etag\t\t\t\ttarget etag\t\t\t\tfilename")
+    header = [
+      "src bytes".ljust(16),
+      "target bytes".ljust(16),
+      "src etag".ljust(40),
+      "target etag".ljust(40),
+      "filename"
+    ]
+    print("".join(header))
     for filename in failed_files:
       sm = src_meta[filename]
       tm = target_meta[filename]
       print(f'{sm["Content-Length"]:<15}\t{tm["Content-Length"]:<15}\t{sm["ETag"]:<34}\t{tm["ETag"]:<34}\t{filename}')
     print("--")
-    
+
   print(red(f"failed. {len(failed_files)} failed. {len(matching_files) - len(failed_files)} succeeded."))
 
