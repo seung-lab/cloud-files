@@ -15,7 +15,12 @@ import pathos.pools
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
-from cloudfiles.lib import toabs, sip, toiter, first, red, green
+from cloudfiles.lib import (
+  toabs, sip, toiter, 
+  first, red, green,
+  md5_equal
+)
+import cloudfiles.lib
 
 def cloudpathjoin(cloudpath, *args):
   cloudpath = normalize_path(cloudpath)
@@ -425,20 +430,55 @@ def head(paths):
   elif len(paths) > 0:
     pp.pprint(results)
 
+def populate_md5(cf, metadata, threshold=1e9):
+  """threshold: parallel download up to this many bytes of files at once"""
+  sz = lambda fname: metadata[fname]["Content-Length"]
+  etag = lambda fname: metadata[fname]["ETag"] 
+
+  filenames = list(metadata.keys())
+  filenames = [ fname for fname in filenames if not etag(fname) ]
+
+  while filenames:
+    filename = filenames.pop()
+    paths = [ filename ]
+    size = sz(filename)
+  
+    while filenames and size <= threshold:
+      if size + sz(filenames[-1]) > threshold:
+        break
+      paths.append( filenames.pop() )
+      size += sz(paths[-1])
+
+    results = cf.get(paths)
+    for result in results: 
+      filename = result["path"]
+      metadata[filename]["ETag"] = cloudfiles.lib.md5(result["content"], base=64)
+      metadata[filename]["Content-Md5"] = metadata[filename]["ETag"]
+
+  return metadata
+
 @main.command()
 @click.argument("source")
 @click.argument("target")
 @click.option('-m', '--only-matching', is_flag=True, default=False, help="Only check files with matching filenames.", show_default=True)
 @click.option('-v', '--verbose', is_flag=True, default=False, help="Output detailed information of failed matches.", show_default=True)
-def verify(source, target, only_matching, verbose):
+@click.option('--md5', is_flag=True, default=False, help="Compute the md5 hash if the Etag is missing.", show_default=True)
+def verify(source, target, only_matching, verbose, md5):
   """
   Validates that the checksums of two files
-  or two directories match.
+  or two directories match. These tags are usually
+  either md5 or crc32c generated strings. These are
+  not secure hashes so they will only catch accidental
+  changes to files, not intentionally malicious changes.
   """
   source = normalize_path(source)
   target = normalize_path(target)
   if ispathdir(source) != ispathdir(target):
     print("cloudfiles: verify source and target must both be single files or directories.")
+    return
+
+  if not md5 and (get_protocol(source) == "file" or get_protocol(target) == "file"):
+    print("cloudfiles: verify source and target must be object storage without --md5 option. The filesystem does not store hash information.")
     return
 
   cfsrc = CloudFiles(source)
@@ -464,6 +504,10 @@ def verify(source, target, only_matching, verbose):
   src_meta = cfsrc.head(matching_files)
   target_meta = cftarget.head(matching_files)
 
+  if md5:
+    src_meta = populate_md5(cfsrc, src_meta)
+    target_meta = populate_md5(cftarget, target_meta)
+
   failed_files = []
   for filename in src_meta:
     sm = src_meta[filename]
@@ -471,9 +515,23 @@ def verify(source, target, only_matching, verbose):
     if sm["Content-Length"] != tm["Content-Length"]:
       failed_files.append(filename)
       continue
-    elif sm["ETag"] != tm["ETag"]:
+    elif not (
+      (
+        (sm["ETag"] and tm["ETag"])
+        and (
+          sm["ETag"] == tm["ETag"]
+          or md5_equal(sm["ETag"], tm["ETag"])
+        )
+      )
+      or (
+        sm["Content-Md5"] and tm["Content-Md5"]
+        and md5_equal(sm["Content-Md5"], tm["Content-Md5"])
+      )
+    ):
       failed_files.append(filename)
       continue
+    elif sm["ETag"] in ("", None):
+      failed_files.append(filename)
 
   if not failed_files:
     print(green(f"success. {len(matching_files)} files matching."))
@@ -492,7 +550,7 @@ def verify(source, target, only_matching, verbose):
     for filename in failed_files:
       sm = src_meta[filename]
       tm = target_meta[filename]
-      print(f'{sm["Content-Length"]:<15}\t{tm["Content-Length"]:<15}\t{sm["ETag"]:<34}\t{tm["ETag"]:<34}\t{filename}')
+      print(f'{sm["Content-Length"]:<15}\t{tm["Content-Length"]:<15}\t{sm["ETag"] or "None":<34}\t{tm["ETag"] or "None":<34}\t{filename}')
     print("--")
 
   print(red(f"failed. {len(failed_files)} failed. {len(matching_files) - len(failed_files)} succeeded."))

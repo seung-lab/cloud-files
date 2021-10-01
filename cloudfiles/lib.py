@@ -1,4 +1,5 @@
 import base64
+import binascii
 import hashlib
 import itertools
 import orjson
@@ -155,7 +156,7 @@ def crc32c(binary):
   """
   return crc32clib.value(binary) # an integer
 
-def md5(binary):
+def md5(binary, base=64):
   """
   Returns the md5 of a binary string 
   in base64 format.
@@ -163,9 +164,26 @@ def md5(binary):
   if isinstance(binary, UNICODE_TYPE):
     binary = binary.encode('utf8')
 
-  return base64.b64encode(
-    hashlib.md5(binary).digest()
-  ).decode('utf8')
+  digest = hashlib.md5(binary)
+  if base == 64:
+    return base64.b64encode(digest.digest()).decode('utf8')
+  elif base == 16:
+    return digest.hexdigest()
+  else:
+    raise ValueError(f"base {base} must be 16 or 64.")
+
+def md5_equal(hash_a, hash_b):
+  hash_a = hash_a.rstrip('"').lstrip('"')
+  hash_b = hash_b.rstrip('"').lstrip('"')
+
+  b16_to_b64 = lambda hash_x: base64.b64encode(binascii.unhexlify(hash_x)).decode('utf8')
+
+  if len(hash_a) == 32:
+    hash_a = b16_to_b64(hash_a)
+  if len(hash_b) == 32:
+    hash_b = b16_to_b64(hash_b)
+
+  return hash_a == hash_b
 
 # Below code adapted from: 
 # https://teppen.io/2018/10/23/aws_s3_verify_etags/
