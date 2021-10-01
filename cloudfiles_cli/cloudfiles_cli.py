@@ -539,18 +539,24 @@ def verify(source, target, only_matching, verbose, md5):
 
   if verbose:
     failed_files.sort()
+
     header = [
-      "src bytes".ljust(16),
-      "target bytes".ljust(16),
-      "src etag".ljust(40),
-      "target etag".ljust(40),
+      "src bytes".ljust(12+1),
+      "target bytes".ljust(12+1),
+      "senc".ljust(4+1),
+      "tenc".ljust(4+1),
+      "src etag".ljust(34+1),
+      "target etag".ljust(34+1),
+      "src md5".ljust(24+1),
+      "target md5".ljust(24+1),
       "filename"
     ]
+
     print("".join(header))
     for filename in failed_files:
       sm = src_meta[filename]
       tm = target_meta[filename]
-      print(f'{sm["Content-Length"]:<15}\t{tm["Content-Length"]:<15}\t{sm["ETag"] or "None":<34}\t{tm["ETag"] or "None":<34}\t{filename}')
+      print(f'{sm["Content-Length"]:<12} {tm["Content-Length"]:<12} {sm["Content-Encoding"] or "None":<4} {tm["Content-Encoding"] or "None":<4} {sm["ETag"] or "None":<34} {tm["ETag"] or "None":<34} {sm["Content-Md5"] or "None":<24} {tm["Content-Md5"] or "None":<24} {filename}')
     print("--")
 
   print(red(f"failed. {len(failed_files)} failed. {len(matching_files) - len(failed_files)} succeeded."))
