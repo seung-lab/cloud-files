@@ -449,7 +449,7 @@ def populate_md5(cf, metadata, threshold=1e9):
       paths.append( filenames.pop() )
       size += sz(paths[-1])
 
-    results = cf.get(paths)
+    results = cf.get(paths, raw=True)
     for result in results: 
       filename = result["path"]
       metadata[filename]["ETag"] = cloudfiles.lib.md5(result["content"], base=64)
