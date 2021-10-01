@@ -697,6 +697,18 @@ class CloudFiles(object):
     return first(results.values())
 
   def head(self, paths, total=None, progress=None):
+    """
+    Retrieves basic metadata about the indicated files including
+    last modified, file size in bytes, and an integrity check
+    hash if available (usually md5 or crc32c).
+
+    paths: one or more file paths relative to the cloudpath.
+    total: manually provide a progress bar size if paths does
+      not support the `len` operator.
+    progress: selectively enable or disable progress just for this
+      function call. If progress is a string, it sets the 
+      text of the progress bar.
+    """
     paths, return_multiple = toiter(paths, is_iter=True)
     progress = nvl(progress, self.progress)
     results = {}
