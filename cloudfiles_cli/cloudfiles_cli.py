@@ -12,6 +12,7 @@ import sys
 import click
 import pathos.pools
 
+import cloudfiles
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
@@ -290,6 +291,46 @@ def _cp_stdout(src, paths):
   for res in cf.get(paths):
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
+
+@main.command()
+@click.argument("sources", nargs=-1)
+@click.option('-r', '--range', 'byte_range', default=None, help='Retrieve start-end bytes.')
+def cat(sources, byte_range):
+  """Concatenate the contents of each input file and write to stdout."""
+  if '-' in sources and len(sources) == 1:
+    sources = sys.stdin.readlines()
+    sources = [ source[:-1] for source in sources ] # clip "\n"
+
+  if byte_range is not None and len(sources) > 1:
+    print("cloudfiles: cat: range argument can only be used with a single source.")
+    return
+  elif byte_range is not None and len(sources):
+    byte_range = byte_range.split("-")
+    byte_range[0] = int(byte_range[0] or 0)
+    byte_range[1] = int(byte_range[1]) if byte_range[1] not in ("", None) else None
+    src = normalize_path(sources[0])
+    cf = CloudFiles(os.path.dirname(src))
+    download = cf[os.path.basename(src), byte_range[0]:byte_range[1]]
+    if download is None:
+      print(f'cloudfiles: {src} does not exist')
+      return
+    sys.stdout.write(download.decode("utf8"))
+    return
+
+  for srcs in sip(sources, 10):
+    srcs = [ normalize_path(src) for src in srcs ]
+    order = { src: i for i, src in enumerate(srcs) }
+    files = cloudfiles.dl(srcs)
+    output = [ None for _ in range(len(srcs)) ]
+    for res in files:
+      if res["content"] is None:
+        print(f'cloudfiles: {res["path"]} does not exist')
+        return
+      fullpath = normalize_path(res["fullpath"].replace("precomputed://", ""))
+      output[order[fullpath]] = res["content"].decode("utf8")
+    del files
+    for out in output:
+      sys.stdout.write(out)
 
 @main.command()
 @click.argument('paths', nargs=-1)

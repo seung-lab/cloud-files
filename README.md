@@ -339,6 +339,10 @@ find some_dir | cloudfiles cp - s3://bkt/
 cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
 # remove files
 cloudfiles rm ./tmp gs://bkt/dir/file s3://bkt/dir/file
+# cat across services, -r for range reads
+cloudfiles cat ./tmp gs://bkt/dir/file s3://bkt/dir/file
+# verify a transfer was successful by comparing bytes and hashes
+cloudfiles verify ./my-data gs://bucket/my-data/ 
 ```
 
 ### `cp` Pros and Cons

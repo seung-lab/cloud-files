@@ -775,6 +775,58 @@ def test_cli_cp():
   except FileNotFoundError:
     pass
 
+def test_cli_cat():
+  import subprocess
+  from cloudfiles.lib import mkdir, touch
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  srcdir = os.path.join(test_dir, "testfiles")
+  
+  def mkfiles(mkdirname):
+    try:
+      shutil.rmtree(mkdirname)
+    except FileNotFoundError:
+      pass
+    mkdir(mkdirname)
+    for i in range(10):
+      with open(os.path.join(mkdirname, str(i)), "wt") as f:
+        f.write("hello world")
+
+  mkfiles(srcdir)
+  try:
+    out = subprocess.run(["cloudfiles", "cat", f"{srcdir}/1"], capture_output=True)
+    assert out.stdout.decode("utf8") == "hello world"
+  except TypeError: # python3.6 doesn't support capture_output
+    pass
+
+  try:
+    out = subprocess.run(["cloudfiles", "cat", f"{srcdir}/1", f"{srcdir}/2"], capture_output=True)
+    assert out.stdout.decode("utf8") == "hello worldhello world"
+  except TypeError: # python3.6 doesn't support capture_output
+    pass
+
+  def rngtest(rng, val):
+    try:
+      mkfiles(srcdir)
+      out = subprocess.run(["cloudfiles", "cat", "-r", rng, f"{srcdir}/1"], capture_output=True)
+      assert out.stdout.decode("utf8") == val
+    except TypeError: # python3.6 doesn't support capture_output
+      pass
+
+  rngtest("0-5", "hello")
+  rngtest("-5", "hello")
+  rngtest("0-", "hello world")
+  rngtest("6-11", "world")
+
+  out = subprocess.run(["cloudfiles", "cat", "doesnotexist"], capture_output=True)
+  assert 'does not exist' in out.stdout.decode("utf8")
+
+  out = subprocess.run(["cloudfiles", "cat", "-r", "0-5", "doesnotexist"], capture_output=True)
+  assert 'does not exist' in out.stdout.decode("utf8")
+
+  try:
+    shutil.rmtree(srcdir)
+  except FileNotFoundError:
+    pass
 
 def test_cli_rm_shell():
   import subprocess
