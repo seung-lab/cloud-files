@@ -1,4 +1,8 @@
-from typing import Any, Dict, Optional, Union, List, Tuple, Callable, Generator, cast
+from typing import (
+  Any, Dict, Optional, 
+  Union, List, Tuple, 
+  Callable, Generator, cast
+)
 
 from queue import Queue
 from collections import defaultdict
