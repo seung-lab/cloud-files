@@ -861,7 +861,7 @@ class CloudFiles:
         yield f
 
   def transfer_to(
-    self, cf_dest:Union[str,CloudFiles], paths:Optional[Union[GetPathType, CloudFiles]]=None, 
+    self, cf_dest:Any, paths:Any=None, # recursive CloudFiles not supported as type
     block_size:int=64, reencode:Optional[str]=None
   ) -> None:
     """
@@ -885,7 +885,7 @@ class CloudFiles:
     return cf_dest.transfer_from(self, paths, block_size, reencode)
 
   def transfer_from(
-    self, cf_src:Union[str,CloudFiles], paths:Optional[Union[GetPathType, CloudFiles]]=None, 
+    self, cf_src:Any, paths:Any=None, # recursive CloudFiles not supported as type
     block_size:int=64, reencode:Optional[str]=None
   ) -> None:
     """
@@ -938,7 +938,8 @@ class CloudFiles:
 
     return self.get(key)
 
-  def __setitem__(self, key:Union[str, slice], value:Union[bytes, CloudFiles]):
+  # recursive CloudFiles not supported as type
+  def __setitem__(self, key:Union[str, slice], value:Any): 
     if isinstance(value, CloudFiles):
       if key == slice(None, None, None):
         self.transfer_from(value)
