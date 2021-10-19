@@ -11,14 +11,8 @@ import sys
 
 import crc32c as crc32clib
 
-if sys.version_info < (3,0,0):
-  STRING_TYPES = (str, unicode)
-  UNICODE_TYPE = unicode
-  PYTHON3 = False
-else:
-  STRING_TYPES = (str,)
-  UNICODE_TYPE = str
-  PYTHON3 = True
+STRING_TYPES = (str,)
+UNICODE_TYPE = str
 
 COLORS = {
   'RESET': "\033[m",

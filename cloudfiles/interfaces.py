@@ -180,11 +180,7 @@ class FileInterface(StorageInterface):
     path = self.get_path_to_file(file_path)
 
     exts = ('.gz', '.br', '.zstd', '')
-
-    if PYTHON3:
-      errors = (FileNotFoundError,)
-    else:
-      errors = (OSError,)
+    errors = (FileNotFoundError,)
 
     for ext in exts:
       try:
@@ -333,13 +329,10 @@ class MemoryInterface(StorageInterface):
 
     if path in self._data:
       data = self._data[path]
-      if PYTHON3:
-        if isinstance(data, bytes):
-          return len(data)
-        else:
-          return len(data.encode('utf8'))
-      else:
+      if isinstance(data, bytes):
         return len(data)
+      else:
+        return len(data.encode('utf8'))
 
     return None
 
