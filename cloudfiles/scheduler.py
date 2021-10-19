@@ -3,7 +3,6 @@ import sys
 from tqdm import tqdm
 
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
-from .lib import STRING_TYPES
 
 DEFAULT_THREADS = 20
 
@@ -18,7 +17,7 @@ def schedule_threaded_jobs(
     except TypeError: # generators don't have len
       pass
   
-  desc = progress if isinstance(progress, STRING_TYPES) else None
+  desc = progress if isinstance(progress, str) else None
 
   if isinstance(progress, tqdm):
     pbar = progress
@@ -52,7 +51,7 @@ def schedule_green_jobs(
     except TypeError: # generators don't have len
       pass
 
-  desc = progress if isinstance(progress, STRING_TYPES) else None
+  desc = progress if isinstance(progress, str) else None
 
   if isinstance(progress, tqdm):
     pbar = progress

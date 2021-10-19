@@ -21,7 +21,7 @@ from . import compression, paths
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
   mkdir, toiter, scatter, jsonify, nvl, 
-  duplicates, first, sip, STRING_TYPES, 
+  duplicates, first, sip,
   md5, crc32c, decode_crc32c_b64
 )
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
@@ -164,7 +164,7 @@ def get_interface_class(protocol):
     ))
 
 def path_to_byte_range(path):
-  if isinstance(path, STRING_TYPES):
+  if isinstance(path, str):
     return (path, None, None)
   return (path['path'], path['start'], path['end'])
 
@@ -261,7 +261,7 @@ class CloudFiles(object):
       self.num_threads = 0
 
   def _progress_description(self, prefix):
-    if isinstance(self.progress, STRING_TYPES):
+    if isinstance(self.progress, str):
       return prefix + ' ' + self.progress
     else:
       return prefix if self.progress else None
@@ -841,7 +841,7 @@ class CloudFiles(object):
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
     """
-    if isinstance(cf_dest, STRING_TYPES):
+    if isinstance(cf_dest, str):
       cf_dest = CloudFiles(
         cf_dest, progress=False, 
         green=self.green, num_threads=self.num_threads,
@@ -865,7 +865,7 @@ class CloudFiles(object):
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
     """
-    if isinstance(cf_src, STRING_TYPES):
+    if isinstance(cf_src, str):
       cf_src = CloudFiles(
         cf_src, progress=False, 
         green=self.green, num_threads=self.num_threads,
@@ -894,7 +894,7 @@ class CloudFiles(object):
         pbar.update(len(block_paths))
 
   def __getitem__(self, key):
-    if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], STRING_TYPES):
+    if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], str):
       return self.get({ 'path': key[0], 'start': key[1].start, 'end': key[1].stop })
     elif key == slice(None, None, None):
       return self.get(self.list())
