@@ -190,7 +190,9 @@ def totalfn(files, total):
   except TypeError:
     return None
   
-def dl(cloudpaths:GetPathType, raw:bool=False, **kwargs):
+def dl(
+  cloudpaths:GetPathType, raw:bool=False, **kwargs
+) -> Union[bytes,List[dict]]:
   """
   Shorthand for downloading files with CloudFiles.get.
   You can use full paths from multiple buckets and services
