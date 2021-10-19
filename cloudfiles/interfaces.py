@@ -18,7 +18,7 @@ import tenacity
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .exceptions import MD5IntegrityError
-from .lib import mkdir, sip, md5, PYTHON3, validate_s3_multipart_etag
+from .lib import mkdir, sip, md5, validate_s3_multipart_etag
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd')
 GZIP_TYPES = (True, 'gzip', 1)

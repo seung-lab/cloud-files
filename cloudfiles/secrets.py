@@ -1,3 +1,4 @@
+from typing import Dict, Union
 from collections import defaultdict
 import os
 import json
@@ -9,6 +10,9 @@ from .lib import mkdir, colorize
 HOME = os.path.expanduser('~')
 CLOUD_VOLUME_DIR = os.path.join(HOME, '.cloudvolume', 'secrets')
 CLOUD_FILES_DIR = os.path.join(HOME, '.cloudfiles', 'secrets')
+
+CredentialType = Dict[str,Union[str,int]]
+CredentialCacheType = Dict[str,CredentialType]
 
 def secretpath(filepath):
   preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
@@ -37,7 +41,7 @@ def default_google_project_name():
   return None
 
 PROJECT_NAME = default_google_project_name()
-GOOGLE_CREDENTIALS_CACHE = {}
+GOOGLE_CREDENTIALS_CACHE:CredentialCacheType = {}
 google_credentials_path = secretpath('google-secret.json')
 
 def google_credentials(bucket = ''):
@@ -82,7 +86,7 @@ def google_credentials(bucket = ''):
 
   return project_name, google_credentials
 
-AWS_CREDENTIALS_CACHE = defaultdict(dict)
+AWS_CREDENTIALS_CACHE:CredentialCacheType = defaultdict(dict)
 aws_credentials_path = secretpath('aws-secret.json')
 def aws_credentials(bucket = '', service = 'aws'):
   global AWS_CREDENTIALS_CACHE
