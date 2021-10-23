@@ -11,15 +11,6 @@ import sys
 
 import crc32c as crc32clib
 
-if sys.version_info < (3,0,0):
-  STRING_TYPES = (str, unicode)
-  UNICODE_TYPE = unicode
-  PYTHON3 = False
-else:
-  STRING_TYPES = (str,)
-  UNICODE_TYPE = str
-  PYTHON3 = True
-
 COLORS = {
   'RESET': "\033[m",
   'YELLOW': "\033[1;93m",
@@ -107,7 +98,7 @@ def first(lst):
     return None
 
 def toiter(obj, is_iter=False):
-  if isinstance(obj, STRING_TYPES) or isinstance(obj, dict):
+  if isinstance(obj, (str, dict)):
     if is_iter:
       return [ obj ], False
     return [ obj ]
@@ -161,7 +152,7 @@ def md5(binary, base=64):
   Returns the md5 of a binary string 
   in base64 format.
   """
-  if isinstance(binary, UNICODE_TYPE):
+  if isinstance(binary, str):
     binary = binary.encode('utf8')
 
   digest = hashlib.md5(binary)

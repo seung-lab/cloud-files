@@ -14,7 +14,7 @@ import zstandard as zstd
 
 from tqdm import tqdm
 
-from .lib import STRING_TYPES, toiter
+from .lib import toiter
 from .exceptions import DecompressionError, CompressionError
 
 COMPRESSION_TYPES = [ 
@@ -78,7 +78,7 @@ def transcode(
     yield f
     
 def normalize_encoding(encoding):
-  if isinstance(encoding, STRING_TYPES):
+  if isinstance(encoding, str):
     encoding = encoding.lower()
 
   if encoding in (None, False, '', 0):
