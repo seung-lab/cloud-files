@@ -1,7 +1,8 @@
 from typing import (
   Any, Dict, Optional, 
   Union, List, Tuple, 
-  Callable, Generator, cast
+  Callable, Generator, 
+  Iterable, cast
 )
 
 from queue import Queue
@@ -31,6 +32,10 @@ from .lib import (
   md5, crc32c, decode_crc32c_b64
 )
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
+from .typing import (
+  CompressType, GetPathType, PutScalarType,
+  PutType, ParallelType, SecretsType
+)
 from .scheduler import schedule_jobs
 
 from .interfaces import (
@@ -48,18 +53,6 @@ INTERFACES = {
   'https': HttpInterface,
   'mem': MemoryInterface,
 }
-
-CompressType = Optional[Union[str,bool]]
-GetPathType = Union[str, List[str], Generator[str,None,None], Tuple[str, ...]]
-PutScalarType = Union[Tuple[str,bytes], Dict[str,Any]]
-PutType = Union[
-  PutScalarType, 
-  List[PutScalarType], 
-  Generator[PutScalarType,None,None], 
-  Tuple[PutScalarType, ...],
-]
-ParallelType = Union[int,bool]
-SecretsType = Optional[Union[str,dict]]
 
 def parallelize(desc=None, returns_list=False):
   """
