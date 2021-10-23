@@ -249,10 +249,10 @@ class CloudFiles:
   servers.
   """
   def __init__(
-    self, cloudpath:str, progress:bool=False, 
-    green:bool=False, secrets:SecretsType=None, num_threads:int=20,
-    use_https:bool=False, endpoint:Optional[str]=None, 
-    parallel:ParallelType=1, request_payer:Optional[str]=None
+    self, cloudpath:str, progress:bool = False, 
+    green:bool = False, secrets:SecretsType = None, num_threads:int = 20,
+    use_https:bool = False, endpoint:Optional[str] = None, 
+    parallel:ParallelType = 1, request_payer:Optional[str] = None
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -294,9 +294,10 @@ class CloudFiles:
 
   @parallelize(desc="Download", returns_list=True)
   def get(
-    self, paths:GetPathType, total:Optional[int]=None, 
-    raw:bool=False, progress:Optional[bool]=None, parallel:Optional[ParallelType]=None,
-    return_dict:bool=False, raise_errors:bool=True
+    self, paths:GetPathType, total:Optional[int] = None, 
+    raw:bool = False, progress:Optional[bool] = None, 
+    parallel:Optional[ParallelType] = None,
+    return_dict:bool = False, raise_errors:bool = True
   ) -> Union[dict,bytes,List[dict]]:
     """
     Download one or more files. Return order is not guaranteed to match input.
@@ -418,7 +419,7 @@ class CloudFiles:
     return results
 
   def get_json(
-    self, paths:GetPathType, total:Optional[int]=None
+    self, paths:GetPathType, total:Optional[int] = None
   ) -> Union[dict,int,float,list]:
     """
     Download one or more JSON files and decode them into a python object.
@@ -463,10 +464,10 @@ class CloudFiles:
   @parallelize(desc="Upload")
   def puts(
     self, files:PutType, 
-    content_type:Optional[str]=None, compress:CompressType=None, 
-    compression_level:Optional[int]=None, cache_control:Optional[str]=None,
-    total:Optional[int]=None, raw:bool=False, progress:Optional[bool]=None,
-    parallel:ParallelType=1, storage_class:Optional[str]=None
+    content_type:Optional[str] = None, compress:CompressType = None, 
+    compression_level:Optional[int]=None, cache_control:Optional[str] = None,
+    total:Optional[int] = None, raw:bool = False, progress:Optional[bool] = None,
+    parallel:ParallelType = 1, storage_class:Optional[str] = None
   ) -> int:
     """
     Writes one or more files at a given location.
@@ -563,9 +564,9 @@ class CloudFiles:
   def put(
     self, 
     path:str, content:bytes, 
-    content_type:str=None, compress:CompressType=None, 
-    compression_level:Optional[int]=None, cache_control:Optional[str]=None,
-    raw:bool=False, storage_class:Optional[str]=None
+    content_type:str = None, compress:CompressType = None, 
+    compression_level:Optional[int] = None, cache_control:Optional[str] = None,
+    raw:bool = False, storage_class:Optional[str] = None
   ) -> int:
     """
     Write a single file.
@@ -594,11 +595,11 @@ class CloudFiles:
 
   def put_jsons(
     self, files:PutType,     
-    compress:CompressType=None, 
-    compression_level:Optional[int]=None, 
-    cache_control:Optional[str]=None, total:Optional[int]=None,
-    raw:bool=False, progress:Optional[bool]=None, parallel:ParallelType=1,
-    storage_class:Optional[str]=None
+    compress:CompressType = None, 
+    compression_level:Optional[int] = None, 
+    cache_control:Optional[str] = None, total:Optional[int] = None,
+    raw:bool = False, progress:Optional[bool] = None, parallel:ParallelType = 1,
+    storage_class:Optional[str] = None
   ) -> int:
     """
     Write one or more files as JSON.
@@ -632,8 +633,8 @@ class CloudFiles:
 
   def put_json(
     self, path:str, content:bytes,
-    compress:CompressType=None, compression_level:Optional[int]=None, 
-    cache_control:Optional[str]=None, storage_class:Optional[str]=None
+    compress:CompressType = None, compression_level:Optional[int] = None, 
+    cache_control:Optional[str] = None, storage_class:Optional[str] = None
   ) -> int:
     """
     Write a single JSON file. Automatically supplies the
@@ -658,7 +659,7 @@ class CloudFiles:
       'storage_class': storage_class
     })
 
-  def isdir(self, prefix:str="") -> bool:
+  def isdir(self, prefix:str = "") -> bool:
     """
     Tests if the given path points to a directory.
     This has a typical meaning on a filesystem,
@@ -676,7 +677,7 @@ class CloudFiles:
 
   def exists(
     self, paths:GetPathType, 
-    total:Optional[int]=None, progress:Optional[bool]=None
+    total:Optional[int] = None, progress:Optional[bool] = None
   ) -> Union[bool,Dict[str,bool]]:
     """
     Test if the given file paths exist.
@@ -729,7 +730,7 @@ class CloudFiles:
 
   def head(
     self, paths:GetPathType, 
-    total:Optional[int]=None, progress:Optional[bool]=None
+    total:Optional[int] = None, progress:Optional[bool] = None
   ) -> Union[dict,List[dict]]:
     """
     Retrieves basic metadata about the indicated files including
@@ -766,7 +767,7 @@ class CloudFiles:
 
   def size(
     self, paths:GetPathType, 
-    total:Optional[int]=None, progress:Optional[bool]=None
+    total:Optional[int] = None, progress:Optional[bool] = None
   ) -> Union[Dict[str,int],List[Dict[str,int]]]:
     """
     Get the size in bytes of one or more files in its stored state.
@@ -794,8 +795,8 @@ class CloudFiles:
 
   @parallelize(desc="Delete")
   def delete(
-    self, paths:GetPathType, total:Optional[int]=None, 
-    progress:Optional[bool]=None, parallel:ParallelType=1
+    self, paths:GetPathType, total:Optional[int] = None, 
+    progress:Optional[bool] = None, parallel:ParallelType = 1
   ) -> int:
     """
     Delete one or more files.
@@ -832,7 +833,7 @@ class CloudFiles:
     return len(results)
 
   def list(
-    self, prefix:str="", flat:bool=False
+    self, prefix:str = "", flat:bool = False
   ) -> Generator[str,None,None]:
     """
     List files with the given prefix. 
@@ -858,8 +859,8 @@ class CloudFiles:
         yield f
 
   def transfer_to(
-    self, cf_dest:Any, paths:Any=None, # recursive CloudFiles not supported as type
-    block_size:int=64, reencode:Optional[str]=None
+    self, cf_dest:Any, paths:Any = None, # recursive CloudFiles not supported as type
+    block_size:int = 64, reencode:Optional[str] = None
   ) -> None:
     """
     Transfer all files from this CloudFiles storage 
@@ -882,8 +883,8 @@ class CloudFiles:
     return cf_dest.transfer_from(self, paths, block_size, reencode)
 
   def transfer_from(
-    self, cf_src:Any, paths:Any=None, # recursive CloudFiles not supported as type
-    block_size:int=64, reencode:Optional[str]=None
+    self, cf_src:Any, paths:Any = None, # recursive CloudFiles not supported as type
+    block_size:int = 64, reencode:Optional[str] = None
   ) -> None:
     """
     Transfer all files from the source CloudFiles storage 
