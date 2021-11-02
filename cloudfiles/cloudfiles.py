@@ -20,7 +20,7 @@ import google.cloud.storage
 from . import compression, paths
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
-  mkdir, toiter, scatter, jsonify, nvl, 
+  mkdir, totalfn, toiter, scatter, jsonify, nvl, 
   duplicates, first, sip, STRING_TYPES, 
   md5, crc32c, decode_crc32c_b64
 )
@@ -167,14 +167,6 @@ def path_to_byte_range(path):
   if isinstance(path, STRING_TYPES):
     return (path, None, None)
   return (path['path'], path['start'], path['end'])
-
-def totalfn(files, total):
-  if total is not None:
-    return total
-  try:
-    return len(files)
-  except TypeError:
-    return None
   
 def dl(cloudpaths, raw=False, **kwargs):
   """
@@ -787,6 +779,7 @@ class CloudFiles(object):
     def thunk_delete(path):
       with self._get_connection() as conn:
         conn.delete_files(path)
+      return len(toiter(path))
 
     desc = self._progress_description('Delete')
 
@@ -798,6 +791,7 @@ class CloudFiles(object):
       concurrency=self.num_threads,
       total=totalfn(paths, total),
       green=self.green,
+      count_return=True,
     )
     return len(results)
 

@@ -3,13 +3,13 @@ import sys
 from tqdm import tqdm
 
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
-from .lib import STRING_TYPES
+from .lib import STRING_TYPES, totalfn
 
 DEFAULT_THREADS = 20
 
 def schedule_threaded_jobs(
     fns, concurrency=DEFAULT_THREADS, 
-    progress=None, total=None
+    progress=None, total=None, count_return=False
   ):
 
   if total is None:
@@ -30,7 +30,7 @@ def schedule_threaded_jobs(
   def updatefn(fn):
     def realupdatefn(iface):
       res = fn()
-      pbar.update(1)
+      pbar.update(( res if count_return else 1 ))
       results.append(res)
     return realupdatefn
 
@@ -42,7 +42,7 @@ def schedule_threaded_jobs(
 
 def schedule_green_jobs(
     fns, concurrency=DEFAULT_THREADS, 
-    progress=None, total=None
+    progress=None, total=None, count_return=False
   ):
   import gevent.pool
 
@@ -72,7 +72,7 @@ def schedule_green_jobs(
   def updatefn(fn):
     def realupdatefn():
       res = fn()
-      pbar.update(1)
+      pbar.update(( res if count_return else 1 ))
       results.append(res)
     return realupdatefn
 
@@ -90,9 +90,31 @@ def schedule_green_jobs(
 
   return results
 
+def schedule_single_threaded_jobs(
+  fns, progress=None, 
+  total=None, count_return=False
+):
+  if isinstance(progress, tqdm):
+    pbar = progress
+  else:
+    pbar = tqdm(
+      total=totalfn(fns, total), 
+      disable=(not progress), 
+      desc=progress
+    )
+
+  with pbar:
+    results = []
+    for fn in fns:
+      res = fn()
+      pbar.update(( res if count_return else 1 ))
+      results.append(res)
+  return results 
+
 def schedule_jobs(
     fns, concurrency=DEFAULT_THREADS, 
-    progress=None, total=None, green=False
+    progress=None, total=None, green=False,
+    count_return=False
   ):
   """
   Given a list of functions, execute them concurrently until
@@ -109,20 +131,12 @@ def schedule_jobs(
   if concurrency < 0:
     raise ValueError("concurrency value cannot be negative: {}".format(concurrency))
   elif concurrency == 0:
-    if isinstance(progress, tqdm):
-      pbar = progress
-      results = []
-      for fn in fns:
-        results.append(fn())
-        pbar.update()
-      return results
-    else:
-      return [ fn() for fn in tqdm(fns, disable=(not progress), desc=progress) ]
-
+    return schedule_single_threaded_jobs(fns, progress, total, count_return)
+    
   if green:
-    return schedule_green_jobs(fns, concurrency, progress, total)
+    return schedule_green_jobs(fns, concurrency, progress, total, count_return)
 
-  return schedule_threaded_jobs(fns, concurrency, progress, total)
+  return schedule_threaded_jobs(fns, concurrency, progress, total, count_return)
 
 # c/o https://stackoverflow.com/questions/12826291/raise-two-errors-at-the-same-time
 def raise_multiple(errors):

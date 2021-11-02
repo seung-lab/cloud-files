@@ -72,6 +72,14 @@ def nvl(*args):
       return arg
   return args[-1]
 
+def totalfn(files, total):
+  if total is not None:
+    return total
+  try:
+    return len(files)
+  except TypeError:
+    return None
+
 def sip(iterable, block_size):
   """Sips a fixed size from the iterable."""
   ct = 0
