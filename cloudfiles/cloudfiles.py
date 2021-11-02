@@ -1,3 +1,10 @@
+from typing import (
+  Any, Dict, Optional, 
+  Union, List, Tuple, 
+  Callable, Generator, 
+  Iterable, cast
+)
+
 from queue import Queue
 from collections import defaultdict
 from functools import partial, wraps
@@ -21,10 +28,14 @@ from . import compression, paths
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
   mkdir, totalfn, toiter, scatter, jsonify, nvl, 
-  duplicates, first, sip, STRING_TYPES, 
+  duplicates, first, sip,
   md5, crc32c, decode_crc32c_b64
 )
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
+from .typing import (
+  CompressType, GetPathType, PutScalarType,
+  PutType, ParallelType, SecretsType
+)
 from .scheduler import schedule_jobs
 
 from .interfaces import (
@@ -164,11 +175,13 @@ def get_interface_class(protocol):
     ))
 
 def path_to_byte_range(path):
-  if isinstance(path, STRING_TYPES):
+  if isinstance(path, str):
     return (path, None, None)
   return (path['path'], path['start'], path['end'])
   
-def dl(cloudpaths, raw=False, **kwargs):
+def dl(
+  cloudpaths:GetPathType, raw:bool=False, **kwargs
+) -> Union[bytes,List[dict]]:
   """
   Shorthand for downloading files with CloudFiles.get.
   You can use full paths from multiple buckets and services
@@ -189,8 +202,8 @@ def dl(cloudpaths, raw=False, **kwargs):
     bucketpath = paths.asbucketpath(epath)
     clustered[bucketpath].append({ 
       "path": epath.path,
-      "start": byte_range[0] if byte_range else None,
-      "end": byte_range[1] if byte_range else None,
+      "start": (byte_range[0] if byte_range else None), # type: ignore
+      "end": (byte_range[1] if byte_range else None), # type: ignore
     })
     total += 1
 
@@ -216,7 +229,7 @@ def dl(cloudpaths, raw=False, **kwargs):
     return content[0]
   return content
 
-class CloudFiles(object):
+class CloudFiles:
   """
   CloudFiles is a multithreaded key-value object
   management client that supports get, put, delete,
@@ -228,10 +241,10 @@ class CloudFiles(object):
   servers.
   """
   def __init__(
-    self, cloudpath, progress=False, 
-    green=False, secrets=None, num_threads=20,
-    use_https=False, endpoint=None, parallel=1,
-    request_payer=None
+    self, cloudpath:str, progress:bool = False, 
+    green:bool = False, secrets:SecretsType = None, num_threads:int = 20,
+    use_https:bool = False, endpoint:Optional[str] = None, 
+    parallel:ParallelType = 1, request_payer:Optional[str] = None
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -253,7 +266,7 @@ class CloudFiles(object):
       self.num_threads = 0
 
   def _progress_description(self, prefix):
-    if isinstance(self.progress, STRING_TYPES):
+    if isinstance(self.progress, str):
       return prefix + ' ' + self.progress
     else:
       return prefix if self.progress else None
@@ -273,10 +286,11 @@ class CloudFiles(object):
 
   @parallelize(desc="Download", returns_list=True)
   def get(
-    self, paths, total=None, 
-    raw=False, progress=None, parallel=None,
-    return_dict=False, raise_errors=True
-  ):
+    self, paths:GetPathType, total:Optional[int] = None, 
+    raw:bool = False, progress:Optional[bool] = None, 
+    parallel:Optional[ParallelType] = None,
+    return_dict:bool = False, raise_errors:bool = True
+  ) -> Union[dict,bytes,List[dict]]:
     """
     Download one or more files. Return order is not guaranteed to match input.
 
@@ -396,7 +410,9 @@ class CloudFiles(object):
 
     return results
 
-  def get_json(self, paths, total=None):
+  def get_json(
+    self, paths:GetPathType, total:Optional[int] = None
+  ) -> Union[dict,int,float,list]:
     """
     Download one or more JSON files and decode them into a python object.
     Return order is guaranteed to match input.
@@ -425,7 +441,7 @@ class CloudFiles(object):
 
     desc = self.progress if isinstance(self.progress, str) else "Downloading JSON"
 
-    contents = []
+    contents:List = []
     with tqdm(total=totalfn(paths, total), desc=desc, disable=(not self.progress)) as pbar:
       for paths_chunk in sip(paths, 2000):
         contents_chunk = self.get(paths_chunk, total=total, progress=pbar)
@@ -439,12 +455,12 @@ class CloudFiles(object):
 
   @parallelize(desc="Upload")
   def puts(
-    self, files, 
-    content_type=None, compress=None, 
-    compression_level=None, cache_control=None,
-    total=None, raw=False, progress=None,
-    parallel=1, storage_class=None
-  ):
+    self, files:PutType, 
+    content_type:Optional[str] = None, compress:CompressType = None, 
+    compression_level:Optional[int]=None, cache_control:Optional[str] = None,
+    total:Optional[int] = None, raw:bool = False, progress:Optional[bool] = None,
+    parallel:ParallelType = 1, storage_class:Optional[str] = None
+  ) -> int:
     """
     Writes one or more files at a given location.
 
@@ -479,6 +495,8 @@ class CloudFiles(object):
       function call. If progress is a string, it sets the 
       text of the progress bar.
     parallel: number of concurrent processes (0 means all cores)
+
+    Returns: number of files uploaded
     """
     files = toiter(files)
     progress = nvl(progress, self.progress)
@@ -522,7 +540,7 @@ class CloudFiles(object):
 
     if total == 1:
       uploadfn(first(files))
-      return
+      return 1
 
     fns = ( partial(uploadfn, file) for file in files )
     desc = self._progress_description("Upload")
@@ -537,11 +555,11 @@ class CloudFiles(object):
 
   def put(
     self, 
-    path, content,     
-    content_type=None, compress=None, 
-    compression_level=None, cache_control=None,
-    raw=False, storage_class=None
-  ):
+    path:str, content:bytes, 
+    content_type:str = None, compress:CompressType = None, 
+    compression_level:Optional[int] = None, cache_control:Optional[str] = None,
+    raw:bool = False, storage_class:Optional[str] = None
+  ) -> int:
     """
     Write a single file.
 
@@ -555,7 +573,7 @@ class CloudFiles(object):
     raw: (bool) if true, content is pre-compressed and 
       will bypass the compressor
 
-    Returns: void
+    Returns: number of files uploaded
     """
     return self.puts({
       'path': path,
@@ -568,12 +586,13 @@ class CloudFiles(object):
     }, raw=raw)
 
   def put_jsons(
-    self, files,     
-    compress=None, compression_level=None, 
-    cache_control=None, total=None,
-    raw=False, progress=None, parallel=1,
-    storage_class=None
-  ):
+    self, files:PutType,     
+    compress:CompressType = None, 
+    compression_level:Optional[int] = None, 
+    cache_control:Optional[str] = None, total:Optional[int] = None,
+    raw:bool = False, progress:Optional[bool] = None, parallel:ParallelType = 1,
+    storage_class:Optional[str] = None
+  ) -> int:
     """
     Write one or more files as JSON.
 
@@ -581,7 +600,7 @@ class CloudFiles(object):
     the 'content' field is converted from a Python object 
     to JSON.
 
-    Returns: void
+    Returns: number of files uploaded
     """
     files = toiter(files)
 
@@ -605,10 +624,10 @@ class CloudFiles(object):
     )
 
   def put_json(
-    self, path, content,
-    compress=None, compression_level=None, 
-    cache_control=None, storage_class=None
-  ):
+    self, path:str, content:bytes,
+    compress:CompressType = None, compression_level:Optional[int] = None, 
+    cache_control:Optional[str] = None, storage_class:Optional[str] = None
+  ) -> int:
     """
     Write a single JSON file. Automatically supplies the
     content_type 'application/json'.
@@ -620,7 +639,7 @@ class CloudFiles(object):
     cache_control: (str) HTTP Cache-Control header.
     storage_class: (str) Storage class for the file.
 
-    Returns: void
+    Returns: number of files uploaded
     """
     return self.put_jsons({
       'path': path,
@@ -632,7 +651,7 @@ class CloudFiles(object):
       'storage_class': storage_class
     })
 
-  def isdir(self, prefix=""):
+  def isdir(self, prefix:str = "") -> bool:
     """
     Tests if the given path points to a directory.
     This has a typical meaning on a filesystem,
@@ -648,7 +667,10 @@ class CloudFiles(object):
     res = first(self.list(prefix=prefix))
     return res is not None
 
-  def exists(self, paths, total=None, progress=None):
+  def exists(
+    self, paths:GetPathType, 
+    total:Optional[int] = None, progress:Optional[bool] = None
+  ) -> Union[bool,Dict[str,bool]]:
     """
     Test if the given file paths exist.
 
@@ -698,7 +720,10 @@ class CloudFiles(object):
       return results
     return first(results.values())
 
-  def head(self, paths, total=None, progress=None):
+  def head(
+    self, paths:GetPathType, 
+    total:Optional[int] = None, progress:Optional[bool] = None
+  ) -> Union[dict,List[dict]]:
     """
     Retrieves basic metadata about the indicated files including
     last modified, file size in bytes, and an integrity check
@@ -732,7 +757,10 @@ class CloudFiles(object):
       return results
     return first(results.values())   
 
-  def size(self, paths, total=None, progress=None):
+  def size(
+    self, paths:GetPathType, 
+    total:Optional[int] = None, progress:Optional[bool] = None
+  ) -> Union[Dict[str,int],List[Dict[str,int]]]:
     """
     Get the size in bytes of one or more files in its stored state.
     """
@@ -758,7 +786,10 @@ class CloudFiles(object):
     return first(results.values())
 
   @parallelize(desc="Delete")
-  def delete(self, paths, total=None, progress=None, parallel=1):
+  def delete(
+    self, paths:GetPathType, total:Optional[int] = None, 
+    progress:Optional[bool] = None, parallel:ParallelType = 1
+  ) -> int:
     """
     Delete one or more files.
 
@@ -771,7 +802,7 @@ class CloudFiles(object):
       text of the progress bar.
     parallel: number of concurrent processes (0 means all cores)
 
-    Returns: void
+    Returns: number of items deleted
     """
     paths = toiter(paths)
     progress = nvl(progress, self.progress)
@@ -795,7 +826,9 @@ class CloudFiles(object):
     )
     return len(results)
 
-  def list(self, prefix="", flat=False):
+  def list(
+    self, prefix:str = "", flat:bool = False
+  ) -> Generator[str,None,None]:
     """
     List files with the given prefix. 
 
@@ -820,9 +853,9 @@ class CloudFiles(object):
         yield f
 
   def transfer_to(
-    self, cf_dest, paths=None, 
-    block_size=64, reencode=None
-  ):
+    self, cf_dest:Any, paths:Any = None, # recursive CloudFiles not supported as type
+    block_size:int = 64, reencode:Optional[str] = None
+  ) -> None:
     """
     Transfer all files from this CloudFiles storage 
     to the destination CloudFiles in batches sized 
@@ -835,7 +868,7 @@ class CloudFiles(object):
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
     """
-    if isinstance(cf_dest, STRING_TYPES):
+    if isinstance(cf_dest, str):
       cf_dest = CloudFiles(
         cf_dest, progress=False, 
         green=self.green, num_threads=self.num_threads,
@@ -844,9 +877,9 @@ class CloudFiles(object):
     return cf_dest.transfer_from(self, paths, block_size, reencode)
 
   def transfer_from(
-    self, cf_src, paths=None, 
-    block_size=64, reencode=None
-  ):
+    self, cf_src:Any, paths:Any = None, # recursive CloudFiles not supported as type
+    block_size:int = 64, reencode:Optional[str] = None
+  ) -> None:
     """
     Transfer all files from the source CloudFiles storage 
     to this CloudFiles in batches sized in the 
@@ -859,7 +892,7 @@ class CloudFiles(object):
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
     """
-    if isinstance(cf_src, STRING_TYPES):
+    if isinstance(cf_src, str):
       cf_src = CloudFiles(
         cf_src, progress=False, 
         green=self.green, num_threads=self.num_threads,
@@ -887,8 +920,8 @@ class CloudFiles(object):
         self.puts(downloaded, raw=True, progress=False)
         pbar.update(len(block_paths))
 
-  def __getitem__(self, key):
-    if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], STRING_TYPES):
+  def __getitem__(self, key) -> Union[dict,bytes,List[dict]]:
+    if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], str):
       return self.get({ 'path': key[0], 'start': key[1].start, 'end': key[1].stop })
     elif key == slice(None, None, None):
       return self.get(self.list())
@@ -897,7 +930,8 @@ class CloudFiles(object):
 
     return self.get(key)
 
-  def __setitem__(self, key, value):
+  # recursive CloudFiles not supported as type
+  def __setitem__(self, key:Union[str, slice], value:Any): 
     if isinstance(value, CloudFiles):
       if key == slice(None, None, None):
         self.transfer_from(value)
@@ -905,10 +939,11 @@ class CloudFiles(object):
       else:
         raise KeyError("We only support the complete set slice. `:`. Got: " + str(key))
 
+    key = cast(str, key)
     self.put(key, value)
 
-  def __delitem__(self, key):
+  def __delitem__(self, key:GetPathType):
     return self.delete(key)
 
-  def __iter__(self):
+  def __iter__(self) -> Generator[str,None,None]:
     return self.list()

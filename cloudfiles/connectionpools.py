@@ -1,3 +1,5 @@
+from typing import Dict
+
 import json
 import queue
 import threading
@@ -12,7 +14,7 @@ import tenacity
 from .secrets import google_credentials, aws_credentials
 from .exceptions import UnsupportedProtocolError
 
-MEMORY_DATA = {}
+MEMORY_DATA:Dict[str,bytes] = {}
 
 retry = tenacity.retry(
   reraise=True, 
