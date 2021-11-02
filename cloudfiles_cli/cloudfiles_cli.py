@@ -409,7 +409,11 @@ def du(paths, grand_total, summarize, human_readable):
       results.append(cf.size(cf.list()))
     else:
       cf = CloudFiles(os.path.dirname(npath), green=True)
-      results.append({ path: cf.size(os.path.basename(npath)) })
+      sz = cf.size(os.path.basename(npath))
+      if sz is None:
+        print(f"cloudfiles: du: {path} does not exist")
+        return
+      results.append({ path: sz })
 
   def SI(val):
     if not human_readable:
