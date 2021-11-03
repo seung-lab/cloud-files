@@ -473,7 +473,10 @@ class GoogleCloudStorageInterface(StorageInterface):
   @retry
   def size(self, file_path):
     key = self.get_path_to_file(file_path)
-    return self._bucket.get_blob(key).size
+    blob = self._bucket.get_blob(key)
+    if blob:
+      return blob.size
+    return None
 
   @retry
   def exists(self, file_path):
