@@ -40,6 +40,22 @@ def mkregexp():
 
 CLOUDPATH_REGEXP = re.compile(mkregexp())
 
+def normalize(path):
+  proto = get_protocol(path)
+  if proto is None:
+    proto = "file"
+    path = toabs(path)
+    return f"file://{path}"
+
+  return path
+
+def get_protocol(cloudpath):
+  protocol_re = re.compile(r'(?P<proto>\w+)://')
+  match = re.match(protocol_re, cloudpath)
+  if not match:
+    return None
+  return match.group("proto")
+
 def asfilepath(epath):
   """For paths known to be file protocol."""
   if epath.protocol != "file":
