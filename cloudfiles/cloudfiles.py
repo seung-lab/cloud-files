@@ -177,7 +177,7 @@ def get_interface_class(protocol):
 def path_to_byte_range(path):
   if isinstance(path, str):
     return (path, None, None)
-  return (path['path'], path['start'], path['end'])
+  return (path['path'], path.get('start', None), path.get('end', None))
   
 def dl(
   cloudpaths:GetPathType, raw:bool=False, **kwargs
