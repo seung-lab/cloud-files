@@ -12,7 +12,7 @@ ExtractedPath = namedtuple('ExtractedPath',
   ('format', 'protocol', 'bucket', 'path', 'host')
 )
 
-ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'http', 'https', 'mem' ]
+ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'tigerdata', 'http', 'https', 'mem' ]
 ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss' ] 
 
 CLOUDPATH_ERROR = yellow("""
@@ -185,7 +185,7 @@ def extract(cloudpath, windows=None):
     cloudpath = toabs(cloudpath)
 
   bucket = None
-  if protocol in ('gs', 's3', 'matrix'):
+  if protocol in ('gs', 's3', 'matrix', 'tigerdata'):
     match = re.match(bucket_re, cloudpath)
     if not match:
       raise error
@@ -209,7 +209,7 @@ def extract(cloudpath, windows=None):
 
 def to_https_protocol(cloudpath):
   if isinstance(cloudpath, ExtractedPath):
-    if cloudpath.protocol in ('gs', 's3', 'matrix'):
+    if cloudpath.protocol in ('gs', 's3', 'matrix', 'tigerdata'):
       return extract(to_https_protocol(ascloudpath(cloudpath)))
     return cloudpath
 
@@ -219,4 +219,5 @@ def to_https_protocol(cloudpath):
   cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
   cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
   cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
+  cloudpath = cloudpath.replace("tigerdata://", "https:/tigerdata.princeton.edu/", 1)
   return cloudpath

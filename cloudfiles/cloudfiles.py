@@ -49,6 +49,7 @@ INTERFACES = {
   'gs': GoogleCloudStorageInterface,
   's3': S3Interface,
   'matrix': S3Interface,
+  'tigerdata': S3Interface,
   'http': HttpInterface,
   'https': HttpInterface,
   'mem': MemoryInterface,

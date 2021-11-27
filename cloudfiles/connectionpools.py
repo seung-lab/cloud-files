@@ -125,6 +125,13 @@ class S3ConnectionPool(ConnectionPool):
         aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
         endpoint_url='https://s3-hpcrc.rc.princeton.edu',
       )
+    elif self.service == 'tigerdata':
+      return boto3.client(
+        's3',
+        aws_access_key_id=secrets['AWS_ACCESS_KEY_ID'],
+        aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
+        endpoint_url='https://tigerdata.princeton.edu',
+      )
     else:
       raise UnsupportedProtocolError("{} unknown. Choose from 's3' or 'matrix'.", self.service)
       
