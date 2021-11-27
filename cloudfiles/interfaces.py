@@ -647,7 +647,7 @@ class S3Interface(StorageInterface):
     self, file_path, content, 
     content_type, compress, 
     cache_control=None,
-    ACL="bucket-owner-full-control",
+    ACL="private",
     storage_class=None
   ):
     key = self.get_path_to_file(file_path)
