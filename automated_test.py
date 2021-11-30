@@ -420,17 +420,17 @@ def test_path_extraction():
   assert (paths.extract('graphene://http://localhost:8080/segmentation/1.0/testvol')
     == ExtractedPath(
       'graphene', 'http', None, 
-      'segmentation/1.0/testvol', 'http://localhost:8080'))
+      'segmentation/1.0/testvol', 'http://localhost:8080', None))
 
   assert (paths.extract('precomputed://gs://fafb-ffn1-1234567')
     == ExtractedPath(
       'precomputed', 'gs', 'fafb-ffn1-1234567', 
-      '', None))
+      '', None, None))
 
   assert (paths.extract('precomputed://gs://fafb-ffn1-1234567/segmentation')
     == ExtractedPath(
       'precomputed', 'gs', 'fafb-ffn1-1234567', 
-      'segmentation', None))
+      'segmentation', None, None))
 
   firstdir = lambda x: '/' + x.split('/')[1]
 
@@ -446,39 +446,40 @@ def test_path_extraction():
   assert (paths.extract('s3://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 's3', 'seunglab-test', 
-        'intermediate/path/dataset/layer', None
+        'intermediate/path/dataset/layer', None, None
       ))
 
   assert (paths.extract('file:///tmp/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', None, 
-        "/tmp/dataset/layer", None
+        "/tmp/dataset/layer", None, None
       ))
 
   assert (paths.extract('file://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', None,
-        os.path.join(curpath, 'seunglab-test/intermediate/path/dataset/layer'), None
+        os.path.join(curpath, 'seunglab-test/intermediate/path/dataset/layer'), 
+        None, None
       ))
 
   assert (paths.extract('gs://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'gs', 'seunglab-test',
-        'intermediate/path/dataset/layer', None
+        'intermediate/path/dataset/layer', None, None
       ))
 
   assert (paths.extract('file://~/seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', None, 
         os.path.join(homepath, 'seunglab-test/intermediate/path/dataset/layer'),
-        None
+        None, None
       )
   )
 
   assert (paths.extract('file:///User/me/.cloudvolume/cache/gs/bucket/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', None, 
-        '/User/me/.cloudvolume/cache/gs/bucket/dataset/layer', None
+        '/User/me/.cloudvolume/cache/gs/bucket/dataset/layer', None, None
       ))
 
   shoulderror('ou3bouqjsa fkj aojsf oaojf ojsaf')
@@ -513,7 +514,7 @@ def test_path_extraction():
   assert (paths.extract('gs://username/a/username2/b/c/d') 
       == ExtractedPath(
         'precomputed', 'gs', 'username', 
-        'a/username2/b/c/d', None
+        'a/username2/b/c/d', None, None
       ))
 
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))

@@ -5,11 +5,13 @@ import re
 import sys
 import urllib.parse
 
+from typing import Tuple, Optional
+
 from .exceptions import UnsupportedProtocolError
 from .lib import yellow, toabs
 
 ExtractedPath = namedtuple('ExtractedPath', 
-  ('format', 'protocol', 'bucket', 'path', 'host')
+  ('format', 'protocol', 'bucket', 'path', 'host', 'alias')
 )
 
 ALIASES = {}
@@ -71,12 +73,12 @@ def remove_alias(alias:str):
   ALLOWED_PROTOCOLS = BASE_ALLOWED_PROTOCOLS + list(ALIASES.keys())
   CLOUDPATH_REGEXP = re.compile(mkregexp())  
 
-def resolve_alias(cloudpath:str) -> str:
+def resolve_alias(cloudpath:str) -> Tuple[Optional[str],str]:
   proto = get_protocol(cloudpath)
   if proto not in ALIASES:
-    return cloudpath
+    return None, cloudpath
 
-  return cloudpath.replace(f"{proto}://", ALIASES[proto], 1)
+  return proto, cloudpath.replace(f"{proto}://", ALIASES[proto], 1)
 
 ## OFFICAL ALIASES
 
@@ -152,7 +154,7 @@ def asbucketpath(cloudpath):
 
   return ascloudpath(ExtractedPath(
     epath.format, epath.protocol, epath.bucket, 
-    None, epath.host
+    None, epath.host, epath.alias
   ))
 
 def get_protocol(cloudpath):
@@ -175,7 +177,7 @@ def pop_protocol(cloudpath):
 def extract_format_protocol(cloudpath:str) -> tuple:
   error = UnsupportedProtocolError(cloudpath_error(cloudpath))
 
-  cloudpath = resolve_alias(cloudpath)
+  alias, cloudpath = resolve_alias(cloudpath)
 
   m = re.match(CLOUDPATH_REGEXP, cloudpath)
   if m is None:
@@ -202,7 +204,7 @@ def extract_format_protocol(cloudpath:str) -> tuple:
     if cloudpath and cloudpath[0] == '/':
       cloudpath = cloudpath[1:]
 
-  return (fmt, proto, endpoint, cloudpath)
+  return (fmt, proto, endpoint, cloudpath, alias)
 
 def extract(cloudpath:str, windows=None) -> ExtractedPath:
   """
@@ -226,7 +228,7 @@ def extract(cloudpath:str, windows=None) -> ExtractedPath:
   bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)(?:/|$)') # posix /what/a/great/path  
   error = UnsupportedProtocolError(cloudpath_error(cloudpath))
 
-  fmt, protocol, host, cloudpath = extract_format_protocol(cloudpath)
+  fmt, protocol, host, cloudpath, alias = extract_format_protocol(cloudpath)
 
   if windows is None:
     windows = sys.platform == 'win32'
@@ -254,7 +256,7 @@ def extract(cloudpath:str, windows=None) -> ExtractedPath:
 
   return ExtractedPath(
     fmt, protocol, bucket, 
-    cloudpath, host
+    cloudpath, host, alias
   )
 
 def to_https_protocol(cloudpath):

@@ -637,7 +637,9 @@ class S3Interface(StorageInterface):
 
     self._request_payer = request_payer
     self._path = path
-    self._conn = S3_POOL[S3ConnectionPoolParams(path.protocol, path.bucket, request_payer)].get_connection(secrets, path.host)
+    
+    service = path.alias or 's3'
+    self._conn = S3_POOL[S3ConnectionPoolParams(service, path.bucket, request_payer)].get_connection(secrets, path.host)
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)

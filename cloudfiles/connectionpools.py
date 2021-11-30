@@ -110,16 +110,13 @@ class S3ConnectionPool(ConnectionPool):
     if endpoint is not None:
       additional_args['endpoint_url'] = endpoint
 
-    if self.service in ('aws', 's3'):
-      return boto3.client(
-        's3',
-        aws_access_key_id=secrets['AWS_ACCESS_KEY_ID'],
-        aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
-        region_name=secrets.get('AWS_DEFAULT_REGION', 'us-east-1'),
-        **additional_args
-      )
-    else:
-      raise UnsupportedProtocolError(f"{self.service} service unknown.")
+    return boto3.client(
+      's3',
+      aws_access_key_id=secrets['AWS_ACCESS_KEY_ID'],
+      aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
+      region_name=secrets.get('AWS_DEFAULT_REGION', 'us-east-1'),
+      **additional_args
+    )
       
   def close(self, conn):
     try:
