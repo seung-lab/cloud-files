@@ -667,28 +667,28 @@ def test_to_https_protocol():
 
 def test_ascloudpath():
   from cloudfiles.paths import ascloudpath, ExtractedPath
-  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'of/heaven', None)
+  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'of/heaven', None, None)
   assert ascloudpath(pth) == "precomputed://gs://my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 'gs', 'my_bucket', 'of/heaven', None)
+  pth = ExtractedPath(None, 'gs', 'my_bucket', 'of/heaven', None, None)
   assert ascloudpath(pth) == "gs://my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 'file', 'my_bucket', 'of/heaven', None)
+  pth = ExtractedPath(None, 'file', 'my_bucket', 'of/heaven', None, None)
   assert ascloudpath(pth) == "file://my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 'mem', 'my_bucket', 'of/heaven', None)
+  pth = ExtractedPath(None, 'mem', 'my_bucket', 'of/heaven', None, None)
   assert ascloudpath(pth) == "mem://my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 'https', 'my_bucket', 'of/heaven', 'https://some.domain.com')
+  pth = ExtractedPath(None, 'https', 'my_bucket', 'of/heaven', 'https://some.domain.com', None)
   assert ascloudpath(pth) == "https://some.domain.com/my_bucket/of/heaven"
 
-  pth = ExtractedPath('graphene', 'https', 'my_bucket', 'of/heaven', 'https://some.domain.com')
+  pth = ExtractedPath('graphene', 'https', 'my_bucket', 'of/heaven', 'https://some.domain.com', None)
   assert ascloudpath(pth) == "graphene://https://some.domain.com/my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 's3', 'my_bucket', 'of/heaven', 'https://some.domain.com')
+  pth = ExtractedPath(None, 's3', 'my_bucket', 'of/heaven', 'https://some.domain.com', None)
   assert ascloudpath(pth) == "s3://https://some.domain.com/my_bucket/of/heaven"
 
-  pth = ExtractedPath("precomputed", 's3', 'my_bucket', 'of/heaven', 'https://some.domain.com')
+  pth = ExtractedPath("precomputed", 's3', 'my_bucket', 'of/heaven', 'https://some.domain.com', None)
   assert ascloudpath(pth) == "precomputed://s3://https://some.domain.com/my_bucket/of/heaven"
 
 
