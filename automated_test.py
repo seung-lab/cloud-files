@@ -661,7 +661,7 @@ def test_to_https_protocol():
   pth = to_https_protocol("mem://my_bucket/to/heaven")
   assert pth == "mem://my_bucket/to/heaven"
 
-  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'to/heaven', None)
+  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'to/heaven', None, None)
   pth = to_https_protocol(pth)
   assert pth == extract("https://storage.googleapis.com/my_bucket/to/heaven")
 
