@@ -31,6 +31,7 @@ from .lib import (
   duplicates, first, sip,
   md5, crc32c, decode_crc32c_b64
 )
+from .paths import ALIASES
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .typing import (
   CompressType, GetPathType, PutScalarType,
@@ -48,11 +49,12 @@ INTERFACES = {
   'file': FileInterface,
   'gs': GoogleCloudStorageInterface,
   's3': S3Interface,
-  'matrix': S3Interface,
   'http': HttpInterface,
   'https': HttpInterface,
   'mem': MemoryInterface,
 }
+for alias in ALIASES:
+  INTERFACES[alias] = S3Interface
 
 def parallelize(desc=None, returns_list=False):
   """
