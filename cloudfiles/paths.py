@@ -1,5 +1,6 @@
 from collections import namedtuple
-import os
+import json
+import os.path
 import posixpath
 import re
 import sys
@@ -14,13 +15,35 @@ ExtractedPath = namedtuple('ExtractedPath',
   ('format', 'protocol', 'bucket', 'path', 'host', 'alias')
 )
 
+ALIAS_FILE = os.path.expanduser("~/.cloudfiles/aliases.json")
+OFFICIAL_ALIASES = {
+  "matrix": "s3://https://s3-hpcrc.rc.princeton.edu/",
+  "tigerdata": "s3://https://tigerdata.princeton.edu/",
+}
+ALIASES_FROM_FILE = None
 ALIASES = {}
 BASE_ALLOWED_PROTOCOLS = [ 
-  'gs', 'file', 's3', 'matrix', 
+  'gs', 'file', 's3', 
   'http', 'https', 'mem' 
 ]
 ALLOWED_PROTOCOLS = list(BASE_ALLOWED_PROTOCOLS)
 ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss' ] 
+
+def update_aliases_from_file():
+  global ALIASES_FROM_FILE
+  global ALIAS_FILE
+  if ALIASES_FROM_FILE is not None:
+    return
+
+  aliases = {}
+  if os.path.exists(ALIAS_FILE):
+    with open(ALIAS_FILE, "rt") as f:
+      aliases = json.loads(f.read())
+
+  ALIASES_FROM_FILE = aliases
+
+  for alias, val in aliases.items():
+    add_alias(alias, val["host"])
 
 def cloudpath_error(cloudpath):
   return yellow("""
@@ -59,6 +82,12 @@ def add_alias(alias:str, host:str):
   if host[-1] != '/':
     host += '/'
 
+  if alias in BASE_ALLOWED_PROTOCOLS:
+    raise ValueError(f"Unable to override base protocols with alias {alias}")
+
+  if alias in ALLOWED_FORMATS:
+    raise ValueError(f"Naming collision between protocols and formats with alias {alias}")
+
   ALIASES[alias] = host
   ALLOWED_PROTOCOLS = BASE_ALLOWED_PROTOCOLS + list(ALIASES.keys())
   CLOUDPATH_REGEXP = re.compile(mkregexp())
@@ -75,6 +104,7 @@ def remove_alias(alias:str):
 
 def resolve_alias(cloudpath:str) -> Tuple[Optional[str],str]:
   proto = get_protocol(cloudpath)
+
   if proto not in ALIASES:
     return None, cloudpath
 
@@ -82,8 +112,8 @@ def resolve_alias(cloudpath:str) -> Tuple[Optional[str],str]:
 
 ## OFFICAL ALIASES
 
-add_alias("matrix", "s3://https://s3-hpcrc.rc.princeton.edu/")
-add_alias("tigerdata", "s3://https://tigerdata.princeton.edu/")
+for alias, host in OFFICIAL_ALIASES.items():
+  add_alias(alias, host)
 
 ## Other Path Library Functions
 
@@ -94,17 +124,6 @@ def normalize(path):
     path = toabs(path)
     return f"file://{path}"
   return path
-
-def get_any_protocol(cloudpath):
-  """
-  Get the string in the protocol position even
-  if its not a valid one.
-  """
-  protocol_re = re.compile(r'(?P<proto>\w+)://')
-  match = re.match(protocol_re, cloudpath)
-  if not match:
-    return None
-  return match.group("proto")
 
 def asfilepath(epath):
   """For paths known to be file protocol."""
@@ -157,9 +176,31 @@ def asbucketpath(cloudpath):
     None, epath.host, epath.alias
   ))
 
+def get_any_protocol(cloudpath):
+  """
+  Get the string in the protocol position even
+  if its not a valid one.
+  """
+  protocol_re = re.compile(r'(?P<proto>[\w\d]+)://')
+  match = re.match(protocol_re, cloudpath)
+  if not match:
+    return None
+  return match.group("proto")
+
 def get_protocol(cloudpath):
+  global ALIASES_FROM_FILE
   m = re.match(CLOUDPATH_REGEXP, cloudpath)
-  return m.group('proto')
+  proto = m.group('proto')
+  
+  if proto is None:
+    unknown_proto = get_any_protocol(cloudpath)
+  
+    if unknown_proto is not None and ALIASES_FROM_FILE is None:
+      update_aliases_from_file()
+      m = re.match(CLOUDPATH_REGEXP, cloudpath)
+      proto = m.group('proto')
+  
+  return proto
 
 def pop_protocol(cloudpath):
   protocol_re = re.compile(r'(\w+)://')

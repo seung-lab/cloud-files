@@ -1,6 +1,7 @@
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import itertools
+import json
 import re
 import multiprocessing as mp
 import posixpath
@@ -13,11 +14,12 @@ import click
 import pathos.pools
 
 import cloudfiles
+import cloudfiles.paths
 from cloudfiles import CloudFiles
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
 from cloudfiles.lib import (
-  toabs, sip, toiter, 
+  mkdir, toabs, sip, toiter, 
   first, red, green,
   md5_equal
 )
@@ -614,4 +616,111 @@ def verify(source, target, only_matching, verbose, md5):
     print("--")
 
   print(red(f"failed. {len(failed_files)} failed. {len(matching_files) - len(failed_files)} succeeded. {len(mismatched_files)} ignored."))
+
+@main.group("alias")
+def aliasgroup():
+  """
+  Add, list, and remove aliases for alternate s3 endpoints.
+
+  Aliases can be used to name new protocol prefixes for
+  your system. Be warned that future updates to cloudfiles
+  may claim new "official" protocol prefixes that will
+  override unoffical ones (so pick something obscure).
+
+  Persistent aliases are saved to ~/.cloudfiles/aliases.json
+  
+  Example:
+
+  cloudfiles alias add example s3://https://example.com/
+
+  Which would then be used as:
+
+  cloudfiles head example://bucket/info.txt
+  CloudFiles("example://bucket/").get("info.txt")
+  """
+  pass
+
+@aliasgroup.command("ls")
+def alias_ls():
+  """List all aliases."""
+  aliasfile = cloudfiles.paths.ALIAS_FILE
+  
+  aliases = {}
+  if os.path.exists(aliasfile):
+    with open(aliasfile, "rt") as f:
+      aliases = json.loads(f.read())
+
+  for name,host in cloudfiles.paths.ALIASES.items():
+    aliases[name] = { "host": host }
+
+  for alias, vals in aliases.items():
+    official = ""
+    if alias in cloudfiles.paths.OFFICIAL_ALIASES:
+      official = "(official)"
+
+    alias = f"{alias}://"
+    print(f"{alias:15} -> {vals['host']} {official}")
+  
+  if len(aliases) == 0:
+    print("No aliases.")
+
+@aliasgroup.command("add")
+@click.argument("name")
+@click.argument("host")
+def alias_add(name, host):
+  """Add an unofficial alias.
+
+  Example:
+
+  cloudfiles alias add example s3://https://example.com/
+
+  Which would then be used as:
+
+  cloudfiles head example://bucket/info.txt
+  CloudFiles("example://bucket/").get("info.txt")
+  """
+  aliasfile = cloudfiles.paths.ALIAS_FILE
+  
+  aliases = {}
+  if os.path.exists(aliasfile):
+    with open(aliasfile, "rt") as f:
+      aliases = json.loads(f.read())
+
+  if name in cloudfiles.paths.BASE_ALLOWED_PROTOCOLS:
+    print(f"{name} cannot be aliased.")
+    return
+
+  if name in cloudfiles.paths.ALIASES:
+    print(f"{name} already exists.")
+    return
+
+  # leave room for adding other attributes like ACL
+  aliases[name] = { "host": host } 
+
+  with open(aliasfile, "wt") as f:
+    f.write(json.dumps(aliases))
+
+@aliasgroup.command("rm")
+@click.argument("name")
+def alias_rm(name):
+  """Remove unofficial aliases."""
+  aliasfile = cloudfiles.paths.ALIAS_FILE
+  
+  aliases = {}
+  if os.path.exists(aliasfile):
+    with open(aliasfile, "rt") as f:
+      aliases = json.loads(f.read())
+
+  if name in cloudfiles.paths.OFFICIAL_ALIASES:
+    print("Cannot remove an official alias.")
+    return
+
+  try:
+    del aliases[name]
+
+    with open(aliasfile, "wt") as f:
+      f.write(json.dumps(aliases))
+  except KeyError:
+    pass
+
 

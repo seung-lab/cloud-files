@@ -112,8 +112,8 @@ class S3ConnectionPool(ConnectionPool):
 
     return boto3.client(
       's3',
-      aws_access_key_id=secrets['AWS_ACCESS_KEY_ID'],
-      aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
+      aws_access_key_id=secrets.get('AWS_ACCESS_KEY_ID', None),
+      aws_secret_access_key=secrets.get('AWS_SECRET_ACCESS_KEY', None),
       region_name=secrets.get('AWS_DEFAULT_REGION', 'us-east-1'),
       **additional_args
     )
@@ -123,7 +123,6 @@ class S3ConnectionPool(ConnectionPool):
       return conn.close()
     except AttributeError:
       pass # AttributeError: 'S3' object has no attribute 'close' on shutdown
-
 
 class GCloudBucketPool(ConnectionPool):
   def __init__(self, bucket, request_payer=None):
