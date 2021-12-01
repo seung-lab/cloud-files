@@ -453,6 +453,7 @@ def du(paths, grand_total, summarize, human_readable):
 @main.command()
 @click.argument('paths', nargs=-1)
 def head(paths):
+  """Retrieve metadata for one or more files."""
   results = {}
   for path in paths:
     npath = normalize_path(path)
@@ -513,11 +514,11 @@ def populate_md5(cf, metadata, threshold=1e9):
 @click.option('--md5', is_flag=True, default=False, help="Compute the md5 hash if the Etag is missing. Can be slow!", show_default=True)
 def verify(source, target, only_matching, verbose, md5):
   """
-  Validates that the checksums of two files
-  or two directories match. These tags are usually
-  either md5 or crc32c generated strings. These are
-  not secure hashes so they will only catch accidental
-  changes to files, not intentionally malicious changes.
+  Validates checksums of two files or two directories 
+  match. These tags are usually either md5 or crc32c 
+  generated strings. These are not secure hashes so they 
+  will only catch accidental changes to files, not 
+  intentionally malicious changes.
   """
   source = normalize_path(source)
   target = normalize_path(target)
