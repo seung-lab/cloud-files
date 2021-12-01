@@ -372,6 +372,20 @@ cloudfiles ls -e "gs://bucket/prefix[ab]"
 # cloudfiles ls gs://bucket/prefixb
 ```
 
+### `alias` for Alternative S3 Endpoints
+
+You can set your own protocols for S3 compatible endpoints by creating dynamic or persistent aliases. CloudFiles comes with two official s3 endpoints that are important for the Seung Lab, `matrix://` and `tigerdata://` which point to Princeton S3 endpoints. Official aliases can't be overridden.
+
+To create a dynamic alias, you can use `cloudfiles.paths.add_alias` which will only affect the current process. To create a persistent alias that resides in `~/.cloudfiles/aliases.json`, you can use the CLI. 
+
+```bash
+cloudfiles alias add example s3://https://example.com/ # example://
+cloudfiles alias ls # list all aliases
+cloudfiles alias rm example # remove example://
+```
+
+The alias file is only accessed (and cached) if CloudFiles encounters an unknown protocol. If you stick to default protocols and use the syntax `s3://https://example.com/` for alternative endpoints, you can still use CloudFiles in environments without filesystem access.
+
 ## Credits
 
 CloudFiles is derived from the [CloudVolume.Storage](https://github.com/seung-lab/cloud-volume/tree/master/cloudvolume/storage) system.  

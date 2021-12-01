@@ -1,34 +1,67 @@
 from collections import namedtuple
-import os
+import orjson
+import os.path
 import posixpath
 import re
 import sys
 import urllib.parse
 
+from typing import Tuple, Optional
+
 from .exceptions import UnsupportedProtocolError
 from .lib import yellow, toabs
 
 ExtractedPath = namedtuple('ExtractedPath', 
-  ('format', 'protocol', 'bucket', 'path', 'host')
+  ('format', 'protocol', 'bucket', 'path', 'host', 'alias')
 )
 
-ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'http', 'https', 'mem' ]
+ALIAS_FILE = os.path.expanduser("~/.cloudfiles/aliases.json")
+OFFICIAL_ALIASES = {
+  "matrix": "s3://https://s3-hpcrc.rc.princeton.edu/",
+  "tigerdata": "s3://https://tigerdata.princeton.edu/",
+}
+ALIASES_FROM_FILE = None
+ALIASES = {}
+BASE_ALLOWED_PROTOCOLS = [ 
+  'gs', 'file', 's3', 
+  'http', 'https', 'mem' 
+]
+ALLOWED_PROTOCOLS = list(BASE_ALLOWED_PROTOCOLS)
 ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss' ] 
 
-CLOUDPATH_ERROR = yellow("""
-Cloud Path must conform to [FORMAT://]PROTOCOL://PATH
-Examples: 
-  precomputed://gs://test_bucket/em
-  gs://test_bucket/em
-  graphene://https://example.com/image/em
+def update_aliases_from_file():
+  global ALIASES_FROM_FILE
+  global ALIAS_FILE
+  if ALIASES_FROM_FILE is not None:
+    return
 
-Supported Formats: None (precomputed), {}
-Supported Protocols: {}
+  aliases = {}
+  if os.path.exists(ALIAS_FILE):
+    with open(ALIAS_FILE, "rt") as f:
+      aliases = orjson.loads(f.read())
 
-Cloud Path Recieved: {}
-""").format(
-  ", ".join(ALLOWED_FORMATS), ", ".join(ALLOWED_PROTOCOLS), '{}' # curry first two
-)
+  ALIASES_FROM_FILE = aliases
+
+  for alias, val in aliases.items():
+    add_alias(alias, val["host"])
+
+def cloudpath_error(cloudpath):
+  return yellow("""
+    Cloud Path must conform to [FORMAT://]PROTOCOL://PATH
+    Examples: 
+      precomputed://gs://test_bucket/em
+      gs://test_bucket/em
+      graphene://https://example.com/image/em
+
+    Supported Formats: None (precomputed), {}
+    Supported Protocols: {}
+
+    Cloud Path Recieved: {}
+  """).format(
+    ", ".join(ALLOWED_FORMATS), 
+    ", ".join(ALLOWED_PROTOCOLS), 
+    cloudpath
+  )
 
 def mkregexp():
   fmt_capture = r'|'.join(ALLOWED_FORMATS)
@@ -40,21 +73,57 @@ def mkregexp():
 
 CLOUDPATH_REGEXP = re.compile(mkregexp())
 
+def add_alias(alias:str, host:str):
+  global ALIASES
+  global ALLOWED_PROTOCOLS
+  global BASE_ALLOWED_PROTOCOLS
+  global CLOUDPATH_REGEXP
+
+  if host[-1] != '/':
+    host += '/'
+
+  if alias in BASE_ALLOWED_PROTOCOLS:
+    raise ValueError(f"Unable to override base protocols with alias {alias}")
+
+  if alias in ALLOWED_FORMATS:
+    raise ValueError(f"Naming collision between protocols and formats with alias {alias}")
+
+  ALIASES[alias] = host
+  ALLOWED_PROTOCOLS = BASE_ALLOWED_PROTOCOLS + list(ALIASES.keys())
+  CLOUDPATH_REGEXP = re.compile(mkregexp())
+
+def remove_alias(alias:str):
+  global ALIASES
+  global ALLOWED_PROTOCOLS
+  global BASE_ALLOWED_PROTOCOLS
+  global CLOUDPATH_REGEXP
+
+  del ALIASES[alias]
+  ALLOWED_PROTOCOLS = BASE_ALLOWED_PROTOCOLS + list(ALIASES.keys())
+  CLOUDPATH_REGEXP = re.compile(mkregexp())  
+
+def resolve_alias(cloudpath:str) -> Tuple[Optional[str],str]:
+  proto = get_protocol(cloudpath)
+
+  if proto not in ALIASES:
+    return None, cloudpath
+
+  return proto, cloudpath.replace(f"{proto}://", ALIASES[proto], 1)
+
+## OFFICAL ALIASES
+
+for alias, host in OFFICIAL_ALIASES.items():
+  add_alias(alias, host)
+
+## Other Path Library Functions
+
 def normalize(path):
   proto = get_protocol(path)
   if proto is None:
     proto = "file"
     path = toabs(path)
     return f"file://{path}"
-
   return path
-
-def get_protocol(cloudpath):
-  protocol_re = re.compile(r'(?P<proto>\w+)://')
-  match = re.match(protocol_re, cloudpath)
-  if not match:
-    return None
-  return match.group("proto")
 
 def asfilepath(epath):
   """For paths known to be file protocol."""
@@ -104,12 +173,34 @@ def asbucketpath(cloudpath):
 
   return ascloudpath(ExtractedPath(
     epath.format, epath.protocol, epath.bucket, 
-    None, epath.host
+    None, epath.host, epath.alias
   ))
 
+def get_any_protocol(cloudpath):
+  """
+  Get the string in the protocol position even
+  if its not a valid one.
+  """
+  protocol_re = re.compile(r'(?P<proto>[\w\d]+)://')
+  match = re.match(protocol_re, cloudpath)
+  if not match:
+    return None
+  return match.group("proto")
+
 def get_protocol(cloudpath):
+  global ALIASES_FROM_FILE
   m = re.match(CLOUDPATH_REGEXP, cloudpath)
-  return m.group('proto')
+  proto = m.group('proto')
+  
+  if proto is None:
+    unknown_proto = get_any_protocol(cloudpath)
+  
+    if unknown_proto is not None and ALIASES_FROM_FILE is None:
+      update_aliases_from_file()
+      m = re.match(CLOUDPATH_REGEXP, cloudpath)
+      proto = m.group('proto')
+  
+  return proto
 
 def pop_protocol(cloudpath):
   protocol_re = re.compile(r'(\w+)://')
@@ -124,8 +215,10 @@ def pop_protocol(cloudpath):
 
   return (protocol, cloudpath)
 
-def extract_format_protocol(cloudpath):
-  error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
+def extract_format_protocol(cloudpath:str) -> tuple:
+  error = UnsupportedProtocolError(cloudpath_error(cloudpath))
+
+  alias, cloudpath = resolve_alias(cloudpath)
 
   m = re.match(CLOUDPATH_REGEXP, cloudpath)
   if m is None:
@@ -152,9 +245,9 @@ def extract_format_protocol(cloudpath):
     if cloudpath and cloudpath[0] == '/':
       cloudpath = cloudpath[1:]
 
-  return (fmt, proto, endpoint, cloudpath)
+  return (fmt, proto, endpoint, cloudpath, alias)
 
-def extract(cloudpath, windows=None):
+def extract(cloudpath:str, windows=None) -> ExtractedPath:
   """
   Given a valid cloudpath of the form 
   format://protocol://bucket/.../dataset/layer
@@ -174,9 +267,9 @@ def extract(cloudpath, windows=None):
     return ExtractedPath('','','','','')
 
   bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)(?:/|$)') # posix /what/a/great/path  
-  error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
+  error = UnsupportedProtocolError(cloudpath_error(cloudpath))
 
-  fmt, protocol, host, cloudpath = extract_format_protocol(cloudpath)
+  fmt, protocol, host, cloudpath, alias = extract_format_protocol(cloudpath)
 
   if windows is None:
     windows = sys.platform == 'win32'
@@ -204,7 +297,7 @@ def extract(cloudpath, windows=None):
 
   return ExtractedPath(
     fmt, protocol, bucket, 
-    cloudpath, host
+    cloudpath, host, alias
   )
 
 def to_https_protocol(cloudpath):
@@ -214,9 +307,12 @@ def to_https_protocol(cloudpath):
     return cloudpath
 
   if "s3://http://" in cloudpath or "s3://https://" in cloudpath:
-    return cloudpath
+    return cloudpath.replace("s3://", "", 1)
 
   cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
   cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
-  cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
-  return cloudpath
+
+  for alias, host in ALIASES.items():
+    cloudpath = cloudpath.replace(f"{alias}://", host, 1)
+
+  return cloudpath.replace("s3://", "", 1)

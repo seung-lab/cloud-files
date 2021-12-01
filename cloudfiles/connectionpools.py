@@ -110,30 +110,19 @@ class S3ConnectionPool(ConnectionPool):
     if endpoint is not None:
       additional_args['endpoint_url'] = endpoint
 
-    if self.service in ('aws', 's3'):
-      return boto3.client(
-        's3',
-        aws_access_key_id=secrets['AWS_ACCESS_KEY_ID'],
-        aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
-        region_name=secrets.get('AWS_DEFAULT_REGION', 'us-east-1'),
-        **additional_args
-      )
-    elif self.service == 'matrix':
-      return boto3.client(
-        's3',
-        aws_access_key_id=secrets['AWS_ACCESS_KEY_ID'],
-        aws_secret_access_key=secrets['AWS_SECRET_ACCESS_KEY'],
-        endpoint_url='https://s3-hpcrc.rc.princeton.edu',
-      )
-    else:
-      raise UnsupportedProtocolError("{} unknown. Choose from 's3' or 'matrix'.", self.service)
+    return boto3.client(
+      's3',
+      aws_access_key_id=secrets.get('AWS_ACCESS_KEY_ID', None),
+      aws_secret_access_key=secrets.get('AWS_SECRET_ACCESS_KEY', None),
+      region_name=secrets.get('AWS_DEFAULT_REGION', 'us-east-1'),
+      **additional_args
+    )
       
   def close(self, conn):
     try:
       return conn.close()
     except AttributeError:
       pass # AttributeError: 'S3' object has no attribute 'close' on shutdown
-
 
 class GCloudBucketPool(ConnectionPool):
   def __init__(self, bucket, request_payer=None):

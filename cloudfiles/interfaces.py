@@ -36,6 +36,10 @@ S3_POOL = None
 GC_POOL = None
 MEM_POOL = None
 
+S3_ACLS = {
+  "tigerdata": "private",
+}
+
 S3ConnectionPoolParams = namedtuple('S3ConnectionPoolParams', 'service bucket_name request_payer')
 GCloudBucketPoolParams = namedtuple('GCloudBucketPoolParams', 'bucket_name request_payer')
 MemoryPoolParams = namedtuple('MemoryPoolParams', 'bucket_name')
@@ -637,7 +641,9 @@ class S3Interface(StorageInterface):
 
     self._request_payer = request_payer
     self._path = path
-    self._conn = S3_POOL[S3ConnectionPoolParams(path.protocol, path.bucket, request_payer)].get_connection(secrets, path.host)
+
+    service = path.alias or 's3'
+    self._conn = S3_POOL[S3ConnectionPoolParams(service, path.bucket, request_payer)].get_connection(secrets, path.host)
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
@@ -647,7 +653,6 @@ class S3Interface(StorageInterface):
     self, file_path, content, 
     content_type, compress, 
     cache_control=None,
-    ACL="bucket-owner-full-control",
     storage_class=None
   ):
     key = self.get_path_to_file(file_path)
@@ -657,7 +662,7 @@ class S3Interface(StorageInterface):
       'Body': content,
       'Key': key,
       'ContentType': (content_type or 'application/octet-stream'),
-      'ACL': ACL,
+      'ACL': S3_ACLS.get(self._path.alias, "bucket-owner-full-control"),
       'ContentMD5': md5(content),
       **self._additional_attrs,
     }

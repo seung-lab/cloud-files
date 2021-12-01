@@ -420,17 +420,17 @@ def test_path_extraction():
   assert (paths.extract('graphene://http://localhost:8080/segmentation/1.0/testvol')
     == ExtractedPath(
       'graphene', 'http', None, 
-      'segmentation/1.0/testvol', 'http://localhost:8080'))
+      'segmentation/1.0/testvol', 'http://localhost:8080', None))
 
   assert (paths.extract('precomputed://gs://fafb-ffn1-1234567')
     == ExtractedPath(
       'precomputed', 'gs', 'fafb-ffn1-1234567', 
-      '', None))
+      '', None, None))
 
   assert (paths.extract('precomputed://gs://fafb-ffn1-1234567/segmentation')
     == ExtractedPath(
       'precomputed', 'gs', 'fafb-ffn1-1234567', 
-      'segmentation', None))
+      'segmentation', None, None))
 
   firstdir = lambda x: '/' + x.split('/')[1]
 
@@ -446,39 +446,40 @@ def test_path_extraction():
   assert (paths.extract('s3://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 's3', 'seunglab-test', 
-        'intermediate/path/dataset/layer', None
+        'intermediate/path/dataset/layer', None, None
       ))
 
   assert (paths.extract('file:///tmp/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', None, 
-        "/tmp/dataset/layer", None
+        "/tmp/dataset/layer", None, None
       ))
 
   assert (paths.extract('file://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', None,
-        os.path.join(curpath, 'seunglab-test/intermediate/path/dataset/layer'), None
+        os.path.join(curpath, 'seunglab-test/intermediate/path/dataset/layer'), 
+        None, None
       ))
 
   assert (paths.extract('gs://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'gs', 'seunglab-test',
-        'intermediate/path/dataset/layer', None
+        'intermediate/path/dataset/layer', None, None
       ))
 
   assert (paths.extract('file://~/seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', None, 
         os.path.join(homepath, 'seunglab-test/intermediate/path/dataset/layer'),
-        None
+        None, None
       )
   )
 
   assert (paths.extract('file:///User/me/.cloudvolume/cache/gs/bucket/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', None, 
-        '/User/me/.cloudvolume/cache/gs/bucket/dataset/layer', None
+        '/User/me/.cloudvolume/cache/gs/bucket/dataset/layer', None, None
       ))
 
   shoulderror('ou3bouqjsa fkj aojsf oaojf ojsaf')
@@ -513,7 +514,7 @@ def test_path_extraction():
   assert (paths.extract('gs://username/a/username2/b/c/d') 
       == ExtractedPath(
         'precomputed', 'gs', 'username', 
-        'a/username2/b/c/d', None
+        'a/username2/b/c/d', None, None
       ))
 
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
@@ -651,40 +652,43 @@ def test_to_https_protocol():
   pth = to_https_protocol("matrix://my_bucket/to/heaven")
   assert pth == "https://s3-hpcrc.rc.princeton.edu/my_bucket/to/heaven"
 
+  pth = to_https_protocol("tigerdata://my_bucket/to/heaven")
+  assert pth == "https://tigerdata.princeton.edu/my_bucket/to/heaven"
+
   pth = to_https_protocol("file://my_bucket/to/heaven")
   assert pth == "file://my_bucket/to/heaven"
 
   pth = to_https_protocol("mem://my_bucket/to/heaven")
   assert pth == "mem://my_bucket/to/heaven"
 
-  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'to/heaven', None)
+  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'to/heaven', None, None)
   pth = to_https_protocol(pth)
   assert pth == extract("https://storage.googleapis.com/my_bucket/to/heaven")
 
 def test_ascloudpath():
   from cloudfiles.paths import ascloudpath, ExtractedPath
-  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'of/heaven', None)
+  pth = ExtractedPath('precomputed', 'gs', 'my_bucket', 'of/heaven', None, None)
   assert ascloudpath(pth) == "precomputed://gs://my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 'gs', 'my_bucket', 'of/heaven', None)
+  pth = ExtractedPath(None, 'gs', 'my_bucket', 'of/heaven', None, None)
   assert ascloudpath(pth) == "gs://my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 'file', 'my_bucket', 'of/heaven', None)
+  pth = ExtractedPath(None, 'file', 'my_bucket', 'of/heaven', None, None)
   assert ascloudpath(pth) == "file://my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 'mem', 'my_bucket', 'of/heaven', None)
+  pth = ExtractedPath(None, 'mem', 'my_bucket', 'of/heaven', None, None)
   assert ascloudpath(pth) == "mem://my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 'https', 'my_bucket', 'of/heaven', 'https://some.domain.com')
+  pth = ExtractedPath(None, 'https', 'my_bucket', 'of/heaven', 'https://some.domain.com', None)
   assert ascloudpath(pth) == "https://some.domain.com/my_bucket/of/heaven"
 
-  pth = ExtractedPath('graphene', 'https', 'my_bucket', 'of/heaven', 'https://some.domain.com')
+  pth = ExtractedPath('graphene', 'https', 'my_bucket', 'of/heaven', 'https://some.domain.com', None)
   assert ascloudpath(pth) == "graphene://https://some.domain.com/my_bucket/of/heaven"
 
-  pth = ExtractedPath(None, 's3', 'my_bucket', 'of/heaven', 'https://some.domain.com')
+  pth = ExtractedPath(None, 's3', 'my_bucket', 'of/heaven', 'https://some.domain.com', None)
   assert ascloudpath(pth) == "s3://https://some.domain.com/my_bucket/of/heaven"
 
-  pth = ExtractedPath("precomputed", 's3', 'my_bucket', 'of/heaven', 'https://some.domain.com')
+  pth = ExtractedPath("precomputed", 's3', 'my_bucket', 'of/heaven', 'https://some.domain.com', None)
   assert ascloudpath(pth) == "precomputed://s3://https://some.domain.com/my_bucket/of/heaven"
 
 
