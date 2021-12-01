@@ -36,7 +36,8 @@ def update_aliases_from_file():
     return
 
   aliases = {}
-  if os.path.exists(ALIAS_FILE):
+
+  if os.path.exists(ALIAS_FILE) and os.path.getsize(ALIAS_FILE) > 0:
     with open(ALIAS_FILE, "rt") as f:
       aliases = orjson.loads(f.read())
 
