@@ -1,6 +1,63 @@
 CHANGES
 =======
 
+4.5.0
+-----
+
+* docs(cli): clean up help messages
+* feat: s3 aliases (#70)
+
+4.4.0
+-----
+
+* feat(get): make "start" and "end" optional when using { "path": ... }
+* feat(paths): add normalize function
+* fix: gcs size operator returns None on 404
+
+4.3.0
+-----
+
+* fix: better error if du entry DNE
+* fix(cli): make delete progress more informative
+* feat: add type information (#66)
+
+4.2.0
+-----
+
+* feat(cli): add cat command (#64)
+* feat(cli): adds verify command  (#65)
+
+4.0.0
+-----
+
+* fix: rm -r test could delete test and test2 (#63)
+
+3.1.1
+-----
+
+* fix: range requests blocked by ETag check on S3 (#61)
+
+3.1.0
+-----
+
+* perf(s3): listing single levels of directories is now much faster
+* perf: make listing single levels of directories much faster for GCS
+
+3.0.0
+-----
+
+* redesign: make cp -r work more like ordinary cp (#58)
+* fix: try to ensure that all connections are garbage collected
+* feat(cli): adds stdout to cp (#59)
+* refactor(gcs): download\_as\_string -> download\_as\_bytes
+
+2.0.1
+-----
+
+* chore: update ChangeLog
+* fix: make sure we only replace one instance of https://host..
+* fix: don't delete bucket name from path
+
 2.0.0
 -----
 
