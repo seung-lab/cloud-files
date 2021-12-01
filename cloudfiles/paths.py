@@ -148,12 +148,17 @@ def ascloudpath(epath):
 
 def asprotocolpath(epath):
   pth = ''
-  lst = [ epath.host, epath.bucket, epath.path ]
+
+  host = epath.host if not epath.alias else None
+  lst = [ host, epath.bucket, epath.path ]
   while lst:
     elem = lst.pop(0)
     if not elem:
       continue
     pth = posixpath.join(pth, elem)
+
+  if epath.alias:
+    return f"{epath.alias}://{pth}"
 
   if not (pth[:4] == 'http' and epath.protocol in ('http', 'https')):
     pth = f"{epath.protocol}://{pth}"
