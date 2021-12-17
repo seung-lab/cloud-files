@@ -626,7 +626,7 @@ class HttpInterface(StorageInterface):
   def _list_files_google(self, prefix, flat):
     bucket = self._path.path.split('/')[0]
     prefix = posixpath.join(
-      self._path.path.replace(bucket, ''), 
+      self._path.path.replace(bucket, '', 1), 
       prefix
     )
     if prefix and prefix[0] == '/':
@@ -634,14 +634,18 @@ class HttpInterface(StorageInterface):
     if prefix and prefix[-1] != '/':
       prefix += '/'
 
-    token = None
-    while True:
+    @retry
+    def request(token):
       results = requests.get(
         f"https://storage.googleapis.com/storage/v1/b/{bucket}/o",
         params={ "prefix": prefix, "pageToken": token },
       )
       results.raise_for_status()
-      results = results.json()
+      return results.json()
+
+    token = None
+    while True:
+      results = request(token)
 
       for res in results["items"]:
         yield res["name"].replace(prefix, "", 1)
