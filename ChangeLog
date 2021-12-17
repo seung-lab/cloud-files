@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+4.5.1
+-----
+
+* chore: update changelog
+* fix: don't crash if the aliases.json file is zero bytes
+* fix: don't lose track of aliases in paths.asbucketpath
+
 4.5.0
 -----
 

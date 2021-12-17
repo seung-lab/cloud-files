@@ -256,8 +256,9 @@ class FileInterface(StorageInterface):
         return fname
 
     filenames = list(map(stripext, filenames))
-    return iter(_radix_sort(filenames))
-
+    filenames.sort()
+    return iter(filenames)
+    
 class MemoryInterface(StorageInterface):
   def __init__(self, path, secrets=None, request_payer=None):
     super(StorageInterface, self).__init__()
@@ -392,7 +393,8 @@ class MemoryInterface(StorageInterface):
         return fname
 
     filenames = list(map(stripext, filenames))
-    return iter(_radix_sort(filenames))
+    filenames.sort()
+    return iter(filenames)
 
 class GoogleCloudStorageInterface(StorageInterface):
   exists_batch_size = Batch._MAX_BATCH_SIZE
@@ -883,20 +885,3 @@ class S3Interface(StorageInterface):
   def release_connection(self):
     global S3_POOL
     S3_POOL[S3ConnectionPoolParams(self._path.protocol, self._path.bucket, self._request_payer)].release_connection(self._conn)
-
-
-def _radix_sort(L, i=0):
-  """
-  Most significant char radix sort
-  """
-  if len(L) <= 1: 
-    return L
-  done_bucket = []
-  buckets = [ [] for x in range(255) ]
-  for s in L:
-    if i >= len(s):
-      done_bucket.append(s)
-    else:
-      buckets[ ord(s[i]) ].append(s)
-  buckets = [ _radix_sort(b, i + 1) for b in buckets ]
-  return done_bucket + [ b for blist in buckets for b in blist ]
