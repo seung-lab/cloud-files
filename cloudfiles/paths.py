@@ -312,6 +312,8 @@ def to_https_protocol(cloudpath):
       return extract(to_https_protocol(ascloudpath(cloudpath)))
     return cloudpath
 
+  proto = get_protocol(cloudpath) # side effect of loading aliases if needed
+
   if "s3://http://" in cloudpath or "s3://https://" in cloudpath:
     return cloudpath.replace("s3://", "", 1)
 
