@@ -623,8 +623,38 @@ class HttpInterface(StorageInterface):
   def files_exist(self, file_paths):
     return {path: self.exists(path) for path in file_paths}
 
+  def _list_files_google(self, prefix, flat):
+    bucket = self._path.path.split('/')[0]
+    prefix = posixpath.join(
+      self._path.path.replace(bucket, ''), 
+      prefix
+    )
+    if prefix and prefix[0] == '/':
+      prefix = prefix[1:]
+    if prefix and prefix[-1] != '/':
+      prefix += '/'
+
+    token = None
+    while True:
+      results = requests.get(
+        f"https://storage.googleapis.com/storage/v1/b/{bucket}/o",
+        params={ "prefix": prefix, "pageToken": token },
+      )
+      results.raise_for_status()
+      results = results.json()
+
+      for res in results["items"]:
+        yield res["name"].replace(prefix, "", 1)
+      
+      token = results.get("nextPageToken", None)
+      if token is None:
+        break
+
   def list_files(self, prefix, flat=False):
-    raise NotImplementedError()
+    if self._path.host == "https://storage.googleapis.com":
+      yield from self._list_files_google(prefix, flat)
+    else:
+      raise NotImplementedError()
 
 class S3Interface(StorageInterface):
   # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Bucket.delete_objects
