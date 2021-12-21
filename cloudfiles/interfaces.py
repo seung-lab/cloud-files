@@ -918,4 +918,5 @@ class S3Interface(StorageInterface):
 
   def release_connection(self):
     global S3_POOL
-    S3_POOL[S3ConnectionPoolParams(self._path.protocol, self._path.bucket, self._request_payer)].release_connection(self._conn)
+    service = self._path.alias or 's3'
+    S3_POOL[S3ConnectionPoolParams(service, self._path.bucket, self._request_payer)].release_connection(self._conn)
