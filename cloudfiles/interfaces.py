@@ -18,6 +18,7 @@ import requests
 import shutil
 import threading
 import tenacity
+import fasteners
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
@@ -149,105 +150,123 @@ class FileInterface(StorageInterface):
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
-    if (
-      content 
-      and type(content) is str 
-      and content_type 
-      and re.search('json|te?xt', content_type)
-    ):
+    lock_path = path + ".lock"
+    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+    with rw_lock.write_lock():
+      if (
+        content
+        and type(content) is str
+        and content_type
+        and re.search('json|te?xt', content_type)
+      ):
 
-      content = content.encode('utf-8')
+        content = content.encode('utf-8')
 
-    if hasattr(content, "read") and hasattr(content, "seek"):
-      with open(path, 'wb') as f:
-        shutil.copyfileobj(content, f)
-      return
+      if hasattr(content, "read") and hasattr(content, "seek"):
+        with open(path, 'wb') as f:
+          shutil.copyfileobj(content, f)
+        return
 
-    try:
-      with open(path, 'wb') as f:
-        f.write(content)
-    except IOError as err:
-      mkdir(os.path.dirname(path))
-      with open(path, 'wb') as f:
-        f.write(content)
+      try:
+        with open(path, 'wb') as f:
+          f.write(content)
+      except IOError as err:
+        mkdir(os.path.dirname(path))
+        with open(path, 'wb') as f:
+          f.write(content)
 
   def head(self, file_path):
     path = self.get_path_to_file(file_path)
 
     path, encoding = self.get_encoded_file_path(path)
 
-    try:
-      statinfo = os.stat(path)
-    except FileNotFoundError:
-      return None
+    lock_path = path + ".lock"
+    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+    with rw_lock.read_lock():
+      try:
+        statinfo = os.stat(path)
+      except FileNotFoundError:
+        return None
 
-    return {
-      "Cache-Control": None,
-      "Content-Length": statinfo.st_size,
-      "Content-Type": None,
-      "ETag": None,
-      "Last-Modified": datetime.utcfromtimestamp(statinfo.st_mtime),
-      "Content-Md5": None,
-      "Content-Encoding": encoding,
-      "Content-Disposition": None,
-      "Content-Language": None,
-      "Storage-Class": None,
-      "Request-Charged": None,
-      "Parts-Count": None,
-    }
+      return {
+        "Cache-Control": None,
+        "Content-Length": statinfo.st_size,
+        "Content-Type": None,
+        "ETag": None,
+        "Last-Modified": datetime.utcfromtimestamp(statinfo.st_mtime),
+        "Content-Md5": None,
+        "Content-Encoding": encoding,
+        "Content-Disposition": None,
+        "Content-Language": None,
+        "Storage-Class": None,
+        "Request-Charged": None,
+        "Parts-Count": None,
+      }
 
   def get_file(self, file_path, start=None, end=None):
     global EXT_TEST_SEQUENCE
     global read_file
     path = self.get_path_to_file(file_path)
 
-    with EXT_TEST_SEQUENCE_LOCK:
-      seq = list(EXT_TEST_SEQUENCE)
+    lock_path = path + ".lock"
+    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+    with rw_lock.read_lock():
+      with EXT_TEST_SEQUENCE_LOCK:
+        seq = list(EXT_TEST_SEQUENCE)
 
-    i = 0
-    try:
-      for i, (ext, encoding) in enumerate(seq):
-        try:
-          return read_file(path + ext, encoding, start, end)
-        except FileNotFoundError:
-          continue
-    finally:
-      if i > 0:
-        with EXT_TEST_SEQUENCE_LOCK:
-          EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
+      i = 0
+      try:
+        for i, (ext, encoding) in enumerate(seq):
+          try:
+            return read_file(path + ext, encoding, start, end)
+          except FileNotFoundError:
+            continue
+      finally:
+        if i > 0:
+          with EXT_TEST_SEQUENCE_LOCK:
+            EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
 
-    return (None, None, None, None)
+      return (None, None, None, None)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    with EXT_TEST_SEQUENCE_LOCK:
-      exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
-    errors = (FileNotFoundError,)
+    lock_path = path + ".lock"
+    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+    with rw_lock.read_lock():
+      with EXT_TEST_SEQUENCE_LOCK:
+        exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
+      errors = (FileNotFoundError,)
 
-    for ext in exts:
-      try:
-        return os.path.getsize(path + ext)
-      except errors:
-        continue
+      for ext in exts:
+        try:
+          return os.path.getsize(path + ext)
+        except errors:
+          continue
 
-    return None
+      return None
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
-    return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
+    lock_path = path + ".lock"
+    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+    with rw_lock.read_lock():
+      return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
 
   def files_exist(self, file_paths):
     return { path: self.exists(path) for path in file_paths }
 
   def delete_file(self, file_path):
     path = self.get_path_to_file(file_path)
-    path, encoding = self.get_encoded_file_path(path)
+    lock_path = path + ".lock"
+    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+    with rw_lock.write_lock():
+      path, encoding = self.get_encoded_file_path(path)
 
-    try:
-      os.remove(path)
-    except FileNotFoundError:
-      pass
+      try:
+        os.remove(path)
+      except FileNotFoundError:
+        pass
 
   def delete_files(self, file_paths):
     for path in file_paths:
