@@ -128,6 +128,9 @@ def normalize(path):
 
 def asfilepath(epath):
   """For paths known to be file protocol."""
+  if isinstance(epath, str):
+    epath = extract(epath)
+
   if epath.protocol != "file":
     raise ValueError(f"{epath.protocol} protocol must be \"file\".")
 
