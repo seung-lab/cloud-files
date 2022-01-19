@@ -922,6 +922,21 @@ class CloudFiles:
         self.puts(downloaded, raw=True, progress=False)
         pbar.update(len(block_paths))
 
+  def join(self, *paths:str) -> str:
+    """
+    Convenience method for joining path strings
+    together. This is usually trivial except when
+    the file paths are local windows paths which
+    must use backslash. This method automatically 
+    uses the correct joining convention.
+    """
+    if len(paths) == 0:
+      return ''
+
+    if self._path.protocol == "file":
+      return os.path.join(*paths)
+    return posixpath.join(*paths)
+
   def __getitem__(self, key) -> Union[dict,bytes,List[dict]]:
     if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], str):
       return self.get({ 'path': key[0], 'start': key[1].start, 'end': key[1].stop })
