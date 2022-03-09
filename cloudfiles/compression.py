@@ -64,10 +64,12 @@ def transcode(
 
     if content is None:
       yield f
+      continue
 
     if raw:
       if encoding == f_encoding:
         yield f
+        continue
       content = decompress(content, f_encoding, f['path'])
 
     content = compress(content, encoding, level)
