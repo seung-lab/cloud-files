@@ -666,6 +666,13 @@ class CloudFiles:
       fullpath = os.path.join(fullpath, prefix)
       return os.path.isdir(fullpath)
 
+    if prefix == "":
+      fullpath = paths.ascloudpath(self._path)
+      if fullpath[-1] == "/":
+        return True
+    elif prefix[-1] == "/":
+      return True
+    
     res = first(self.list(prefix=prefix))
     return res is not None
 

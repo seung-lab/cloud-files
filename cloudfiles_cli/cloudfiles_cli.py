@@ -190,6 +190,9 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
   nsrc = normalize_path(source)
   ndest = normalize_path(destination)
 
+  issrcdir = (ispathdir(source) or CloudFiles(nsrc).isdir()) and use_stdin == False
+  isdestdir = (ispathdir(destination) or CloudFiles(ndest).isdir())
+
   # For more information see:
   # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed
   # Try to follow cp rules. If the directory exists,
@@ -198,7 +201,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
   # the dest directory.
   # Both x* and x** should not copy the base directory
   if recursive and nsrc[-1] != "*":
-    if CloudFiles(ndest).isdir():
+    if isdestdir:
       if nsrc[-1] == '/':
         nsrc = nsrc[:-1]
       ndest = cloudpathjoin(ndest, os.path.basename(nsrc))
@@ -206,9 +209,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
   ctx.ensure_object(dict)
   parallel = int(ctx.obj.get("parallel", 1))
 
-  issrcdir = ispathdir(source) and use_stdin == False
-  isdestdir = ispathdir(destination)
-
+  # The else clause here is to handle single file transfers
   srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
   many, flat, prefix = get_mfp(nsrc, recursive)
 
