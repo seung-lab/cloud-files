@@ -1,6 +1,34 @@
 CHANGES
 =======
 
+4.7.3
+-----
+
+* fix(cli rm): fix same bug in cli rm
+
+4.7.2
+-----
+
+* fix(cli cp): recursive flag was mishandling cloud directories
+
+4.7.1
+-----
+
+* fix(transcode): bug that would continue compress/decompress matches
+* feat: add cf.join for joining file paths (#74)
+
+4.6.1
+-----
+
+* fix(S3Interface): release\_connection respects alias (#73)
+
+4.6.0
+-----
+
+* feat: support listing on https://storage.googleapis.com/ (#72)
+* fix: load aliases when needed for to\_https\_protocol
+* perf: faster sorting of file names
+
 4.5.1
 -----
 
