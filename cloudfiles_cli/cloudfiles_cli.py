@@ -378,7 +378,9 @@ def _rm(path, recursive, progress, parallel, block_size):
   npath = normalize_path(path)
   many, flat, prefix = get_mfp(path, recursive)
 
-  cfpath = npath if ispathdir(path) else os.path.dirname(npath)
+  isdir = (ispathdir(path) or CloudFiles(npath).isdir())
+
+  cfpath = npath if isdir else os.path.dirname(npath)
   xferpaths = os.path.basename(npath)
 
   if many:
