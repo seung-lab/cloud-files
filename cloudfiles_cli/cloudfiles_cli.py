@@ -193,6 +193,8 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
   issrcdir = (ispathdir(source) or CloudFiles(nsrc).isdir()) and use_stdin == False
   isdestdir = (ispathdir(destination) or CloudFiles(ndest).isdir())
 
+  recursive = recursive and issrcdir
+
   # For more information see:
   # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed
   # Try to follow cp rules. If the directory exists,
@@ -366,19 +368,12 @@ def rm(ctx, paths, recursive, progress, block_size):
     _rm(path, recursive, progress, parallel, block_size)
 
 def _rm(path, recursive, progress, parallel, block_size):
-  # Correct the situation where on non-file:// systems
-  # rm -r s3://bucket/test incorreclty means test** 
-  # but on file it means test/ because it checks to see
-  # if there's a directory. The correct behavior is that
-  # on both it deletes rm -r test/.
-  sep = get_sep(path)
-  if recursive and path[-1] not in ("*", sep):
-    path += sep
-
   npath = normalize_path(path)
-  many, flat, prefix = get_mfp(path, recursive)
+  # the second isdir checks non-file paths, very important!
+  isdir = (ispathdir(path) or CloudFiles(npath).isdir()) 
+  recursive = recursive and isdir
 
-  isdir = (ispathdir(path) or CloudFiles(npath).isdir())
+  many, flat, prefix = get_mfp(path, recursive)
 
   cfpath = npath if isdir else os.path.dirname(npath)
   xferpaths = os.path.basename(npath)
