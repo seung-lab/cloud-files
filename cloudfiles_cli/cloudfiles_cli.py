@@ -10,6 +10,13 @@ import os.path
 from tqdm import tqdm
 import sys
 
+# Below two lines fix MacOS warning on 
+# High Sierra and above when we are using
+# a thread before forking. Instead, don't fork,
+# spawn entirely new processes.
+import multiprocess.context as ctx
+ctx._force_start_method('spawn')
+
 import click
 import pathos.pools
 
