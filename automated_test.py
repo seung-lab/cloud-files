@@ -43,7 +43,7 @@ def s3(aws_credentials):
 @pytest.mark.parametrize("num_threads", (0, 5, 20))
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))
 def test_read_write(s3, protocol, num_threads, green):
-  from cloudfiles import CloudFiles, exceptions
+  from cloudfiles import CloudFiles, CloudFile, exceptions
   url = compute_url(protocol, "rw")
 
   cf = CloudFiles(url, num_threads=num_threads, green=green)
@@ -52,10 +52,12 @@ def test_read_write(s3, protocol, num_threads, green):
   cf.put('info', content, compress=None, cache_control='no-cache')
   cf['info2'] = content
 
+  f = CloudFile(cf.join(url, "info"))
   assert cf.get('info') == content
   assert cf['info2'] == content
   assert cf['info2', 0:3] == content[0:3]
   assert cf['info2', :] == content[:]
+  assert f.get() == content
   assert cf.get('nonexistentfile') is None
 
   assert cf.get('info', return_dict=True) == { "info": content }

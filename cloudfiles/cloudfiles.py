@@ -971,3 +971,59 @@ class CloudFiles:
 
   def __iter__(self) -> Generator[str,None,None]:
     return self.list()
+
+class CloudFile:
+  def __init__(self, path):
+    path = paths.normalize(path)
+    self.cf = CloudFiles(paths.dirname(path))
+    self.filename = paths.basename(path)
+
+  def delete(self) -> None:
+    """Deletes the file."""
+    return self.cf.delete(self.filename)
+
+  def exists(self) -> bool:
+    """Does the file exist?"""
+    return self.cf.exists(self.filename)
+
+  def get(self, ranges=None, raw:bool = False):
+    """Download all or part of a file."""
+    if ranges is None:
+      return self.cf.get(self.filename, raw=raw)
+
+    reqs = []
+    for rng in ranges:
+      if isinstance(rng, slice):
+        reqs.append({
+          "path": self.filename,
+          "start": rng.start,
+          "end": rng.end,
+        })
+      else:
+        reqs.append(rng)
+
+    return self.cf.get(reqs, raw=raw)
+
+  def put(self, content:bytes, *args, **kwargs):
+    """Upload a file."""
+    return self.put(self.filename, content, *args, **kwargs)
+
+  def put_json(self, content, *args, **kwargs):
+    """Upload a file as JSON."""
+    return self.put(self.filename, content, *args, **kwargs)    
+
+  def head(self) -> dict:
+    """Get the file metadata."""
+    return self.cf.head(self.filename)
+
+  def size(self) -> int:
+    """Get the file size in bytes."""
+    return self.cf.size(self.filename)
+
+  def __getitem__(self, rng) -> bytes:
+    """Download the file."""
+    return self.cf[self.filename, rng]
+
+  def __setitem__(self, content:bytes):
+    """Upload the file."""
+    self.cf[self.filename] = content

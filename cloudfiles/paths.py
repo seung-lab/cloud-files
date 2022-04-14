@@ -126,6 +126,18 @@ def normalize(path):
     return f"file://{path}"
   return path
 
+def dirname(path):
+  proto = get_protocol(path) or "file"
+  if proto == "file":
+    return os.path.dirname(path)
+  return posixpath.dirname(path)
+
+def basename(path):
+  proto = get_protocol(path) or "file"
+  if proto == "file":
+    return os.path.basename(path)
+  return posixpath.basename(path)
+
 def asfilepath(epath):
   """For paths known to be file protocol."""
   if isinstance(epath, str):

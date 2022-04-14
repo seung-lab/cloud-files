@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+4.7.5
+-----
+
+* fix: warning on MacOS High Sierra and above related for forking
+* chore: update ChangeLog
+
+4.7.4
+-----
+
+* fix(cli): switch off recursive for single file copy or delete
+
 4.7.3
 -----
 
