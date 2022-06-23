@@ -533,7 +533,7 @@ class CloudFiles:
           storage_class=file.get('storage_class', storage_class)
         )
 
-    if not isinstance(files, types.GeneratorType):
+    if not isinstance(files, (types.GeneratorType, zip)):
       dupes = duplicates([ todict(file)['path'] for file in files ])
       if dupes:
         raise ValueError("Cannot write the same file multiple times in one pass. This causes a race condition. Files: " + ", ".join(dupes))
