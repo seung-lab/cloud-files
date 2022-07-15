@@ -1,7 +1,9 @@
 from io import BytesIO
 
+import bz2
 import copy
 import gzip
+import lzma
 import sys
 
 try:
@@ -19,7 +21,8 @@ from .exceptions import DecompressionError, CompressionError
 
 COMPRESSION_TYPES = [ 
   None, False, True,
-  '', 'gzip', 'br', 'zstd'
+  '', 'bz2', 'bzip2', 'gzip', 'br', 'zstd', 
+  'xz', 'lzma'
 ]
 
 def transcode(
@@ -117,11 +120,17 @@ def decompress(content, encoding, filename='N/A'):
       return brotli_decompress(content)
     elif encoding == 'zstd':
       return zstd_decompress(content)
+    elif encoding in ('bz2', 'bzip2'):
+      return bz2.decompress(content)
+    elif encoding in ('xz', 'lzma'):
+      return lzma.decompress(content)
   except DecompressionError as err:
     print("Filename: " + str(filename))
     raise
   
-  raise ValueError(str(encoding) + ' is not currently supported. Supported Options: None, gzip, br')
+  raise ValueError(
+    f'{encoding} is not currently supported. Supported Options: None, {", ".join(COMPRESSION_TYPES[4:])}'
+  )
 
 def compress(content, method='gzip', compress_level=None):
   """
@@ -149,6 +158,11 @@ def compress(content, method='gzip', compress_level=None):
     return brotli_compress(content, quality=compress_level)
   elif method == 'zstd':
     return zstd_compress(content, compress_level)
+  elif method in ("bz2", "bzip2"):
+    compress_level = 9 if compress_level is None else compress_level
+    return bz2.compress(content, compresslevel=compress_level)
+  elif method in ('xz', 'lzma'):
+    return lzma.compress(content, preset=compress_level)
   
   raise ValueError(str(method) + ' is not currently supported. Supported Options: None, gzip, br')
 

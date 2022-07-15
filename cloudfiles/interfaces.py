@@ -20,7 +20,7 @@ from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEM
 from .exceptions import MD5IntegrityError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
 
-COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd')
+COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd','.bz2','.xz')
 GZIP_TYPES = (True, 'gzip', 1)
 
 # This is just to support pooling by bucket
@@ -99,6 +99,10 @@ class FileInterface(StorageInterface):
       path += ".gz"
     elif compress == "zstd":
       path += ".zstd"
+    elif compress in ("xz", "lzma"):
+      path += ".xz"
+    elif compress in ("bzip2", "bz2"):
+      path += ".bz2"
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
@@ -128,6 +132,12 @@ class FileInterface(StorageInterface):
     elif os.path.exists(path + '.zstd'):
       encoding = "zstd"
       path += ".zstd"
+    elif os.path.exists(path + '.xz'):
+      encoding = "xz" # aka lzma
+      path += ".xz"
+    elif os.path.exists(path + '.bz2'):
+      encoding = "bzip2"
+      path += ".bz2"
     else:
       encoding = None   
 
@@ -163,6 +173,12 @@ class FileInterface(StorageInterface):
     elif os.path.exists(path + '.zstd'):
       encoding = "zstd"
       path += ".zstd"
+    elif os.path.exists(path + '.xz'):
+      encoding = "xz" # aka lzma
+      path += ".xz"
+    elif os.path.exists(path + '.bz2'):
+      encoding = "bzip2"
+      path += ".bz2"
     else:
       encoding = None
 
@@ -183,7 +199,7 @@ class FileInterface(StorageInterface):
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    exts = ('.gz', '.br', '.zstd', '')
+    exts = ('.gz', '.br', '.zstd', '.xz', '.bz2', '')
     errors = (FileNotFoundError,)
 
     for ext in exts:
@@ -209,6 +225,10 @@ class FileInterface(StorageInterface):
       os.remove(path + '.gz')
     elif os.path.exists(path + ".br"):
       os.remove(path + ".br")
+    elif os.path.exists(path + '.xz'):
+      os.remove(path + ".xz")
+    elif os.path.exists(path + '.bz2'):
+      os.remove(path + ".bz2")
 
   def delete_files(self, file_paths):
     for path in file_paths:
@@ -287,6 +307,10 @@ class MemoryInterface(StorageInterface):
       path += ".gz"
     elif compress == "zstd":
       path += ".zstd"
+    elif compress in ("xz", "lzma"):
+      path += ".xz"
+    elif compress in ("bzip2", "bz2"):
+      path += ".bz2"
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
@@ -311,6 +335,12 @@ class MemoryInterface(StorageInterface):
     elif path + '.zstd' in self._data:
       encoding = "zstd"
       path += ".zstd"
+    elif path + '.xz' in self._data:
+      encoding = "xz" # aka lzma
+      path += ".xz"
+    elif path + '.bz2' in self._data:
+      encoding = "bzip2"
+      path += ".bz2"
     else:
       encoding = None
 
@@ -325,7 +355,7 @@ class MemoryInterface(StorageInterface):
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    exts = ('.gz', '.br', '.zstd')
+    exts = ('.gz', '.br', '.zstd', '.xz', '.bz2')
 
     for ext in exts:
       pathext = path + ext
@@ -422,6 +452,10 @@ class GoogleCloudStorageInterface(StorageInterface):
       blob.content_encoding = "gzip"
     elif compress == "zstd":
       blob.content_encoding = "zstd"
+    elif compress in ("xz", "lzma"):
+      blob.content_encoding = "xz"
+    elif compress in ("bzip2", "bz2"):
+      blob.content_encoding = "bz2"
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
@@ -710,6 +744,10 @@ class S3Interface(StorageInterface):
       attrs['ContentEncoding'] = 'gzip'
     elif compress == "zstd":
       attrs['ContentEncoding'] = 'zstd'
+    elif compress in ("xz", "lzma"):
+      attrs['ContentEncoding'] = 'xz'
+    elif compress in ("bzip2", "bz2"):
+      attrs['ContentEncoding'] = 'bz2'
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
