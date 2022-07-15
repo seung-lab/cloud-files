@@ -9,6 +9,12 @@ import time
 
 from moto import mock_s3
 
+COMPRESSION_TYPES = [ 
+  None, False, True,
+  '', 'bzip2', 'gzip', 'br', 'zstd', 
+  'xz', 'lzma'
+]
+
 def rmtree(path):
   path = path.replace("file://", "")
   if os.path.exists(path):
@@ -103,7 +109,7 @@ def test_get_json_order(s3, protocol):
   cf.delete(( str(z) for z in range(N) ))
 
 @pytest.mark.parametrize("green", (False, True))
-@pytest.mark.parametrize("compress", (None, 'gzip','br','zstd'))
+@pytest.mark.parametrize("compress", (None, 'gzip','br','zstd','xz','bz2'))
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))
 def test_size(s3, protocol, compress, green):
   from cloudfiles import CloudFiles, exceptions, compression
@@ -117,7 +123,6 @@ def test_size(s3, protocol, compress, green):
   cf.put('zero', b'', compress=None, cache_control='no-cache')
 
   compressed_content = compression.compress(content, compress)
-
   assert cf.size('info') == len(compressed_content)
   assert cf.size(['info', 'info2']) == { 
     "info": len(compressed_content), 
@@ -234,7 +239,7 @@ def test_delete(s3, green, protocol):
   assert cf.get('delete-test-compressed') is None
 
 @pytest.mark.parametrize("green", (False, True))
-@pytest.mark.parametrize("method", ('', None, True, False, 'gzip','br','zstd'))
+@pytest.mark.parametrize("method", ('', None, True, False, 'gzip','br','zstd','xz','lzma','bzip2'))
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_compression(s3, protocol, method, green):
   from cloudfiles import CloudFiles, exceptions
@@ -257,7 +262,7 @@ def test_compression(s3, protocol, method, green):
 
   cf.delete(iter(cf))
 
-@pytest.mark.parametrize("compression_method", ("gzip", "br", "zstd"))
+@pytest.mark.parametrize("compression_method", ("gzip", "br", "zstd", "xz", "bzip2"))
 def test_compress_level(compression_method):
   from cloudfiles import CloudFiles, exceptions
   filepath = "/tmp/cloudfiles/compress_level"
@@ -282,7 +287,7 @@ def test_compress_level(compression_method):
 
     rmtree(filepath)
 
-@pytest.mark.parametrize("dest_encoding", (None, "gzip", "br", "zstd"))
+@pytest.mark.parametrize("dest_encoding", (None, "gzip", "br", "zstd", "xz", "bz2"))
 def test_transcode(dest_encoding):
   from cloudfiles import CloudFiles, compression
   base_text = b'hello world'
@@ -569,7 +574,7 @@ def test_s3_custom_endpoint_path():
   assert extract.path == 'world'
   assert extract.host == 'https://s3-hpcrc.rc.princeton.edu'
 
-@pytest.mark.parametrize('compression', (None, 'gzip', 'br', 'zstd'))
+@pytest.mark.parametrize('compression', (None, 'gzip', 'br', 'zstd', 'xz', 'bz2'))
 def test_transfer_semantics(compression):
   from cloudfiles import CloudFiles, exceptions
   path = '/tmp/cloudfiles/xfer'
