@@ -46,7 +46,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 1. Fast file access with transparent threading and optionally multi-process.
 2. Google Cloud Storage, Amazon S3, local filesystems, and arbitrary web servers making hybrid or multi-cloud easy.
 3. Robust to flaky network connections. Uses exponential random window retries to avoid network collisions on a large cluster. Validates md5 for gcs and s3.
-4. gzip, brotli, and zstd compression.
+4. gzip, brotli, bz2, zstd, and xz compression.
 5. Supports HTTP Range reads.
 6. Supports green threads, which are important for achieving maximum performance on virtualized servers.
 7. High efficiency transfers that avoid compression/decompression cycles.
