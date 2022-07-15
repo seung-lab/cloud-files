@@ -1,6 +1,16 @@
 CHANGES
 =======
 
+4.8.1
+-----
+
+* fix: cf.puts accepts zip generators
+
+4.8.0
+-----
+
+* feat: adds CloudFile class to represent single files
+
 4.7.5
 -----
 
