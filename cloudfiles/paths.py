@@ -27,7 +27,7 @@ BASE_ALLOWED_PROTOCOLS = [
   'http', 'https', 'mem' 
 ]
 ALLOWED_PROTOCOLS = list(BASE_ALLOWED_PROTOCOLS)
-ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss' ] 
+ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss', 'n5' ] 
 
 def update_aliases_from_file():
   global ALIASES_FROM_FILE
