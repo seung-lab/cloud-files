@@ -176,10 +176,10 @@ def get_interface_class(protocol):
       ", ".join(list(INTERFACES.keys())), protocol
     ))
 
-def path_to_byte_range(path):
+def path_to_byte_range_tags(path):
   if isinstance(path, str):
-    return (path, None, None)
-  return (path['path'], path.get('start', None), path.get('end', None))
+    return (path, None, None, None)
+  return (path['path'], path.get('start', None), path.get('end', None), path.get('tags', None))
   
 def dl(
   cloudpaths:GetPathType, raw:bool=False, **kwargs
@@ -299,7 +299,12 @@ class CloudFiles:
     paths: scalar or iterable of:
       filename (strings)
       OR
-      { 'path': filename, 'start': (int) start byte, 'end': (int) end byte }
+      { 
+        'path': filename, 
+        'start': (int) start byte, 
+        'end': (int) end byte,
+        'tags': Any (optional) (pass through)
+      }
     total: manually provide a progress bar size if paths does
       not support the `len` operator.
     raw: download without decompressing
@@ -354,7 +359,7 @@ class CloudFiles:
         raise CRC32CIntegrityError("crc32c mismatch for {}: server {} ; client {}".format(path, server_hash, crc))
 
     def download(path):
-      path, start, end = path_to_byte_range(path)
+      path, start, end, tags = path_to_byte_range_tags(path)
       error = None
       content = None
       encoding = None
@@ -386,6 +391,7 @@ class CloudFiles:
         'error': error,
         'compress': encoding,
         'raw': raw,
+        'tags': tags,
       }
     
     total = totalfn(paths, total)

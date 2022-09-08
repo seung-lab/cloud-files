@@ -66,6 +66,21 @@ def test_read_write(s3, protocol, num_threads, green):
   assert f.get() == content
   assert cf.get('nonexistentfile') is None
 
+  res = { 
+    "path": "info", 
+    "content": content,
+    "byte_range": (None, None),
+    "error": None,
+    "compress": None if protocol != "s3" else '',
+    "raw": False,
+    "tags": None,
+  }
+
+  assert cf.get([{ 'path': 'info' }]) == [ res ]
+  tags = "some crazy thing to pass through"
+  res["tags"] = tags
+  assert cf.get([{ 'path': 'info', 'tags': tags }]) == [ res ]
+
   assert cf.get('info', return_dict=True) == { "info": content }
   assert cf.get(['info', 'info2'], return_dict=True) == { "info": content, "info2": content }
 
