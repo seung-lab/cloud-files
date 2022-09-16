@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+4.10.0
+------
+
+* perf: accelerate command line file deletion
+* feat(get): add tagging feature
+* removed the urllib3[secure] extra (#77)
+
 4.9.1
 -----
 

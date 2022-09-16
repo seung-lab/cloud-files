@@ -979,10 +979,14 @@ class CloudFiles:
     return self.list()
 
 class CloudFile:
-  def __init__(self, path):
+  def __init__(self, path:str, cache_meta:bool = False):
     path = paths.normalize(path)
     self.cf = CloudFiles(paths.dirname(path))
     self.filename = paths.basename(path)
+    
+    self.cache_meta = cache_meta
+    self._size:Optional[int] = None
+    self._head = None
 
   def delete(self) -> None:
     """Deletes the file."""
@@ -995,7 +999,10 @@ class CloudFile:
   def get(self, ranges=None, raw:bool = False):
     """Download all or part of a file."""
     if ranges is None:
-      return self.cf.get(self.filename, raw=raw)
+      res = self.cf.get(self.filename, raw=raw)
+      if raw == True:
+        self._size = len(res)
+      return res
 
     reqs = []
     for rng in ranges:
@@ -1012,7 +1019,9 @@ class CloudFile:
 
   def put(self, content:bytes, *args, **kwargs):
     """Upload a file."""
-    return self.put(self.filename, content, *args, **kwargs)
+    res = self.put(self.filename, content, *args, **kwargs)
+    self._size = len(content)
+    return res
 
   def put_json(self, content, *args, **kwargs):
     """Upload a file as JSON."""
@@ -1020,11 +1029,20 @@ class CloudFile:
 
   def head(self) -> dict:
     """Get the file metadata."""
-    return self.cf.head(self.filename)
+    if self._head is not None and self.cache_meta:
+      return self._head
+    self._head = self.cf.head(self.filename)
+    return self._head
 
   def size(self) -> int:
     """Get the file size in bytes."""
-    return self.cf.size(self.filename)
+    if self._size is not None and self.cache_meta:
+      return self._size
+    self._size = self.cf.size(self.filename)
+    return self._size
+
+  def __len__(self):
+    return self.size()
 
   def __getitem__(self, rng) -> bytes:
     """Download the file."""
