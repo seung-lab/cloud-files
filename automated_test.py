@@ -918,7 +918,7 @@ def test_cli_rm_shell():
 
 @pytest.mark.parametrize("protocol", ["file", "s3"])
 def test_cli_rm_python(s3, protocol):
-  from cloudfiles_cli.cloudfiles_cli import _rm
+  from cloudfiles_cli.cloudfiles_cli import _rm_many
   from cloudfiles import CloudFiles, exceptions
 
   test_dir = compute_url(protocol, "cli_rm_python")
@@ -932,7 +932,7 @@ def test_cli_rm_python(s3, protocol):
       cf[str(i)] = b"hello world"
 
   def run_rm(path, recursive=False):
-    _rm(
+    _rm_many(
       path, recursive=recursive, progress=False, 
       parallel=1, block_size=128
     )
@@ -982,7 +982,7 @@ def test_cli_rm_recursive(s3, protocol, slash):
   cf["test2/wow"] = b"hello world"
 
   # can't use subprocess b/c it can't access the s3 mock
-  cloudfiles_cli.cloudfiles_cli._rm(
+  cloudfiles_cli.cloudfiles_cli._rm_many(
     f"{path}/test{slash}",
     recursive=True, 
     progress=False, 

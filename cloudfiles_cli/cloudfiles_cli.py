@@ -1,3 +1,4 @@
+from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import itertools
@@ -365,16 +366,44 @@ def rm(ctx, paths, recursive, progress, block_size):
     paths = sys.stdin.readlines()
     paths = [ path[:-1] for path in paths ] # clip "\n"
 
+  singles = []
+  multiples = []
   for path in paths:
     many, flat, prefix = get_mfp(path, recursive)
     if ispathdir(path) and not many:
       print(f"cloudfiles: {path}: is a directory.")
       return
+    if not many:
+      singles.append(path)
+    else:
+      multiples.append(path)
+  del paths
+  
+  _rm_singles(singles, progress, parallel, block_size)
+  for path in multiples:
+    _rm_many(path, recursive, progress, parallel, block_size)
 
+def _rm_singles(paths, progress, parallel, block_size):
+  cfgroups = defaultdict(list)
   for path in paths:
-    _rm(path, recursive, progress, parallel, block_size)
+    npath = normalize_path(path)
+    extracted = cloudfiles.paths.extract(npath)
+    cfgroups[(extracted.protocol, extracted.bucket)].append(extracted.path)
+  
+  for group, paths in cfgroups.items():
+    cfpath = f"{group[0]}://{group[1]}/"
 
-def _rm(path, recursive, progress, parallel, block_size):
+    if parallel == 1:
+      __rm(cfpath, progress, paths)
+      continue 
+    
+    fn = partial(__rm, cfpath, False)
+    with tqdm(desc="Deleting", disable=(not progress)) as pbar:
+      with pathos.pools.ProcessPool(parallel) as executor:
+        for _ in executor.imap(fn, sip(paths, block_size)):
+          pbar.update(block_size)
+
+def _rm_many(path, recursive, progress, parallel, block_size):
   npath = normalize_path(path)
   # the second isdir checks non-file paths, very important!
   isdir = (ispathdir(path) or CloudFiles(npath).isdir()) 

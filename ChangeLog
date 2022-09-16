@@ -1,6 +1,21 @@
 CHANGES
 =======
 
+4.9.1
+-----
+
+* feat: support n5 format parsing
+
+4.9.0
+-----
+
+* fixtest: python3.10 must be quoted
+* test: add python3.10 to CI
+* chore: update changelog
+* docs: state that bz2 and xz are supported
+* test: ensure xz and bz2 are tested like the other compression types
+* feat: support xz and bz2 compression
+
 4.8.1
 -----
 
