@@ -625,7 +625,7 @@ class HttpInterface(StorageInterface):
     key = self.get_path_to_file(file_path)
 
     if start is not None or end is not None:
-      start = int(start) if start is not None else ''
+      start = int(start) if start is not None else 0
       end = int(end - 1) if end is not None else ''
       headers = { "Range": "bytes={}-{}".format(start, end) }
       resp = requests.get(key, headers=headers)
@@ -769,7 +769,7 @@ class S3Interface(StorageInterface):
     kwargs = self._additional_attrs.copy()
     range_request = start is not None or end is not None
     if range_request:
-      start = int(start) if start is not None else ''
+      start = int(start) if start is not None else 0
       end = int(end - 1) if end is not None else ''
       kwargs['Range'] = "bytes={}-{}".format(start, end)
 
