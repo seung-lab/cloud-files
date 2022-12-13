@@ -512,7 +512,10 @@ def head(paths):
   elif len(paths) > 0:
     pp.pprint(results)
 
-def populate_md5(cf, metadata, threshold=1e9):
+def populate_md5(
+  cf, metadata, threshold=1e9, 
+  multipart_threshold=None, part_size=None
+):
   """threshold: parallel download up to this many bytes of files at once"""
   sz = lambda fname: metadata[fname]["Content-Length"]
   etag = lambda fname: metadata[fname]["ETag"] 
@@ -535,7 +538,15 @@ def populate_md5(cf, metadata, threshold=1e9):
     results = cf.get(paths, raw=True)
     for result in results: 
       filename = result["path"]
-      metadata[filename]["ETag"] = cloudfiles.lib.md5(result["content"], base=64)
+
+      if (
+        (multipart_threshold is not None and part_size is not None)
+        and cf._path.protocol == 's3' 
+        and len(result["content"]) > multipart_threshold
+      ):
+        metadata[filename]["ETag"] = cloudfiles.lib.calc_s3_multipart_etag(result["content"], part_size)
+      else:
+        metadata[filename]["ETag"] = cloudfiles.lib.md5(result["content"], base=64)
       metadata[filename]["Content-Md5"] = metadata[filename]["ETag"]
 
   return metadata
@@ -546,7 +557,9 @@ def populate_md5(cf, metadata, threshold=1e9):
 @click.option('-m', '--only-matching', is_flag=True, default=False, help="Only check files with matching filenames.", show_default=True)
 @click.option('-v', '--verbose', is_flag=True, default=False, help="Output detailed information of failed matches.", show_default=True)
 @click.option('--md5', is_flag=True, default=False, help="Compute the md5 hash if the Etag is missing. Can be slow!", show_default=True)
-def verify(source, target, only_matching, verbose, md5):
+@click.option('--multipart-threshold', default=None, help="For S3, compute multipart hashes for files larger than this size in bytes. If left blank, same as part size.", show_default=True)
+@click.option('--part-size', default=None, help="For S3, compute multipart hashes using this part size in bytes.", show_default=True)
+def verify(source, target, only_matching, verbose, md5, multipart_threshold, part_size):
   """
   Validates checksums of two files or two directories 
   match. These tags are usually either md5 or crc32c 
@@ -595,9 +608,13 @@ def verify(source, target, only_matching, verbose, md5):
   src_meta = cfsrc.head(matching_files)
   target_meta = cftarget.head(matching_files)
 
+  if part_size is not None and multipart_threshold is None:
+    multipart_threshold = int(part_size)
+
   if md5:
-    src_meta = populate_md5(cfsrc, src_meta)
-    target_meta = populate_md5(cftarget, target_meta)
+    src_meta = populate_md5(cfsrc, src_meta, multipart_threshold=multipart_threshold, part_size=part_size)
+    target_meta = populate_md5(cftarget, target_meta, multipart_threshold=multipart_threshold, part_size=part_size)
+    print(src_meta, target_meta)
 
   failed_files = []
   for filename in src_meta:
