@@ -940,7 +940,9 @@ class S3Interface(StorageInterface):
       for item in resp['Contents']:
         key = item['Key']
         filename = key.replace(layer_path, '')
-        if not flat and filename[-1] != '/':
+        if filename == '':
+          continue
+        elif not flat and filename[-1] != '/':
           yield filename
         elif flat and '/' not in key.replace(path, ''):
           yield filename
