@@ -1,6 +1,16 @@
 CHANGES
 =======
 
+4.11.1
+------
+
+* fix(s3): skip empty filenames in list\_files
+
+4.11.0
+------
+
+* feat(CloudFile): add len method and cache size option
+
 4.10.0
 ------
 
