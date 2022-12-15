@@ -590,6 +590,16 @@ def verify(source, target, only_matching, verbose, md5, multipart_threshold, par
   else:
     cftarget = CloudFiles(os.path.dirname(target))
     target_files = set([ os.path.basename(target) ])  
+
+  windows = os.path.sep == '\\'
+  normalize_sep = lambda x: set(( 
+    posixpath.join(*fname.split(os.path.sep)) for fname in x 
+  ))
+  if windows:
+    if cfsrc.protocol == "file":
+      src_files = normalize_sep(src_files)
+    if cftarget.protocol == "file":
+      target_files = normalize_sep(target_files)
   
   matching_files = src_files.intersection(target_files)
   mismatched_files = src_files | target_files
@@ -614,7 +624,6 @@ def verify(source, target, only_matching, verbose, md5, multipart_threshold, par
   if md5:
     src_meta = populate_md5(cfsrc, src_meta, multipart_threshold=multipart_threshold, part_size=part_size)
     target_meta = populate_md5(cftarget, target_meta, multipart_threshold=multipart_threshold, part_size=part_size)
-    print(src_meta, target_meta)
 
   failed_files = []
   for filename in src_meta:
