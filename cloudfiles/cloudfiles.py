@@ -280,6 +280,10 @@ class CloudFiles:
       request_payer=self.request_payer
     )
 
+  @property
+  def protocol(self):
+    return self._path.protocol
+
   def abspath(self, path):
     sep = posixpath.sep
     if self._path.protocol == "file":
