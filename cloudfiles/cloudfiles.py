@@ -1019,7 +1019,7 @@ class CloudFile:
 
   def put(self, content:bytes, *args, **kwargs):
     """Upload a file."""
-    res = self.put(self.filename, content, *args, **kwargs)
+    res = self.cf.put(self.filename, content, *args, **kwargs)
     self._size = len(content)
     return res
 
