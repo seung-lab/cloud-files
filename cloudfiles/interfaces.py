@@ -51,7 +51,7 @@ def reset_connection_pools():
   S3_POOL = keydefaultdict(lambda params: S3ConnectionPool(params.service, params.bucket_name))
   GC_POOL = keydefaultdict(lambda params: GCloudBucketPool(params.bucket_name, params.request_payer))
   MEM_POOL = keydefaultdict(lambda params: MemoryPool(params.bucket_name))
-  MEMORY_DATA = {}
+  MEMORY_DATA.clear()
   import gc
   gc.collect()
 
