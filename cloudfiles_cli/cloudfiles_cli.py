@@ -24,6 +24,7 @@ import pathos.pools
 import cloudfiles
 import cloudfiles.paths
 from cloudfiles import CloudFiles
+from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
 from cloudfiles.lib import (
@@ -304,6 +305,52 @@ def _cp_stdout(src, paths):
   for res in cf.get(paths):
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
+
+@main.group("xfer")
+def xfergroup():
+  """
+  Create named resumable transfers.
+
+  This is a more reliable version of
+  the cp command for large transfers.
+
+  Resumable transfers can be performed
+  in parallel by multiple clients. They
+  work by saving filenames to a sqlite3
+  database and checking them off.
+
+  To use run:
+
+  1. cloudfiles xfer init ... --db NAME
+  2. cloudfiles xfer execute NAME
+  """
+  pass
+
+@xfergroup.command("init")
+@click.argument("source")
+@click.argument("destination")
+@click.option('-c', '--compression', default='same', help="Destination compression type. Options: same, none, gzip, br, zstd", show_default=True)
+@click.option('--db', default=None, required=True, help="Filepath of the sqlite database used for tracking progress. Different databases should be used for each job.")
+def xferinit(source, destination, compression, db):
+  if compression == "same":
+    compression = None
+  elif compression == "none":
+    compression = False
+
+  source = normalize_path(source)
+  destination = normalize_path(destination)
+
+  rt = ResumableTransfer(db)
+  rt.create(source, destination, source, compression)
+
+@xfergroup.command("execute")
+@click.argument("db")
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
+@click.option('--lease-msec', default=0, help="(for distributed transfers) Number of milliseconds to lease each task for.", show_default=True)
+def xferexecute(db, progress, lease_msec):
+  rt = ResumableTransfer(db, lease_msec)
+  rt.execute(progress=progress)
+  rt.close()
 
 @main.command()
 @click.argument("sources", nargs=-1)

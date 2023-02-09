@@ -173,9 +173,9 @@ class ResumableFileSet:
     return self.next()
 
 class ResumableTransfer:
-  def __init__(self, db_path):
+  def __init__(self, db_path, lease_msec=0):
     self.db_path = db_path
-    self.rfs = ResumableFileSet(db_path)
+    self.rfs = ResumableFileSet(db_path, lease_msec)
 
   def __len__(self):
     return len(self.rfs)
@@ -189,7 +189,7 @@ class ResumableTransfer:
     self.rfs.create(src, dest, reencode)
     self.rfs.insert(paths)
 
-  def execute(self, progress=True):
+  def execute(self, progress=False):
     meta = self.rfs.metadata()
 
     cf_src = CloudFiles(meta["source"])
@@ -208,4 +208,7 @@ class ResumableTransfer:
 
   def close(self):
     self.rfs.delete()
-    os.remove(self.db_path)
+    try:
+      os.remove(self.db_path)
+    except FileNotFoundError:
+      pass
