@@ -126,9 +126,6 @@ class ResumableFileSet:
       N += len(rows)
       if len(rows) == 0:
         break
-
-      if limit and N >= limit:
-        break
       
       filenames = [ x[0] for x in rows ]
       bindlist = ",".join([f"{BIND}"] * len(filenames))
@@ -137,6 +134,9 @@ class ResumableFileSet:
       cur.execute("commit")
 
       yield from filenames
+      
+      if limit and N >= limit:
+        break
 
     cur.close()
 
