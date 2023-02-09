@@ -348,7 +348,7 @@ def xferinit(source, destination, compression, db):
 @xfergroup.command("execute")
 @click.argument("db")
 @click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
-@click.option('--lease-msec', default=0, help="(for distributed transfers) Number of milliseconds to lease each task for.", show_default=True)
+@click.option('--lease-msec', default=0, help="(distributed transfers) Number of milliseconds to lease each task for.", show_default=True)
 def xferexecute(db, progress, lease_msec):
   """(2) Perform the transfer using the database.
 
