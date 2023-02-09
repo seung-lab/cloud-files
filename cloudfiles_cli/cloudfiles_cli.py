@@ -165,9 +165,9 @@ def get_mfp(path, recursive):
 @click.argument("source", nargs=-1)
 @click.argument("destination", nargs=1)
 @click.option('-r', '--recursive', is_flag=True, default=False, help='Recursive copy.')
-@click.option('-c', '--compression', default='same', help="Destination compression type. Options: same (default), none, gzip, br, zstd")
-@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
-@click.option('-b', '--block-size', default=128, help="Number of files to download at a time.")
+@click.option('-c', '--compression', default='same', help="Destination compression type. Options: same, none, gzip, br, zstd", show_default=True)
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.", show_default=True)
+@click.option('-b', '--block-size', default=128, help="Number of files to download at a time.", show_default=True)
 @click.pass_context
 def cp(ctx, source, destination, recursive, compression, progress, block_size):
   """
