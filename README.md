@@ -53,6 +53,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 8. High speed gzip decompression using libdeflate (compared with zlib).
 9. Bundled CLI tool.
 10. Accepts iterator and generator input.
+11. Resumable transfers.
 
 ## Installation 
 
@@ -335,6 +336,9 @@ cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
 cloudfiles cp -c none s3://bkt/file.txt gs://bkt2/
 # pass from stdin (use "-" for source argument)
 find some_dir | cloudfiles cp - s3://bkt/
+# resumable transfers
+cloudfiles xfer init SRC DEST --db JOBNAME.db
+cloudfiles xfer execute JOBNAME.db --progress # can quit and resume
 # Get human readable file sizes from anywhere
 cloudfiles du -shc ./tmp gs://bkt/dir s3://bkt/dir
 # remove files
