@@ -322,6 +322,7 @@ def xfergroup():
   To use run:
 
   1. cloudfiles xfer init ... --db NAME
+  
   2. cloudfiles xfer execute NAME
   """
   pass
@@ -332,6 +333,7 @@ def xfergroup():
 @click.option('-c', '--compression', default='same', help="Destination compression type. Options: same, none, gzip, br, zstd", show_default=True)
 @click.option('--db', default=None, required=True, help="Filepath of the sqlite database used for tracking progress. Different databases should be used for each job.")
 def xferinit(source, destination, compression, db):
+  """(1) Create db of files from the source."""
   if compression == "same":
     compression = None
   elif compression == "none":
@@ -348,6 +350,11 @@ def xferinit(source, destination, compression, db):
 @click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
 @click.option('--lease-msec', default=0, help="(for distributed transfers) Number of milliseconds to lease each task for.", show_default=True)
 def xferexecute(db, progress, lease_msec):
+  """(2) Perform the transfer using the database.
+
+  Multiple clients can use the same database
+  for execution.
+  """
   rt = ResumableTransfer(db, lease_msec)
   rt.execute(progress=progress)
   rt.close()
