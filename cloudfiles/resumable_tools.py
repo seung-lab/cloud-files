@@ -189,7 +189,7 @@ class ResumableTransfer:
     self.rfs.create(src, dest, reencode)
     self.rfs.insert(paths)
 
-  def execute(self, progress=False):
+  def execute(self, progress=False, block_size=200):
     meta = self.rfs.metadata()
 
     cf_src = CloudFiles(meta["source"])
@@ -199,7 +199,8 @@ class ResumableTransfer:
     pbar.n = total - self.rfs.remaining()
 
     with pbar:
-      for paths in sip(self.rfs, 200):
+      pbar.refresh()
+      for paths in sip(self.rfs, block_size):
         cf_src.transfer_to(meta["dest"], paths=paths, reencode=meta["reencode"])
         self.rfs.mark_finished(paths)
         
