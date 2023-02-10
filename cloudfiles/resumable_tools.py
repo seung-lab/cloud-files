@@ -180,11 +180,13 @@ class ResumableTransfer:
   def __len__(self):
     return len(self.rfs)
 
-  def init(self, src, dest, paths, reencode=None):
+  def init(self, src, dest, paths=None, reencode=None):
     if isinstance(paths, str):
       paths = list(CloudFiles(paths))
     elif isinstance(paths, CloudFiles):
       paths = list(paths)
+    elif paths is None:
+      paths = list(CloudFiles(src))
 
     self.rfs.create(src, dest, reencode)
     self.rfs.insert(paths)
