@@ -801,6 +801,43 @@ def test_cli_cp():
   except FileNotFoundError:
     pass
 
+def test_xfer():
+  import subprocess
+  from cloudfiles.lib import mkdir, touch
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  srcdir = os.path.join(test_dir, "testfiles_src")
+  destdir = os.path.join(test_dir, "testfiles_dest")
+  N = 100
+
+  try:
+    shutil.rmtree(srcdir)
+  except FileNotFoundError:
+    pass
+
+  if os.path.isfile(f"{destdir}"):
+    os.remove(destdir)
+
+  try:
+    shutil.rmtree(destdir)
+  except FileNotFoundError:
+    pass
+
+  def mkfiles(mkdirname):
+    try:
+      shutil.rmtree(mkdirname)
+    except FileNotFoundError:
+      pass
+    mkdir(mkdirname)
+    for i in range(N):
+      touch(os.path.join(mkdirname, str(i)))
+
+  mkfiles(srcdir)
+
+  subprocess.run(["cloudfiles", "xfer", "init", srcdir, destdir, "--db", "bananas.db"])
+  subprocess.run(["cloudfiles", "xfer", "execute", "bananas.db"])
+  assert len(os.listdir(srcdir)) == N
+  assert os.listdir(srcdir) == os.listdir(destdir)
+
 def test_cli_cat():
   import subprocess
   from cloudfiles.lib import mkdir, touch
