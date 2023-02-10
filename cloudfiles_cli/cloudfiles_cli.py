@@ -24,6 +24,7 @@ import pathos.pools
 import cloudfiles
 import cloudfiles.paths
 from cloudfiles import CloudFiles
+from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol
 from cloudfiles.lib import (
@@ -165,9 +166,9 @@ def get_mfp(path, recursive):
 @click.argument("source", nargs=-1)
 @click.argument("destination", nargs=1)
 @click.option('-r', '--recursive', is_flag=True, default=False, help='Recursive copy.')
-@click.option('-c', '--compression', default='same', help="Destination compression type. Options: same (default), none, gzip, br, zstd")
-@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
-@click.option('-b', '--block-size', default=128, help="Number of files to download at a time.")
+@click.option('-c', '--compression', default='same', help="Destination compression type. Options: same, none, gzip, br, zstd", show_default=True)
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.", show_default=True)
+@click.option('-b', '--block-size', default=128, help="Number of files to download at a time.", show_default=True)
 @click.pass_context
 def cp(ctx, source, destination, recursive, compression, progress, block_size):
   """
@@ -304,6 +305,60 @@ def _cp_stdout(src, paths):
   for res in cf.get(paths):
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
+
+@main.group("xfer")
+def xfergroup():
+  """
+  Create named resumable transfers.
+
+  This is a more reliable version of
+  the cp command for large transfers.
+
+  Resumable transfers can be performed
+  in parallel by multiple clients. They
+  work by saving filenames to a sqlite3
+  database and checking them off.
+
+  To use run:
+
+  1. cloudfiles xfer init ... --db NAME
+
+  2. cloudfiles xfer execute NAME
+  """
+  pass
+
+@xfergroup.command("init")
+@click.argument("source")
+@click.argument("destination")
+@click.option('-c', '--compression', default='same', help="Destination compression type. Options: same, none, gzip, br, zstd", show_default=True)
+@click.option('--db', default=None, required=True, help="Filepath of the sqlite database used for tracking progress. Different databases should be used for each job.")
+def xferinit(source, destination, compression, db):
+  """(1) Create db of files from the source."""
+  if compression == "same":
+    compression = None
+  elif compression == "none":
+    compression = False
+
+  source = normalize_path(source)
+  destination = normalize_path(destination)
+
+  rt = ResumableTransfer(db)
+  rt.init(source, destination, source, compression)
+
+@xfergroup.command("execute")
+@click.argument("db")
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
+@click.option('--lease-msec', default=0, help="(distributed transfers) Number of milliseconds to lease each task for.", show_default=True)
+@click.option('-b', '--block-size', default=200, help="Number of files to process at a time.", show_default=True)
+def xferexecute(db, progress, lease_msec, block_size):
+  """(2) Perform the transfer using the database.
+
+  Multiple clients can use the same database
+  for execution.
+  """
+  rt = ResumableTransfer(db, lease_msec)
+  rt.execute(progress=progress, block_size=block_size)
+  rt.close()
 
 @main.command()
 @click.argument("sources", nargs=-1)
