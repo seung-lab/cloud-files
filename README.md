@@ -292,6 +292,35 @@ cfg[:] = cff # default block size 64
 
 Transfer semantics provide a simple way to perform bulk file transfers. Use the `block_size` parameter to adjust the number of files handled in a given pass. This can be important for preventing memory blow-up and reducing latency between batches.
 
+#### resumable transfer
+
+```python
+from cloudfiles import ResumableTransfer
+
+# .db b/c this is a sqlite database
+# that will be automatically created
+rt = ResumableTransfer("NAME_OF_JOB.db") 
+
+# init should only be called once
+rt.init("file://source_location", "gs://dest_location")
+# This part can be interrupted and resumed
+rt.execute("NAME_OF_JOB.db")
+# If multiple transfer clients, the lease_msec
+# parameter must be specified to prevent conflicts.
+rt.execute("NAME_OF_JOB.db", lease_msec=30000)
+
+rt.close() # deletes NAME_OF_JOB.db
+```
+
+This is esentially a more durable version of `cp`. The transfer works by first loading a sqlite database with filenames, a "done" flag, and a lease time. Then clients can attach to the database and execute the transfer in batches. When multiple clients are used, a lease time must be set so that the database does not return the same set of files to each client (and is robust).
+
+This transfer type can also be accessed via the CLI.
+
+```bash
+cloudfiles xfer init SOURCE DEST --db NAME_OF_JOB.db
+cloudfiles xfer execute NAME_OF_JOB.db # deletes db when done
+```
+
 ### transcode
 
 ```python
