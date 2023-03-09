@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+4.12.0
+------
+
+* feat: simplify interface to ResumableTransfer.init
+* docs: show how to use resumable xfer
+* feat: resumable transfers (#81)
+* feat: multipart validation (#79)
+* fix(mem): clear the real instance when resetting the connection pool
+* fix: CloudFile.put now works
+* build: update python versions tested
+
 4.11.1
 ------
 
