@@ -992,6 +992,10 @@ class CloudFile:
     self._size:Optional[int] = None
     self._head = None
 
+  @property
+  def protocol(self):
+    return self.cf.protocol
+
   def delete(self) -> None:
     """Deletes the file."""
     return self.cf.delete(self.filename)
