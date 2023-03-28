@@ -11,4 +11,5 @@ servers.
 
 from .cloudfiles import CloudFile, CloudFiles, dl
 from .interfaces import reset_connection_pools
+from .connectionpools import clear_memory
 from .resumable_tools import ResumableTransfer

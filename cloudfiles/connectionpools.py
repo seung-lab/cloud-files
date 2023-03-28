@@ -22,6 +22,9 @@ retry = tenacity.retry(
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
+def clear_memory():
+  MEMORY_DATA.clear()
+
 class ConnectionPool(object):
   """
   This class is intended to be subclassed. See below.
