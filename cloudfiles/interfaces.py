@@ -806,7 +806,7 @@ class S3Interface(StorageInterface):
 
       return (content, encoding, etag, "md5")
     except botocore.exceptions.ClientError as err: 
-      if err.response['Error']['Code'] == 'NoSuchKey':
+      if err.response['Error']['Code'] in ('NoSuchKey', 'NotFound'):
         return (None, None, None, None)
       else:
         raise
