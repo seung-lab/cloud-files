@@ -42,7 +42,6 @@ def update_aliases_from_file():
       aliases = orjson.loads(f.read())
 
   ALIASES_FROM_FILE = aliases
-
   for alias, val in aliases.items():
     add_alias(alias, val["host"])
 
@@ -99,7 +98,7 @@ def add_persistent_alias(alias:str, host:str):
   
   update_aliases_from_file()
   add_alias(alias, host)
-  ALIASES_FROM_FILE[alias] = host
+  ALIASES_FROM_FILE[alias] = { "host": host }
   update_persistent_aliases()
 
 def remove_persistent_alias(alias:str):
@@ -116,7 +115,7 @@ def update_persistent_aliases():
   
   aliases = { 
     alias: { "host": host } 
-    for alias, host in ALIASES_FROM_FILE 
+    for alias, host in ALIASES_FROM_FILE.items()
   }
 
   with open(ALIAS_FILE, "wb") as f:
