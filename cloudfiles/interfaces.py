@@ -754,7 +754,7 @@ class S3Interface(StorageInterface):
 
     multipart = hasattr(content, "read") and hasattr(content, "seek")
 
-    if not multipart and len(content) > int(5e7):
+    if not multipart and len(content) > int(1e8):
       content = BytesIO(content)
       multipart = True
 
