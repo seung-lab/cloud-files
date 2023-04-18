@@ -604,7 +604,7 @@ class HttpInterface(StorageInterface):
 
     self.session = requests.Session()
     if secrets:
-      session.auth = (secrets['user'], secrets['password'])
+      self.session.auth = (secrets['user'], secrets['password'])
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.host, self._path.path, file_path)
