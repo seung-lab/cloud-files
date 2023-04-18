@@ -13,9 +13,8 @@ CV_HOME = os.path.join(HOME, '.cloudvolume')
 CLOUD_VOLUME_DIR = os.environ.get("CLOUD_VOLUME_DIR", CV_HOME)
 CLOUD_VOLUME_SECRETS_DIR = os.path.join(CLOUD_VOLUME_DIR, 'secrets')
 
-CF_HOME = os.environ.get("CLOUDFILES_CONFIG_DIR", HOME)
+CF_HOME = os.environ.get("CLOUD_FILES_DIR", HOME)
 CLOUD_FILES_DIR = os.path.join(CF_HOME, '.cloudfiles')
-CLOUD_FILES_DIR = os.environ.get("CLOUD_FILES_DIR", CLOUD_VOLUME_DIR)
 CLOUD_FILES_SECRETS_DIR = os.path.join(CLOUD_FILES_DIR, 'secrets')
 
 CredentialType = Dict[str,Union[str,int]]
