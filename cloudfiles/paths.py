@@ -9,7 +9,7 @@ import urllib.parse
 from typing import Tuple, Optional
 
 from .exceptions import UnsupportedProtocolError
-from .lib import yellow, toabs, jsonify
+from .lib import yellow, toabs, jsonify, mkdir
 
 ExtractedPath = namedtuple('ExtractedPath', 
   ('format', 'protocol', 'bucket', 'path', 'host', 'alias')
@@ -118,6 +118,7 @@ def update_persistent_aliases():
     for alias, host in ALIASES_FROM_FILE.items()
   }
 
+  mkdir(os.path.dirname(ALIAS_FILE))
   with open(ALIAS_FILE, "wb") as f:
     f.write(jsonify(ALIASES_FROM_FILE))
 
