@@ -1064,5 +1064,15 @@ def test_exceptions_raised(green):
   cf.delete("wontdecompress")
 
 
+def test_add_persistent_alias():
+  from cloudfiles import CloudFiles
+  import cloudfiles.paths
+  cloudfiles.paths.add_persistent_alias("example", "mem://example/")
+
+  cf = CloudFiles("example://hello")
+  cf.put("world", b"earth")
+  assert cf.get("world") == b"earth"
+
+  cloudfiles.paths.remove_persistent_alias("example")  
 
 
