@@ -1028,7 +1028,8 @@ class CloudFile:
   def put(self, content:bytes, *args, **kwargs):
     """Upload a file."""
     res = self.cf.put(self.filename, content, *args, **kwargs)
-    self._size = len(content)
+    if hasattr(content, "__len__"):
+      self._size = len(content)
     return res
 
   def put_json(self, content, *args, **kwargs):
