@@ -126,3 +126,20 @@ def aws_credentials(bucket = '', service = 'aws'):
 
   AWS_CREDENTIALS_CACHE[service][bucket] = aws_credentials
   return aws_credentials
+
+HTTP_CREDENTIALS = None
+def http_credentials():
+  global HTTP_CREDENTIALS
+  default_file_path = 'http-secret.json'
+  path = secretpath(default_file_path)
+
+  if HTTP_CREDENTIALS:
+    return HTTP_CREDENTIALS
+
+  if os.path.exists(path):
+    with open(path, 'rt') as f:
+      HTTP_CREDENTIALS = json.loads(f.read())
+  else:
+    HTTP_CREDENTIALS = None
+
+  return HTTP_CREDENTIALS

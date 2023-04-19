@@ -13,12 +13,14 @@ from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
 import requests
+import shutil
 import tenacity
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .exceptions import MD5IntegrityError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
+from .secrets import http_credentials
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd','.bz2','.xz')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -112,6 +114,11 @@ class FileInterface(StorageInterface):
       and type(content) is str:
 
       content = content.encode('utf-8')
+
+    if hasattr(content, "read") and hasattr(content, "seek"):
+      with open(path, 'wb') as f:
+        shutil.copyfileobj(content, f)
+      return
 
     try:
       with open(path, 'wb') as f:
@@ -598,6 +605,13 @@ class HttpInterface(StorageInterface):
     if request_payer is not None:
       raise ValueError("Specifying a request payer for the HttpInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
+    if not secrets:
+      secrets = http_credentials()
+
+    self.session = requests.Session()
+    if secrets:
+      self.session.auth = (secrets['user'], secrets['password'])
+
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.host, self._path.path, file_path)
 
@@ -616,7 +630,7 @@ class HttpInterface(StorageInterface):
   @retry
   def head(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = requests.head(key)
+    resp = self.session.head(key)
     resp.raise_for_status()
     return resp.headers
 
@@ -628,9 +642,9 @@ class HttpInterface(StorageInterface):
       start = int(start) if start is not None else 0
       end = int(end - 1) if end is not None else ''
       headers = { "Range": "bytes={}-{}".format(start, end) }
-      resp = requests.get(key, headers=headers)
+      resp = self.session.get(key, headers=headers)
     else:
-      resp = requests.get(key)
+      resp = self.session.get(key)
     if resp.status_code in (404, 403):
       return (None, None, None, None)
     resp.raise_for_status()
@@ -650,7 +664,7 @@ class HttpInterface(StorageInterface):
   @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = requests.get(key, stream=True)
+    resp = self.session.get(key, stream=True)
     resp.close()
     return resp.ok
 
@@ -670,7 +684,7 @@ class HttpInterface(StorageInterface):
 
     @retry
     def request(token):
-      results = requests.get(
+      results = self.session.get(
         f"https://storage.googleapis.com/storage/v1/b/{bucket}/o",
         params={ "prefix": prefix, "pageToken": token },
       )
