@@ -4,7 +4,7 @@ CloudFiles: Fast access to cloud storage and local FS.
 ========
 
 ```python
-from cloudfiles import CloudFiles, dl
+from cloudfiles import CloudFiles, CloudFile, dl
 
 results = dl(["gs://bucket/file1", "gs://bucket2/file2", ... ]) # shorthand
 
@@ -37,9 +37,16 @@ cf.delete(paths, parallel=2) # threaded + two processes
 
 boolean = cf.exists('filename')
 results = cf.exists([ 'filename_1', ... ]) # threaded
+
+# for single files
+cf = CloudFile("gs://bucket/file1")
+info = cf.head()
+binary = cf.get()
+cf.put(binary)
+cf[:30] # get first 30 bytes of file
 ```
 
-CloudFiles was developed to access files from object storage without ever touching disk. The goal was to reliably and rapidly access a petabyte of image data broken down into tens to hundreds of millions of files being accessed in parallel across thousands of cores. The predecessor of CloudFiles, `CloudVolume.Storage`, the core of which is retained here, has been used to processes dozens of images, many of which were in the hundreds of terabyte range. Storage has reliably read and written tens of billions of files to date.
+CloudFiles was developed to access files from object storage without ever touching disk. The goal was to reliably and rapidly access a petabyte of image data broken down into tens to hundreds of millions of files being accessed in parallel across thousands of cores. CloudFiles has been used to processes dozens of images, many of which were in the hundreds of terabyte range. It has reliably read and written tens of billions of files to date.
 
 ## Highlights
 
@@ -54,6 +61,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 9. Bundled CLI tool.
 10. Accepts iterator and generator input.
 11. Resumable transfers.
+12. Supports composite parallel upload for GCS and multi-part upload for AWS S3.
 
 ## Installation 
 
