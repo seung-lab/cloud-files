@@ -11,17 +11,18 @@ import posixpath
 
 from google.cloud.storage import Client
 
-from . import paths
+from . import paths, compression
 from .lib import sip
 from .secrets import google_credentials
-from .typing import SecretsType
+from .typing import SecretsType, CompressType
 
 MAX_COMPOSITE_PARTS = 32 # google specified restriction
 
 def merge(
   cf, bucket, path, 
   depth, max_depth, num_parts, 
-  content_type, cache_control, storage_class
+  content_type, cache_control, 
+  storage_class, content_encoding
 ):
   subpath = posixpath.dirname(path.path)
   base_key = posixpath.basename(path.path)
@@ -49,6 +50,8 @@ def merge(
     # avoid early deletion fees
     if depth < max_depth:
       destination.storage_class = "STANDARD"
+    elif content_encoding:
+      destination.content_encoding = content_encoding
 
     destination.compose(
       [ bucket.blob(posixpath.join(subpath, key)) for key in subnames ]
@@ -62,7 +65,7 @@ def merge(
       depth+1, max_depth, 
       int(math.ceil(num_parts / MAX_COMPOSITE_PARTS)), 
       content_type, cache_control,
-      storage_class
+      storage_class, content_encoding
     )
 
 def composite_upload(
@@ -74,11 +77,16 @@ def composite_upload(
   progress:bool = False,
   cache_control:Optional[str] = None,
   storage_class:Optional[str] = None,
+  compress:CompressType = None,
 ) -> int:
   from .cloudfiles import CloudFiles, CloudFile
   
+  content_encoding = None
   if isinstance(handle, bytes):
-    handle = io.BytesIO(handle)
+    handle = io.BytesIO(
+      compression.compress(handle, compress)
+    )
+    content_encoding = compression.normalize_encoding(compress)
 
   path = paths.extract(cloudpath)
 
@@ -94,6 +102,8 @@ def composite_upload(
       content_type=content_type,
       cache_control=cache_control,
       storage_class=storage_class,
+      compress=content_encoding,
+      raw=True,
     )
     return 1
 
@@ -135,7 +145,7 @@ def composite_upload(
     cf, bucket, path, 
     0, tree_depth - 1, num_parts, 
     content_type, cache_control,
-    storage_class
+    storage_class, content_encoding
   )
 
   return 1
