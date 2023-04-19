@@ -76,7 +76,7 @@ class StorageInterface(object):
     self.release_connection()
 
 class FileInterface(StorageInterface):
-  def __init__(self, path, secrets=None, request_payer=None):
+  def __init__(self, path, secrets=None, request_payer=None, **kwargs):
     super(StorageInterface, self).__init__()
     self._path = path
     if request_payer is not None:
@@ -287,7 +287,7 @@ class FileInterface(StorageInterface):
     return iter(filenames)
     
 class MemoryInterface(StorageInterface):
-  def __init__(self, path, secrets=None, request_payer=None):
+  def __init__(self, path, secrets=None, request_payer=None, **kwargs):
     super(StorageInterface, self).__init__()
     if request_payer is not None:
       raise ValueError("Specifying a request payer for the MemoryInterface is not supported. request_payer must be None, got '{}'.", request_payer)
@@ -437,7 +437,7 @@ class GoogleCloudStorageInterface(StorageInterface):
   exists_batch_size = Batch._MAX_BATCH_SIZE
   delete_batch_size = Batch._MAX_BATCH_SIZE
 
-  def __init__(self, path, secrets=None, request_payer=None):
+  def __init__(self, path, secrets=None, request_payer=None, **kwargs):
     super(StorageInterface, self).__init__()
     global GC_POOL
     self._path = path
@@ -599,7 +599,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)].release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
-  def __init__(self, path, secrets=None, request_payer=None):
+  def __init__(self, path, secrets=None, request_payer=None, **kwargs):
     super(StorageInterface, self).__init__()
     self._path = path
     if request_payer is not None:
@@ -712,7 +712,7 @@ class S3Interface(StorageInterface):
   # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Bucket.delete_objects
   # claims batch size limit is 1000
   delete_batch_size = 1000
-  def __init__(self, path, secrets=None, request_payer=None):
+  def __init__(self, path, secrets=None, request_payer=None, composite_upload_threshold=int(1e8)):
     super(StorageInterface, self).__init__()
     global S3_POOL
 
@@ -728,6 +728,8 @@ class S3Interface(StorageInterface):
 
     service = path.alias or 's3'
     self._conn = S3_POOL[S3ConnectionPoolParams(service, path.bucket, request_payer)].get_connection(secrets, path.host)
+
+    self.composite_upload_threshold = composite_upload_threshold
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
@@ -768,7 +770,7 @@ class S3Interface(StorageInterface):
 
     multipart = hasattr(content, "read") and hasattr(content, "seek")
 
-    if not multipart and len(content) > int(1e8):
+    if not multipart and len(content) > int(self.composite_upload_threshold):
       content = BytesIO(content)
       multipart = True
 

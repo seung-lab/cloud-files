@@ -280,7 +280,8 @@ class CloudFiles:
     return self._interface_cls(
       self._path, 
       secrets=self.secrets,
-      request_payer=self.request_payer
+      request_payer=self.request_payer,
+      composite_upload_threshold=self.composite_upload_threshold,
     )
 
   @property
