@@ -589,13 +589,16 @@ class CloudFiles:
     """
     if (
       self.protocol == "gs" 
-      and hasattr(content, "read") 
-      and hasattr(content, "seek")
+      and (
+        (hasattr(content, "read") and hasattr(content, "seek"))
+        or len(content) > int(1e8)
+      )
     ):
       return gcs.composite_upload(
         f"{self.cloudpath}/{path}", 
         content, 
         part_size=int(1e8),
+        secrets=self.secrets,
         content_type=content_type,
       )
 
@@ -995,9 +998,12 @@ class CloudFiles:
     return self.list()
 
 class CloudFile:
-  def __init__(self, path:str, cache_meta:bool = False):
+  def __init__(
+    self, path:str, cache_meta:bool = False, 
+    secrets:SecretsType = None
+  ):
     path = paths.normalize(path)
-    self.cf = CloudFiles(paths.dirname(path))
+    self.cf = CloudFiles(paths.dirname(path), secrets=secrets)
     self.filename = paths.basename(path)
     
     self.cache_meta = cache_meta
