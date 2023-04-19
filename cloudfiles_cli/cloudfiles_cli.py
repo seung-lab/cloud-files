@@ -289,6 +289,8 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       and cfdest.protocol == "file" 
       and compression is None
     ):
+      if isdestdir:
+        ndest = os.path.join(ndest, os.path.basename(nsrc))
       shutil.copyfile(nsrc.replace("file://", ""), ndest.replace("file://", ""))
       return
     
