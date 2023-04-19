@@ -540,7 +540,7 @@ class CloudFiles:
         self.protocol == "gs" 
         and (
           (hasattr(content, "read") and hasattr(content, "seek"))
-          or len(content) > self.composite_upload_threshold
+          or (hasattr(content, "__len__") and len(content) > self.composite_upload_threshold)
         )
       ):
         gcs.composite_upload(
@@ -973,7 +973,7 @@ class CloudFiles:
           for download in downloaded:
             download["path"] = posixpath.sep.join(download["path"].split(os.path.sep))
 
-        self.puts(downloaded, raw=True, progress=False)
+        self.puts(downloaded, raw=True, progress=False, compress=reencode)
         pbar.update(len(block_paths))
 
   def join(self, *paths:str) -> str:

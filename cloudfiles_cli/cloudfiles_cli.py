@@ -295,14 +295,14 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       shutil.copyfile(nsrc.replace("file://", ""), ndest.replace("file://", ""))
       return
     
-    downloaded = cfsrc.get(xferpaths, raw=True)
+    downloaded = cfsrc.get([ xferpaths ], raw=True)
     if compression is not None:
-      downloaded = transcode(downloaded, compression, in_place=True)
+      downloaded = next(transcode(downloaded, compression, in_place=True))
     
     if isdestdir:
-      cfdest.put(os.path.basename(nsrc), downloaded, raw=True)
+      cfdest.put(os.path.basename(nsrc), downloaded["content"], raw=True, compress=compression)
     else:
-      cfdest.put(os.path.basename(ndest), downloaded, raw=True)
+      cfdest.put(os.path.basename(ndest), downloaded["content"], raw=True, compress=compression)
 
 def _cp(src, dst, compression, progress, block_size, paths):
   cfsrc = CloudFiles(src, green=True, progress=progress)
