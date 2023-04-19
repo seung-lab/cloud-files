@@ -10,12 +10,13 @@ from typing import Tuple, Optional
 
 from .exceptions import UnsupportedProtocolError
 from .lib import yellow, toabs, jsonify, mkdir
+from .secrets import CLOUD_FILES_DIR
 
 ExtractedPath = namedtuple('ExtractedPath', 
   ('format', 'protocol', 'bucket', 'path', 'host', 'alias')
 )
 
-ALIAS_FILE = os.path.expanduser("~/.cloudfiles/aliases.json")
+ALIAS_FILE = os.path.join(CLOUD_FILES_DIR, "aliases.json")
 OFFICIAL_ALIASES = {
   "matrix": "s3://https://s3-hpcrc.rc.princeton.edu/",
   "tigerdata": "s3://https://tigerdata.princeton.edu/",

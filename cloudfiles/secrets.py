@@ -8,21 +8,27 @@ from google.oauth2 import service_account
 from .lib import mkdir, colorize
 
 HOME = os.path.expanduser('~')
-CLOUD_VOLUME_DIR = os.path.join(HOME, '.cloudvolume', 'secrets')
-CLOUD_FILES_DIR = os.path.join(HOME, '.cloudfiles', 'secrets')
+
+CV_HOME = os.path.join(HOME, '.cloudvolume')
+CLOUD_VOLUME_DIR = os.environ.get("CLOUD_VOLUME_DIR", CV_HOME)
+CLOUD_VOLUME_SECRETS_DIR = os.path.join(CLOUD_VOLUME_DIR, 'secrets')
+
+CF_HOME = os.path.join(HOME, '.cloudfiles')
+CLOUD_FILES_DIR = os.environ.get("CLOUD_FILES_DIR", CF_HOME)
+CLOUD_FILES_SECRETS_DIR = os.path.join(CLOUD_FILES_DIR, 'secrets')
 
 CredentialType = Dict[str,Union[str,int]]
 CredentialCacheType = Dict[str,CredentialType]
 
 def secretpath(filepath):
-  preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
+  preferred = os.path.join(CLOUD_VOLUME_SECRETS_DIR, filepath)
   
   if os.path.exists(preferred):
     return preferred
 
   backcompat = [
     '/', # original
-    CLOUD_FILES_DIR,
+    CLOUD_FILES_SECRETS_DIR,
   ]
 
   backcompat = [ os.path.join(path, filepath) for path in backcompat ] 
