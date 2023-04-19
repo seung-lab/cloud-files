@@ -58,7 +58,8 @@ def composite_upload(
   handle:Union[BinaryIO,bytes],
   part_size:int = int(1e8),
   secrets:SecretsType = None,
-  content_type:Optional[str] = None
+  content_type:Optional[str] = None,
+  progress:bool = False,
 ) -> int:
   from .cloudfiles import CloudFiles, CloudFile
   
@@ -73,28 +74,32 @@ def composite_upload(
 
   num_parts = int(math.ceil(file_size / part_size))
 
-  cur = 0
-  parts = []
-  while cur < file_size:
-    binary = handle.read(part_size)
-    cur += len(binary)
-    parts.append(binary)
-
-  if len(parts) == 1:
+  if num_parts == 1:
     CloudFile(cloudpath, secrets=secrets).put(
-      parts[0], content_type=content_type
+      handle.read(), content_type=content_type
     )
     return 1
 
-  cf = CloudFiles(posixpath.dirname(cloudpath), secrets=secrets)
+  cf = CloudFiles(
+    posixpath.dirname(cloudpath), 
+    secrets=secrets, 
+    progress=progress
+  )
   base_key = posixpath.basename(cloudpath)
 
-  parts = [ 
-    (f"{base_key}.0.{i}.part", binary)  
-    for i, binary in enumerate(parts)
-  ] 
+  def partiter():
+    cur = 0
+    while cur < file_size:
+      binary = handle.read(part_size)
+      cur += len(binary)
+      yield binary
 
-  cf.puts(parts)
+  parts = (
+    (f"{base_key}.0.{i}.part", binary)  
+    for i, binary in enumerate(partiter())
+  )
+
+  cf.puts(parts, total=num_parts)
 
   tree_depth = int(math.ceil(math.log2(num_parts) / math.log2(MAX_COMPOSITE_PARTS)))
   

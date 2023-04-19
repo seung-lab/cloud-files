@@ -600,6 +600,7 @@ class CloudFiles:
         part_size=int(1e8),
         secrets=self.secrets,
         content_type=content_type,
+        progress=self.progress,
       )
 
     return self.puts({
@@ -1046,7 +1047,11 @@ class CloudFile:
   def put(self, content:bytes, *args, **kwargs):
     """Upload a file."""
     res = self.cf.put(self.filename, content, *args, **kwargs)
-    self._size = len(content)
+    if hasattr(content, "__len__"):
+      self._size = len(content)
+    else:
+      content.seek(0, os.SEEK_END)
+      self._size = content.tell()
     return res
 
   def put_json(self, content, *args, **kwargs):
