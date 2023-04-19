@@ -535,6 +535,25 @@ class CloudFiles:
           compress_level=file.get('compression_level', compression_level),
         )
 
+      if (
+        self.protocol == "gs" 
+        and (
+          (hasattr(content, "read") and hasattr(content, "seek"))
+          or len(content) > self.composite_upload_threshold
+        )
+      ):
+        gcs.composite_upload(
+          f"{self.cloudpath}/{file['path']}", 
+          content, 
+          part_size=self.composite_upload_threshold,
+          secrets=self.secrets,
+          progress=self.progress,
+          content_type=content_type,
+          cache_control=cache_control,
+          storage_class=storage_class,
+        )
+        return
+
       with self._get_connection() as conn:
         conn.put_file(
           file_path=file['path'], 
@@ -589,24 +608,6 @@ class CloudFiles:
 
     Returns: number of files uploaded
     """
-    if (
-      self.protocol == "gs" 
-      and (
-        (hasattr(content, "read") and hasattr(content, "seek"))
-        or len(content) > self.composite_upload_threshold
-      )
-    ):
-      return gcs.composite_upload(
-        f"{self.cloudpath}/{path}", 
-        content, 
-        part_size=self.composite_upload_threshold,
-        secrets=self.secrets,
-        progress=self.progress,
-        content_type=content_type,
-        cache_control=cache_control,
-        storage_class=storage_class,
-      )
-
     return self.puts({
       'path': path,
       'content': content,
