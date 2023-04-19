@@ -284,6 +284,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
 
     cfdest = CloudFiles(destpath, green=True, progress=progress)
 
+    # high performance local copy
     if (
       cfsrc.protocol == "file" 
       and cfdest.protocol == "file" 
