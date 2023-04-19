@@ -10,7 +10,6 @@ import os
 import posixpath
 
 from google.cloud.storage import Client
-from google.oauth2 import service_account
 
 from . import paths
 from .lib import sip
