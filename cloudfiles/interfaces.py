@@ -742,12 +742,8 @@ class S3Interface(StorageInterface):
     key = self.get_path_to_file(file_path)
 
     attrs = {
-      'Bucket': self._path.bucket,
-      'Body': content,
-      'Key': key,
       'ContentType': (content_type or 'application/octet-stream'),
       'ACL': S3_ACLS.get(self._path.alias, "bucket-owner-full-control"),
-      'ContentMD5': md5(content),
       **self._additional_attrs,
     }
 
@@ -770,7 +766,20 @@ class S3Interface(StorageInterface):
     if storage_class:
       attrs['StorageClass'] = storage_class
 
-    self._conn.put_object(**attrs)
+    multipart = hasattr(content, "read") and hasattr(content, "seek")
+
+    if not multipart and len(content) > int(1e8):
+      content = BytesIO(content)
+      multipart = True
+
+    if multipart:
+      self._conn.upload_fileobj(content, self._path.bucket, key, ExtraArgs=attrs)
+    else:
+      attrs['Bucket'] = self._path.bucket
+      attrs['Body'] = content
+      attrs['Key'] = key
+      attrs['ContentMD5'] = md5(content)
+      self._conn.put_object(**attrs)
 
   @retry
   def get_file(self, file_path, start=None, end=None):
