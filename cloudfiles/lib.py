@@ -153,7 +153,7 @@ def crc32c(binary):
   Computes the crc32c of a binary string 
   and returns it as an integer.
   """
-  return crc32clib.value(binary) # an integer
+  return crc32clib.crc32c(binary) # an integer
 
 def md5(binary, base=64):
   """

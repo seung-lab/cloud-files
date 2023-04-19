@@ -13,6 +13,7 @@ from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
 import requests
+import shutil
 import tenacity
 
 from .compression import COMPRESSION_TYPES
@@ -113,6 +114,11 @@ class FileInterface(StorageInterface):
       and type(content) is str:
 
       content = content.encode('utf-8')
+
+    if hasattr(content, "read") and hasattr(content, "seek"):
+      with open(path, 'wb') as f:
+        shutil.copyfileobj(content, f)
+      return
 
     try:
       with open(path, 'wb') as f:

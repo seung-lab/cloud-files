@@ -2,7 +2,7 @@ from typing import (
   Any, Dict, Optional, 
   Union, List, Tuple, 
   Callable, Generator, 
-  Iterable, cast
+  Iterable, cast, BinaryIO
 )
 
 from queue import Queue
@@ -16,6 +16,7 @@ import os.path
 import platform
 import posixpath
 import re
+import shutil
 import types
 
 import orjson
@@ -24,7 +25,7 @@ from tqdm import tqdm
 
 import google.cloud.storage 
 
-from . import compression, paths
+from . import compression, paths, gcs
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
   mkdir, totalfn, toiter, scatter, jsonify, nvl, 
@@ -246,7 +247,8 @@ class CloudFiles:
     self, cloudpath:str, progress:bool = False, 
     green:bool = False, secrets:SecretsType = None, num_threads:int = 20,
     use_https:bool = False, endpoint:Optional[str] = None, 
-    parallel:ParallelType = 1, request_payer:Optional[str] = None
+    parallel:ParallelType = 1, request_payer:Optional[str] = None,
+    composite_upload_threshold:int = int(1e8)
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -258,6 +260,7 @@ class CloudFiles:
     self.green = bool(green)
     self.parallel = int(parallel)
     self.request_payer = request_payer
+    self.composite_upload_threshold = composite_upload_threshold
 
     self._path = paths.extract(cloudpath)
     if endpoint:
@@ -533,6 +536,25 @@ class CloudFiles:
           compress_level=file.get('compression_level', compression_level),
         )
 
+      if (
+        self.protocol == "gs" 
+        and (
+          (hasattr(content, "read") and hasattr(content, "seek"))
+          or (hasattr(content, "__len__") and len(content) > self.composite_upload_threshold)
+        )
+      ):
+        gcs.composite_upload(
+          f"{self.cloudpath}/{file['path']}", 
+          content, 
+          part_size=self.composite_upload_threshold,
+          secrets=self.secrets,
+          progress=self.progress,
+          content_type=content_type,
+          cache_control=cache_control,
+          storage_class=storage_class,
+        )
+        return
+
       with self._get_connection() as conn:
         conn.put_file(
           file_path=file['path'], 
@@ -567,7 +589,7 @@ class CloudFiles:
 
   def put(
     self, 
-    path:str, content:bytes, 
+    path:str, content:Union[BinaryIO,bytes], 
     content_type:str = None, compress:CompressType = None, 
     compression_level:Optional[int] = None, cache_control:Optional[str] = None,
     raw:bool = False, storage_class:Optional[str] = None
@@ -922,6 +944,21 @@ class CloudFiles:
 
     total = totalfn(paths, None)
 
+    # high performance, low memory shortcut
+    if (
+      cf_src._path.protocol == "file"
+      and self._path.protocol == "file"
+      and reencode is None
+    ):
+      srcdir = cf_src.cloudpath.replace("file://", "")
+      destdir = mkdir(self.cloudpath.replace("file://", ""))
+      for path in tqdm(paths, desc="Transferring", total=total, disable=(not self.progress)):
+        src = os.path.join(srcdir, path)
+        dest = os.path.join(destdir, path)
+        mkdir(os.path.dirname(dest))
+        shutil.copyfile(src, dest)
+      return
+
     with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
       for block_paths in sip(paths, block_size):
         downloaded = cf_src.get(block_paths, raw=True, progress=False)
@@ -936,7 +973,7 @@ class CloudFiles:
           for download in downloaded:
             download["path"] = posixpath.sep.join(download["path"].split(os.path.sep))
 
-        self.puts(downloaded, raw=True, progress=False)
+        self.puts(downloaded, raw=True, progress=False, compress=reencode)
         pbar.update(len(block_paths))
 
   def join(self, *paths:str) -> str:
@@ -983,9 +1020,17 @@ class CloudFiles:
     return self.list()
 
 class CloudFile:
-  def __init__(self, path:str, cache_meta:bool = False):
+  def __init__(
+    self, path:str, cache_meta:bool = False, 
+    secrets:SecretsType = None,
+    composite_upload_threshold:int = int(1e8),
+  ):
     path = paths.normalize(path)
-    self.cf = CloudFiles(paths.dirname(path))
+    self.cf = CloudFiles(
+      paths.dirname(path), 
+      secrets=secrets, 
+      composite_upload_threshold=composite_upload_threshold
+    )
     self.filename = paths.basename(path)
     
     self.cache_meta = cache_meta
@@ -1028,7 +1073,11 @@ class CloudFile:
   def put(self, content:bytes, *args, **kwargs):
     """Upload a file."""
     res = self.cf.put(self.filename, content, *args, **kwargs)
-    self._size = len(content)
+    if hasattr(content, "__len__"):
+      self._size = len(content)
+    else:
+      content.seek(0, os.SEEK_END)
+      self._size = content.tell()
     return res
 
   def put_json(self, content, *args, **kwargs):
