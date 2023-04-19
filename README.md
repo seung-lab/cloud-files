@@ -329,6 +329,20 @@ cloudfiles xfer init SOURCE DEST --db NAME_OF_JOB.db
 cloudfiles xfer execute NAME_OF_JOB.db # deletes db when done
 ```
 
+### composite upload (Google Cloud Storage)
+
+If a file is larger than 100MB (default), CloudFiles will split the file into 100MB parts and upload them as individual part files using the STANDARD storage class to minimize deletion costs. Once uploaded, the part files will be recursively merged in a tree 32 files at a time. After each merge, the part files will be deleted. The final file will have the default storage class for the bucket.
+
+If an upload is interrupted, the part files will remain and must be cleaned up. You can provide an open for binary reading file handle instead of a bytes object so that large files can be uploaded without overwhelming RAM. You can also adjust the composite threshold using `CloudFiles(..., composite_upload_threshold=int(2e8))` to for example, raise the threshold to 200MB.
+
+### mutli-part upload (S3)
+
+If a file is larger than 100MB (default), the S3 service will use multi-part upload. ou can provide an open for binary reading file handle instead of a bytes object so that large files can be uploaded without overwhelming RAM. You can also adjust the composite threshold using `CloudFiles(..., composite_upload_threshold=int(2e8))` to for example, raise the threshold to 200MB.  
+
+Unfinished upload parts remain on S3 (and cost money) unless you use a bucket lifecycle rule to remove them automatically.  
+
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
+
 ### transcode
 
 ```python
