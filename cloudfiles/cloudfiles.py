@@ -16,6 +16,7 @@ import os.path
 import platform
 import posixpath
 import re
+import shutil
 import types
 
 import orjson
@@ -942,6 +943,21 @@ class CloudFiles:
       paths = cf_src
 
     total = totalfn(paths, None)
+
+    # high performance, low memory shortcut
+    if (
+      cf_src._path.protocol == "file"
+      and self._path.protocol == "file"
+      and reencode is None
+    ):
+      srcdir = cf_src.cloudpath.replace("file://", "")
+      destdir = mkdir(self.cloudpath.replace("file://", ""))
+      for path in tqdm(paths, desc="Transferring", total=total, disable=(not self.progress)):
+        src = os.path.join(srcdir, path)
+        dest = os.path.join(destdir, path)
+        mkdir(os.path.dirname(dest))
+        shutil.copyfile(src, dest)
+      return
 
     with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
       for block_paths in sip(paths, block_size):

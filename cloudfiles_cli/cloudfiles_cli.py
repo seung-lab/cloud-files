@@ -9,6 +9,7 @@ import posixpath
 import pprint
 import os.path
 from tqdm import tqdm
+import shutil
 import sys
 
 # Below two lines fix MacOS warning on 
@@ -280,12 +281,21 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
     if use_stdout:
       _cp_stdout(srcpath, xferpaths)
       return
+
+    cfdest = CloudFiles(destpath, green=True, progress=progress)
+
+    if (
+      cfsrc.protocol == "file" 
+      and cfdest.protocol == "file" 
+      and compression is None
+    ):
+      shutil.copyfile(nsrc.replace("file://", ""), ndest.replace("file://", ""))
+      return
     
     downloaded = cfsrc.get(xferpaths, raw=True)
     if compression is not None:
       downloaded = transcode(downloaded, compression, in_place=True)
-
-    cfdest = CloudFiles(destpath, green=True, progress=progress)
+    
     if isdestdir:
       cfdest.put(os.path.basename(nsrc), downloaded, raw=True)
     else:
