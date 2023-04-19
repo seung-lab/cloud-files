@@ -2,7 +2,7 @@ from typing import (
   Any, Dict, Optional, 
   Union, List, Tuple, 
   Callable, Generator, 
-  Iterable, cast
+  Iterable, cast, BinaryIO
 )
 
 from queue import Queue
@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 import google.cloud.storage 
 
-from . import compression, paths
+from . import compression, paths, gcs
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
   mkdir, totalfn, toiter, scatter, jsonify, nvl, 
@@ -567,7 +567,7 @@ class CloudFiles:
 
   def put(
     self, 
-    path:str, content:bytes, 
+    path:str, content:Union[BinaryIO,bytes], 
     content_type:str = None, compress:CompressType = None, 
     compression_level:Optional[int] = None, cache_control:Optional[str] = None,
     raw:bool = False, storage_class:Optional[str] = None
@@ -587,6 +587,18 @@ class CloudFiles:
 
     Returns: number of files uploaded
     """
+    if (
+      self.protocol == "gs" 
+      and hasattr(content, "read") 
+      and hasattr(content, "seek")
+    ):
+      return gcs.composite_upload(
+        f"{self.cloudpath}/{path}", 
+        content, 
+        part_size=int(1e8),
+        content_type=content_type,
+      )
+
     return self.puts({
       'path': path,
       'content': content,
