@@ -246,7 +246,8 @@ class CloudFiles:
     self, cloudpath:str, progress:bool = False, 
     green:bool = False, secrets:SecretsType = None, num_threads:int = 20,
     use_https:bool = False, endpoint:Optional[str] = None, 
-    parallel:ParallelType = 1, request_payer:Optional[str] = None
+    parallel:ParallelType = 1, request_payer:Optional[str] = None,
+    composite_upload_threshold:int = int(1e8)
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -258,6 +259,7 @@ class CloudFiles:
     self.green = bool(green)
     self.parallel = int(parallel)
     self.request_payer = request_payer
+    self.composite_upload_threshold = composite_upload_threshold
 
     self._path = paths.extract(cloudpath)
     if endpoint:
@@ -591,16 +593,18 @@ class CloudFiles:
       self.protocol == "gs" 
       and (
         (hasattr(content, "read") and hasattr(content, "seek"))
-        or len(content) > int(1e8)
+        or len(content) > self.composite_upload_threshold
       )
     ):
       return gcs.composite_upload(
         f"{self.cloudpath}/{path}", 
         content, 
-        part_size=int(1e8),
+        part_size=self.composite_upload_threshold,
         secrets=self.secrets,
-        content_type=content_type,
         progress=self.progress,
+        content_type=content_type,
+        cache_control=cache_control,
+        storage_class=storage_class,
       )
 
     return self.puts({
@@ -1001,10 +1005,15 @@ class CloudFiles:
 class CloudFile:
   def __init__(
     self, path:str, cache_meta:bool = False, 
-    secrets:SecretsType = None
+    secrets:SecretsType = None,
+    composite_upload_threshold:int = int(1e8),
   ):
     path = paths.normalize(path)
-    self.cf = CloudFiles(paths.dirname(path), secrets=secrets)
+    self.cf = CloudFiles(
+      paths.dirname(path), 
+      secrets=secrets, 
+      composite_upload_threshold=composite_upload_threshold
+    )
     self.filename = paths.basename(path)
     
     self.cache_meta = cache_meta

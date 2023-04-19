@@ -18,7 +18,11 @@ from .typing import SecretsType
 
 MAX_COMPOSITE_PARTS = 32 # google specified restriction
 
-def merge(cf, bucket, path, depth, max_depth, num_parts, content_type):
+def merge(
+  cf, bucket, path, 
+  depth, max_depth, num_parts, 
+  content_type, cache_control, storage_class
+):
   subpath = posixpath.dirname(path.path)
   base_key = posixpath.basename(path.path)
 
@@ -37,6 +41,14 @@ def merge(cf, bucket, path, depth, max_depth, num_parts, content_type):
     destination = bucket.blob(node_name)
     if content_type:
       destination.content_type = content_type
+    if cache_control:
+      destination.cache_control = cache_control
+    if storage_class:
+      destination.storage_class = storage_class
+
+    # avoid early deletion fees
+    if depth < max_depth:
+      destination.storage_class = "STANDARD"
 
     destination.compose(
       [ bucket.blob(posixpath.join(subpath, key)) for key in subnames ]
@@ -49,7 +61,8 @@ def merge(cf, bucket, path, depth, max_depth, num_parts, content_type):
       cf, bucket, path, 
       depth+1, max_depth, 
       int(math.ceil(num_parts / MAX_COMPOSITE_PARTS)), 
-      content_type
+      content_type, cache_control,
+      storage_class
     )
 
 def composite_upload(
@@ -59,6 +72,8 @@ def composite_upload(
   secrets:SecretsType = None,
   content_type:Optional[str] = None,
   progress:bool = False,
+  cache_control:Optional[str] = None,
+  storage_class:Optional[str] = None,
 ) -> int:
   from .cloudfiles import CloudFiles, CloudFile
   
@@ -75,7 +90,10 @@ def composite_upload(
 
   if num_parts == 1:
     CloudFile(cloudpath, secrets=secrets).put(
-      handle.read(), content_type=content_type
+      handle.read(), 
+      content_type=content_type,
+      cache_control=cache_control,
+      storage_class=storage_class,
     )
     return 1
 
@@ -98,7 +116,8 @@ def composite_upload(
     for i, binary in enumerate(partiter())
   )
 
-  cf.puts(parts, total=num_parts)
+  # avoid early deletion fees w/ standard storage class
+  cf.puts(parts, total=num_parts, storage_class="STANDARD")
 
   tree_depth = int(math.ceil(math.log2(num_parts) / math.log2(MAX_COMPOSITE_PARTS)))
   
@@ -115,7 +134,8 @@ def composite_upload(
   merge(
     cf, bucket, path, 
     0, tree_depth - 1, num_parts, 
-    content_type
+    content_type, cache_control,
+    storage_class
   )
 
   return 1
