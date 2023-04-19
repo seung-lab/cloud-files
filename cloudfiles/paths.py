@@ -9,7 +9,7 @@ import urllib.parse
 from typing import Tuple, Optional
 
 from .exceptions import UnsupportedProtocolError
-from .lib import yellow, toabs
+from .lib import yellow, toabs, jsonify, mkdir
 from .secrets import CLOUD_FILES_DIR
 
 ExtractedPath = namedtuple('ExtractedPath', 
@@ -43,7 +43,6 @@ def update_aliases_from_file():
       aliases = orjson.loads(f.read())
 
   ALIASES_FROM_FILE = aliases
-
   for alias, val in aliases.items():
     add_alias(alias, val["host"])
 
@@ -94,13 +93,43 @@ def add_alias(alias:str, host:str):
   ALLOWED_PROTOCOLS = BASE_ALLOWED_PROTOCOLS + list(ALIASES.keys())
   CLOUDPATH_REGEXP = re.compile(mkregexp())
 
+def add_persistent_alias(alias:str, host:str):
+  """Adds alias and updates alias file."""
+  global ALIASES_FROM_FILE
+  
+  update_aliases_from_file()
+  add_alias(alias, host)
+  ALIASES_FROM_FILE[alias] = { "host": host }
+  update_persistent_aliases()
+
+def remove_persistent_alias(alias:str):
+  global ALIASES_FROM_FILE
+
+  update_aliases_from_file()
+  remove_alias(alias)
+  ALIASES_FROM_FILE.pop(alias, None)
+  update_persistent_aliases()
+
+def update_persistent_aliases():
+  global ALIASES_FROM_FILE
+  global ALIAS_FILE
+  
+  aliases = { 
+    alias: { "host": host } 
+    for alias, host in ALIASES_FROM_FILE.items()
+  }
+
+  mkdir(os.path.dirname(ALIAS_FILE))
+  with open(ALIAS_FILE, "wb") as f:
+    f.write(jsonify(ALIASES_FROM_FILE))
+
 def remove_alias(alias:str):
   global ALIASES
   global ALLOWED_PROTOCOLS
   global BASE_ALLOWED_PROTOCOLS
   global CLOUDPATH_REGEXP
 
-  del ALIASES[alias]
+  ALIASES.pop(alias, None)
   ALLOWED_PROTOCOLS = BASE_ALLOWED_PROTOCOLS + list(ALIASES.keys())
   CLOUDPATH_REGEXP = re.compile(mkregexp())  
 
