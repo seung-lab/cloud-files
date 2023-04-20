@@ -945,37 +945,66 @@ class CloudFiles:
 
     total = totalfn(paths, None)
 
-    # high performance, low memory shortcut
-    if (
-      cf_src._path.protocol == "file"
-      and self._path.protocol == "file"
-      and reencode is None
-    ):
-      srcdir = cf_src.cloudpath.replace("file://", "")
-      destdir = mkdir(self.cloudpath.replace("file://", ""))
-      for path in tqdm(paths, desc="Transferring", total=total, disable=(not self.progress)):
-        src = os.path.join(srcdir, path)
-        dest = os.path.join(destdir, path)
-        mkdir(os.path.dirname(dest))
-        shutil.copyfile(src, dest)
-      return
-
     with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
-      for block_paths in sip(paths, block_size):
-        downloaded = cf_src.get(block_paths, raw=True, progress=False)
-        if reencode is not None:
-          downloaded = compression.transcode(downloaded, reencode, in_place=True)
+      # high performance, low memory shortcut for local to local
+      if (
+        cf_src._path.protocol == "file"
+        and self._path.protocol == "file"
+        and reencode is None
+      ):
+        srcdir = cf_src.cloudpath.replace("file://", "")
+        destdir = mkdir(self.cloudpath.replace("file://", ""))
+        for path in paths:
+          src = os.path.join(srcdir, path)
+          dest = os.path.join(destdir, path)
+          mkdir(os.path.dirname(dest))
+          shutil.copyfile(src, dest)
+          pbar.update(1)
+      elif ( # memory efficient for uploading large files
+        cf_src._path.protocol == "file"
+        and self._path.protocol != "file"
+        and reencode is None
+      ):
+        srcdir = cf_src.cloudpath.replace("file://", "")
+        for block_paths in sip(paths, block_size):
+          to_upload = []
+          for path in block_paths:
+            handle, encoding = self._get_file_handle(os.path.join(srcdir, path))
+            to_upload.append({
+              "path": posixpath.sep.join(path.split(os.path.sep)),
+              "content": handle,
+              "compress": encoding,
+            })
+          self.puts(to_upload, raw=True, progress=False)
+          pbar.update(len(block_paths))
+      else:
+        for block_paths in sip(paths, block_size):
+          downloaded = cf_src.get(block_paths, raw=True, progress=False)
+          if reencode is not None:
+            downloaded = compression.transcode(downloaded, reencode, in_place=True)
+          self.puts(downloaded, raw=True, progress=False, compress=reencode)
+          pbar.update(len(block_paths))
 
-        if (
-              cf_src._path.protocol == "file"
-          and self._path.protocol != "file"
-          and os.path.sep != posixpath.sep
-        ):
-          for download in downloaded:
-            download["path"] = posixpath.sep.join(download["path"].split(os.path.sep))
+  def _get_file_handle(self, path):
+    if os.path.exists(path + '.gz'):
+      encoding = "gzip"
+      path += '.gz'
+    elif os.path.exists(path + '.br'):
+      encoding = "br"
+      path += ".br"
+    elif os.path.exists(path + '.zstd'):
+      encoding = "zstd"
+      path += ".zstd"
+    elif os.path.exists(path + '.xz'):
+      encoding = "xz" # aka lzma
+      path += ".xz"
+    elif os.path.exists(path + '.bz2'):
+      encoding = "bzip2"
+      path += ".bz2"
+    else:
+      encoding = None
 
-        self.puts(downloaded, raw=True, progress=False, compress=reencode)
-        pbar.update(len(block_paths))
+    return open(path, "rb"), encoding
 
   def join(self, *paths:str) -> str:
     """
