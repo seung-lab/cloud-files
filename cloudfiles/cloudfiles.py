@@ -969,13 +969,17 @@ class CloudFiles:
         for block_paths in sip(paths, block_size):
           to_upload = []
           for path in block_paths:
-            handle, encoding = self._get_file_handle(os.path.join(srcdir, path))
+            handle_path, encoding = FileInterface.get_encoded_file_path(
+              os.path.join(srcdir, path)
+            )
             to_upload.append({
               "path": posixpath.sep.join(path.split(os.path.sep)),
-              "content": handle,
+              "content": open(handle_path, "rb"),
               "compress": encoding,
             })
           self.puts(to_upload, raw=True, progress=False)
+          for item in to_upload:
+            item["content"].close()
           pbar.update(len(block_paths))
       else:
         for block_paths in sip(paths, block_size):
@@ -984,27 +988,6 @@ class CloudFiles:
             downloaded = compression.transcode(downloaded, reencode, in_place=True)
           self.puts(downloaded, raw=True, progress=False, compress=reencode)
           pbar.update(len(block_paths))
-
-  def _get_file_handle(self, path):
-    if os.path.exists(path + '.gz'):
-      encoding = "gzip"
-      path += '.gz'
-    elif os.path.exists(path + '.br'):
-      encoding = "br"
-      path += ".br"
-    elif os.path.exists(path + '.zstd'):
-      encoding = "zstd"
-      path += ".zstd"
-    elif os.path.exists(path + '.xz'):
-      encoding = "xz" # aka lzma
-      path += ".xz"
-    elif os.path.exists(path + '.bz2'):
-      encoding = "bzip2"
-      path += ".bz2"
-    else:
-      encoding = None
-
-    return open(path, "rb"), encoding
 
   def join(self, *paths:str) -> str:
     """

@@ -85,6 +85,28 @@ class FileInterface(StorageInterface):
   def get_path_to_file(self, file_path):
     return os.path.join(self._path.path, file_path)
 
+  @classmethod
+  def get_encoded_file_path(kls, path):
+    if os.path.exists(path + '.gz'):
+      encoding = "gzip"
+      path += '.gz'
+    elif os.path.exists(path + '.br'):
+      encoding = "br"
+      path += ".br"
+    elif os.path.exists(path + '.zstd'):
+      encoding = "zstd"
+      path += ".zstd"
+    elif os.path.exists(path + '.xz'):
+      encoding = "xz" # aka lzma
+      path += ".xz"
+    elif os.path.exists(path + '.bz2'):
+      encoding = "bzip2"
+      path += ".bz2"
+    else:
+      encoding = None
+
+    return path, encoding
+
   def put_file(
     self, file_path, content, 
     content_type, compress, 
@@ -130,23 +152,7 @@ class FileInterface(StorageInterface):
   def head(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    if os.path.exists(path + '.gz'):
-      encoding = "gzip"
-      path += '.gz'
-    elif os.path.exists(path + '.br'):
-      encoding = "br"
-      path += ".br"
-    elif os.path.exists(path + '.zstd'):
-      encoding = "zstd"
-      path += ".zstd"
-    elif os.path.exists(path + '.xz'):
-      encoding = "xz" # aka lzma
-      path += ".xz"
-    elif os.path.exists(path + '.bz2'):
-      encoding = "bzip2"
-      path += ".bz2"
-    else:
-      encoding = None   
+    path, encoding = self.get_encoded_file_path(path)
 
     try:
       statinfo = os.stat(path)
@@ -171,23 +177,7 @@ class FileInterface(StorageInterface):
   def get_file(self, file_path, start=None, end=None):
     path = self.get_path_to_file(file_path)
 
-    if os.path.exists(path + '.gz'):
-      encoding = "gzip"
-      path += '.gz'
-    elif os.path.exists(path + '.br'):
-      encoding = "br"
-      path += ".br"
-    elif os.path.exists(path + '.zstd'):
-      encoding = "zstd"
-      path += ".zstd"
-    elif os.path.exists(path + '.xz'):
-      encoding = "xz" # aka lzma
-      path += ".xz"
-    elif os.path.exists(path + '.bz2'):
-      encoding = "bzip2"
-      path += ".bz2"
-    else:
-      encoding = None
+    path, encoding = self.get_encoded_file_path(path)
 
     try:
       with open(path, 'rb') as f:
@@ -226,16 +216,12 @@ class FileInterface(StorageInterface):
 
   def delete_file(self, file_path):
     path = self.get_path_to_file(file_path)
-    if os.path.exists(path):
+    path, encoding = self.get_encoded_file_path(path)
+
+    try:
       os.remove(path)
-    elif os.path.exists(path + '.gz'):
-      os.remove(path + '.gz')
-    elif os.path.exists(path + ".br"):
-      os.remove(path + ".br")
-    elif os.path.exists(path + '.xz'):
-      os.remove(path + ".xz")
-    elif os.path.exists(path + '.bz2'):
-      os.remove(path + ".bz2")
+    except FileNotFoundError:
+      pass
 
   def delete_files(self, file_paths):
     for path in file_paths:
