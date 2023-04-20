@@ -995,11 +995,13 @@ class CloudFiles:
           downloaded = cf_src.get(block_paths, raw=True, progress=False)
           if reencode is not None:
             downloaded = compression.transcode(downloaded, reencode, in_place=True)
-          for item in downloaded:
-            if "dest_path" in item:
-              item["path"] = item["dest_path"]
-              del item["dest_path"]
-          self.puts(downloaded, raw=True, progress=False, compress=reencode)
+          def renameiter():
+            for item in downloaded:
+              if "dest_path" in item:
+                item["path"] = item["dest_path"]
+                del item["dest_path"]
+              yield item
+          self.puts(renameiter(), raw=True, progress=False, compress=reencode)
           pbar.update(len(block_paths))
 
   def __transfer_file_to_file(
