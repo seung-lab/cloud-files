@@ -328,7 +328,10 @@ class MemoryInterface(StorageInterface):
 
       content = content.encode('utf-8')
 
-    self._data[path] = content
+    if hasattr(content, "read") and hasattr(content, "seek"):
+      self._data[path] = content.read()
+    else:
+      self._data[path] = content
 
   def get_file(self, file_path, start=None, end=None):
     path = self.get_path_to_file(file_path)
