@@ -927,9 +927,29 @@ class CloudFiles:
     to this CloudFiles in batches sized in the 
     number of files.
 
+    Where possible (file->file, file->cloud, gs->gs, and s3->s3),
+    this function will attempt to improve performance by using
+    specialized functions to perform the transfer.
+
+      - file->file: Uses OS functions for fast file copying (Python 3.8+)
+      - file->cloud: Uses file handles to allow low-memory
+        multipart upload
+      - gs->gs: Uses GCS copy API to minimize data movement
+      - s3->s3: Uses boto s3 copy API to minimize data movement
+
     cf_src: another CloudFiles instance or cloudpath 
     paths: if None transfer all files from src, else if
       an iterable, transfer only these files.
+
+      A path is an iterable that contains str, dict, tuple, or list
+      elements. If dict, by adding the "dest_path" key, you can 
+      rename objects being copied. With tuple or list, the first
+      element of the pair is the source key, the second element
+      is the destination key.
+
+      A CloudFiles object may be supplied as a paths object
+      which will trigger the listing operation.
+
     block_size: number of files to transfer per a batch
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
@@ -958,15 +978,30 @@ class CloudFiles:
         and reencode is None
       ):
         self.__transfer_file_to_remote(cf_src, self, paths, total, pbar, block_size)
+      elif (
+        (
+          (cf_src.protocol == "gs" and self.protocol == "gs")
+          or (cf_src.protocol == "s3" and self.protocol == "s3")
+        )
+        and reencode is None
+      ):
+        self.__transfer_cloud_internal(cf_src, self, paths, total, pbar, block_size)
       else:
         for block_paths in sip(paths, block_size):
           downloaded = cf_src.get(block_paths, raw=True, progress=False)
           if reencode is not None:
             downloaded = compression.transcode(downloaded, reencode, in_place=True)
+          for item in downloaded:
+            if "dest_path" in item:
+              item["path"] = item["dest_path"]
+              del item["dest_path"]
           self.puts(downloaded, raw=True, progress=False, compress=reencode)
           pbar.update(len(block_paths))
 
-  def __transfer_file_to_file(self, cf_src, cf_dest, paths, total, pbar, block_size):
+  def __transfer_file_to_file(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size
+  ):
     """
     shutil.copyfile, starting in Python 3.8, uses
     special OS kernel functions to accelerate file copies
@@ -974,13 +1009,23 @@ class CloudFiles:
     srcdir = cf_src.cloudpath.replace("file://", "")
     destdir = mkdir(cf_dest.cloudpath.replace("file://", ""))
     for path in paths:
-      src = os.path.join(srcdir, path)
-      dest = os.path.join(destdir, path)
+      if isinstance(path, dict):
+        src = os.path.join(srcdir, path["path"])
+        dest = os.path.join(destdir, path["dest_path"])
+      elif isinstance(path, (tuple,list)):
+        src = os.path.join(srcdir, path[0]) 
+        dest = os.path.join(destdir, path[1])
+      else:
+        src = os.path.join(srcdir, path)
+        dest = os.path.join(destdir, path)
       mkdir(os.path.dirname(dest))
       shutil.copyfile(src, dest) # avoids user space
       pbar.update(1)
 
-  def __transfer_file_to_remote(self, cf_src, cf_dest, paths, total, pbar, block_size):
+  def __transfer_file_to_remote(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size
+  ):
     """
     Provide file handles instead of slurped binaries 
     so that GCS and S3 can do chunked multi-part uploads 
@@ -990,11 +1035,20 @@ class CloudFiles:
     for block_paths in sip(paths, block_size):
       to_upload = []
       for path in block_paths:
+        if isinstance(path, dict):
+          src_path = path["path"]
+          dest_path = path.get("dest_path", path["path"])
+        elif isinstance(path, (tuple,list)):
+          src_path, dest_path = path[0], path[1]
+        else:
+          src_path = path
+          dest_path = posixpath.sep.join(path.split(os.path.sep))
+
         handle_path, encoding = FileInterface.get_encoded_file_path(
-          os.path.join(srcdir, path)
+          os.path.join(srcdir, src_path)
         )
         to_upload.append({
-          "path": posixpath.sep.join(path.split(os.path.sep)),
+          "path": dest_path,
           "content": open(handle_path, "rb"),
           "compress": encoding,
         })
@@ -1002,6 +1056,36 @@ class CloudFiles:
       for item in to_upload:
         item["content"].close()
       pbar.update(len(block_paths))
+
+  def __transfer_cloud_internal(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size
+  ):
+    """For performing internal transfers in gs or s3."""
+    def thunk_copy(key):
+      with self._get_connection() as conn:
+        if isinstance(key, dict):
+          dest_key = key.get("dest_path", key["path"])
+          src_key = key["path"]
+        elif isinstance(key, (tuple,list)):
+          src_key, dest_key = key[0], key[1]
+        else:
+          src_key = key
+          dest_key = key
+
+        dest_key = posixpath.join(cf_dest._path.path, dest_key)
+        conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
+      return 1
+
+    results = schedule_jobs(
+      fns=( partial(thunk_copy, path) for path in paths ),
+      progress=pbar,
+      concurrency=self.num_threads,
+      total=totalfn(paths, total),
+      green=self.green,
+      count_return=True,
+    )
+    return len(results)
 
   def join(self, *paths:str) -> str:
     """

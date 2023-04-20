@@ -284,25 +284,15 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
 
     cfdest = CloudFiles(destpath, green=True, progress=progress)
 
-    # high performance local copy
-    if (
-      cfsrc.protocol == "file" 
-      and cfdest.protocol == "file" 
-      and compression is None
-    ):
-      if isdestdir:
-        ndest = os.path.join(ndest, os.path.basename(nsrc))
-      shutil.copyfile(nsrc.replace("file://", ""), ndest.replace("file://", ""))
-      return
-    
-    downloaded = cfsrc.get([ xferpaths ], raw=True)
-    if compression is not None:
-      downloaded = next(transcode(downloaded, compression, in_place=True))
-    
     if isdestdir:
-      cfdest.put(os.path.basename(nsrc), downloaded["content"], raw=True, compress=compression)
+      new_path = os.path.basename(nsrc)
     else:
-      cfdest.put(os.path.basename(ndest), downloaded["content"], raw=True, compress=compression)
+      new_path = os.path.basename(ndest)
+
+    cfsrc.transfer_to(cfdest, paths=[{
+      "path": xferpaths,
+      "dest_path": new_path,
+    }], reencode=compression)
 
 def _cp(src, dst, compression, progress, block_size, paths):
   cfsrc = CloudFiles(src, green=True, progress=progress)

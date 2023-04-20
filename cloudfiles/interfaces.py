@@ -432,7 +432,8 @@ class GoogleCloudStorageInterface(StorageInterface):
     self._path = path
     self._request_payer = request_payer
     self._bucket = GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)].get_connection(secrets, None)
-    
+    self._secrets = secrets
+
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
 
@@ -462,6 +463,15 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     blob.md5_hash = md5(content)
     blob.upload_from_string(content, content_type)
+
+  @retry
+  def copy_file(self, src_path, dest_bucket, dest_key):
+    key = self.get_path_to_file(src_path)
+    source_blob = self._bucket.blob( key )
+    dest_bucket = GC_POOL[GCloudBucketPoolParams(dest_bucket, self._request_payer)].get_connection(self._secrets, None)
+    self._bucket.copy_blob(
+      source_blob, dest_bucket, dest_key
+    )
 
   @retry
   def get_file(self, file_path, start=None, end=None):
