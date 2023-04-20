@@ -724,11 +724,16 @@ class S3Interface(StorageInterface):
 
     self._request_payer = request_payer
     self._path = path
-
-    service = path.alias or 's3'
-    self._conn = S3_POOL[S3ConnectionPoolParams(service, path.bucket, request_payer)].get_connection(secrets, path.host)
+    self._secrets = secrets
+    self._conn = self._get_bucket(path.bucket)
 
     self.composite_upload_threshold = composite_upload_threshold
+
+  def _get_bucket(self, bucket_name):
+    service = self._path.alias or 's3'
+    return S3_POOL[S3ConnectionPoolParams(service, bucket_name, self._request_payer)].get_connection(
+      self._secrets, self._path.host
+    )
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
@@ -781,6 +786,16 @@ class S3Interface(StorageInterface):
       attrs['Key'] = key
       attrs['ContentMD5'] = md5(content)
       self._conn.put_object(**attrs)
+
+  @retry
+  def copy_file(self, src_path, dest_bucket_name, dest_key):
+    key = self.get_path_to_file(src_path)
+    dest_bucket = self._get_bucket(dest_bucket_name)
+    copy_source = {
+      'Bucket': self._path.bucket,
+      'Key': src_path,
+    }
+    dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
 
   @retry
   def get_file(self, file_path, start=None, end=None):

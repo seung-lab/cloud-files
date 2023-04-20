@@ -981,7 +981,11 @@ class CloudFiles:
       elif (
         (
           (cf_src.protocol == "gs" and self.protocol == "gs")
-          or (cf_src.protocol == "s3" and self.protocol == "s3")
+          or (
+            cf_src.protocol == "s3" and self.protocol == "s3"
+            and cf_src._path.host == self._path.host
+            and cf_src._path.alias == self._path.alias
+          )
         )
         and reencode is None
       ):
