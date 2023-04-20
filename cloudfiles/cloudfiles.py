@@ -947,44 +947,17 @@ class CloudFiles:
 
     with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
       if (
-        cf_src._path.protocol == "file"
-        and self._path.protocol == "file"
+        cf_src.protocol == "file"
+        and self.protocol == "file"
         and reencode is None
       ):
-        # shutil.copyfile, starting in Python 3.8, uses
-        # special OS kernel functions to accelerate file copies
-        srcdir = cf_src.cloudpath.replace("file://", "")
-        destdir = mkdir(self.cloudpath.replace("file://", ""))
-        for path in paths:
-          src = os.path.join(srcdir, path)
-          dest = os.path.join(destdir, path)
-          mkdir(os.path.dirname(dest))
-          shutil.copyfile(src, dest) # avoids user space
-          pbar.update(1)
+        self.__transfer_file_to_file(cf_src, self, paths, total, pbar, block_size)
       elif (
-        cf_src._path.protocol == "file"
-        and self._path.protocol != "file"
+        cf_src.protocol == "file"
+        and self.protocol != "file"
         and reencode is None
       ):
-        # Provide file handles instead of slurped binaries 
-        # so that GCS and S3 can do chunked multi-part uploads 
-        # if necessary.
-        srcdir = cf_src.cloudpath.replace("file://", "")
-        for block_paths in sip(paths, block_size):
-          to_upload = []
-          for path in block_paths:
-            handle_path, encoding = FileInterface.get_encoded_file_path(
-              os.path.join(srcdir, path)
-            )
-            to_upload.append({
-              "path": posixpath.sep.join(path.split(os.path.sep)),
-              "content": open(handle_path, "rb"),
-              "compress": encoding,
-            })
-          self.puts(to_upload, raw=True, progress=False)
-          for item in to_upload:
-            item["content"].close()
-          pbar.update(len(block_paths))
+        self.__transfer_file_to_remote(cf_src, self, paths, total, pbar, block_size)
       else:
         for block_paths in sip(paths, block_size):
           downloaded = cf_src.get(block_paths, raw=True, progress=False)
@@ -992,6 +965,43 @@ class CloudFiles:
             downloaded = compression.transcode(downloaded, reencode, in_place=True)
           self.puts(downloaded, raw=True, progress=False, compress=reencode)
           pbar.update(len(block_paths))
+
+  def __transfer_file_to_file(self, cf_src, cf_dest, paths, total, pbar, block_size):
+    """
+    shutil.copyfile, starting in Python 3.8, uses
+    special OS kernel functions to accelerate file copies
+    """
+    srcdir = cf_src.cloudpath.replace("file://", "")
+    destdir = mkdir(cf_dest.cloudpath.replace("file://", ""))
+    for path in paths:
+      src = os.path.join(srcdir, path)
+      dest = os.path.join(destdir, path)
+      mkdir(os.path.dirname(dest))
+      shutil.copyfile(src, dest) # avoids user space
+      pbar.update(1)
+
+  def __transfer_file_to_remote(self, cf_src, cf_dest, paths, total, pbar, block_size):
+    """
+    Provide file handles instead of slurped binaries 
+    so that GCS and S3 can do chunked multi-part uploads 
+    if necessary.
+    """
+    srcdir = cf_src.cloudpath.replace("file://", "")
+    for block_paths in sip(paths, block_size):
+      to_upload = []
+      for path in block_paths:
+        handle_path, encoding = FileInterface.get_encoded_file_path(
+          os.path.join(srcdir, path)
+        )
+        to_upload.append({
+          "path": posixpath.sep.join(path.split(os.path.sep)),
+          "content": open(handle_path, "rb"),
+          "compress": encoding,
+        })
+      cf_dest.puts(to_upload, raw=True, progress=False)
+      for item in to_upload:
+        item["content"].close()
+      pbar.update(len(block_paths))
 
   def join(self, *paths:str) -> str:
     """
