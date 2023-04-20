@@ -946,25 +946,29 @@ class CloudFiles:
     total = totalfn(paths, None)
 
     with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
-      # high performance, low memory shortcut for local to local
       if (
         cf_src._path.protocol == "file"
         and self._path.protocol == "file"
         and reencode is None
       ):
+        # shutil.copyfile, starting in Python 3.8, uses
+        # special OS kernel functions to accelerate file copies
         srcdir = cf_src.cloudpath.replace("file://", "")
         destdir = mkdir(self.cloudpath.replace("file://", ""))
         for path in paths:
           src = os.path.join(srcdir, path)
           dest = os.path.join(destdir, path)
           mkdir(os.path.dirname(dest))
-          shutil.copyfile(src, dest)
+          shutil.copyfile(src, dest) # avoids user space
           pbar.update(1)
-      elif ( # memory efficient for uploading large files
+      elif (
         cf_src._path.protocol == "file"
         and self._path.protocol != "file"
         and reencode is None
       ):
+        # Provide file handles instead of slurped binaries 
+        # so that GCS and S3 can do chunked multi-part uploads 
+        # if necessary.
         srcdir = cf_src.cloudpath.replace("file://", "")
         for block_paths in sip(paths, block_size):
           to_upload = []
