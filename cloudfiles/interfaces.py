@@ -793,7 +793,7 @@ class S3Interface(StorageInterface):
     dest_bucket = self._get_bucket(dest_bucket_name)
     copy_source = {
       'Bucket': self._path.bucket,
-      'Key': src_path,
+      'Key': key,
     }
     dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
 

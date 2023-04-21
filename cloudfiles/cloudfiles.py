@@ -1072,7 +1072,7 @@ class CloudFiles:
   ):
     """For performing internal transfers in gs or s3."""
     def thunk_copy(key):
-      with self._get_connection() as conn:
+      with cf_src._get_connection() as conn:
         if isinstance(key, dict):
           dest_key = key.get("dest_path", key["path"])
           src_key = key["path"]
