@@ -1016,7 +1016,7 @@ class CloudFiles:
           for path in block_paths:
             if isinstance(path, dict):
               if "dest_path" in path:
-                path["tags"] = { "dest_path": dest_path }
+                path["tags"] = { "dest_path": path["dest_path"] }
           downloaded = cf_src.get(block_paths, raw=True, progress=False)
           if reencode is not None:
             downloaded = compression.transcode(downloaded, reencode, in_place=True)
