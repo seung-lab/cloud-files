@@ -14,7 +14,7 @@ import tenacity
 from .secrets import google_credentials, aws_credentials
 from .exceptions import UnsupportedProtocolError
 
-MEMORY_DATA:Dict[str,bytes] = {}
+MEMORY_DATA:Dict[str,Dict[str,bytes]] = {}
 
 retry = tenacity.retry(
   reraise=True, 
@@ -163,5 +163,7 @@ class MemoryPool(ConnectionPool):
     super(MemoryPool, self).__init__()
 
   def _create_connection(self, secrets=None, endpoint=None):
-    return self.data
+    if self.bucket not in self.data:
+      self.data[self.bucket] = {}
+    return self.data[self.bucket]
 
