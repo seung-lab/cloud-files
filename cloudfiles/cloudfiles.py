@@ -903,9 +903,29 @@ class CloudFiles:
     to the destination CloudFiles in batches sized 
     in the number of files.
 
-    cf_dest: another CloudFiles instance or a cloudpath
+    Where possible (file->file, file->cloud, gs->gs, and s3->s3),
+    this function will attempt to improve performance by using
+    specialized functions to perform the transfer.
+
+      - file->file: Uses OS functions for fast file copying (Python 3.8+)
+      - file->cloud: Uses file handles to allow low-memory
+        multipart upload
+      - gs->gs: Uses GCS copy API to minimize data movement
+      - s3->s3: Uses boto s3 copy API to minimize data movement
+
+    cf_src: another CloudFiles instance or cloudpath 
     paths: if None transfer all files from src, else if
       an iterable, transfer only these files.
+
+      A path is an iterable that contains str, dict, tuple, or list
+      elements. If dict, by adding the "dest_path" key, you can 
+      rename objects being copied. With tuple or list, the first
+      element of the pair is the source key, the second element
+      is the destination key.
+
+      A CloudFiles object may be supplied as a paths object
+      which will trigger the listing operation.
+
     block_size: number of files to transfer per a batch
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
