@@ -9,6 +9,7 @@ import re
 
 import boto3
 import botocore
+import gevent.monkey
 from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
@@ -779,6 +780,13 @@ class S3Interface(StorageInterface):
     if not multipart and len(content) > int(self.composite_upload_threshold):
       content = BytesIO(content)
       multipart = True
+
+    # gevent monkey patching has a bad interaction with s3's use
+    # of concurrent.futures.ThreadPoolExecutor. Just disable multipart
+    # upload when monkeypatching is in effect.
+    if multipart and (len(gevent.monkey.saved) > 0):
+      multipart = False
+      content = content.read()
 
     if multipart:
       self._conn.upload_fileobj(content, self._path.bucket, key, ExtraArgs=attrs)
