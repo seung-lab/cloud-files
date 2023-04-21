@@ -1012,25 +1012,40 @@ class CloudFiles:
       ):
         self.__transfer_cloud_internal(cf_src, self, paths, total, pbar, block_size)
       else:
-        for block_paths in sip(paths, block_size):
-          for path in block_paths:
-            if isinstance(path, dict):
-              if "dest_path" in path:
-                path["tags"] = { "dest_path": path["dest_path"] }
-          downloaded = cf_src.get(block_paths, raw=True, progress=False)
-          if reencode is not None:
-            downloaded = compression.transcode(downloaded, reencode, in_place=True)
-          def renameiter():
-            for item in downloaded:
-              if (
-                item["tags"] is not None
-                and "dest_path" in item["tags"]
-              ):
-                item["path"] = item["tags"]["dest_path"]
-                del item["tags"]["dest_path"]
-              yield item
-          self.puts(renameiter(), raw=True, progress=False, compress=reencode)
-          pbar.update(len(block_paths))
+        self.__transfer_general(cf_src, self, paths, total, pbar, block_size, reencode)
+
+  def __transfer_general(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size,
+    reencode
+  ):
+    """
+    Downloads the file into RAM, transforms
+    the data, and uploads it. This is the slowest and
+    most memory intensive transfer variant, and 
+    doesn't avoid any data movement, but it can handle any
+    pair of endpoints as well as transcoding compression
+    formats.
+    """
+    for block_paths in sip(paths, block_size):
+      for path in block_paths:
+        if isinstance(path, dict):
+          if "dest_path" in path:
+            path["tags"] = { "dest_path": path["dest_path"] }
+      downloaded = cf_src.get(block_paths, raw=True, progress=False)
+      if reencode is not None:
+        downloaded = compression.transcode(downloaded, reencode, in_place=True)
+      def renameiter():
+        for item in downloaded:
+          if (
+            item["tags"] is not None
+            and "dest_path" in item["tags"]
+          ):
+            item["path"] = item["tags"]["dest_path"]
+            del item["tags"]["dest_path"]
+          yield item
+      self.puts(renameiter(), raw=True, progress=False, compress=reencode)
+      pbar.update(len(block_paths))
 
   def __transfer_file_to_file(
     self, cf_src, cf_dest, paths, 
@@ -1062,8 +1077,8 @@ class CloudFiles:
   ):
     """
     Provide file handles instead of slurped binaries 
-    so that GCS and S3 can do chunked multi-part uploads 
-    if necessary.
+    so that GCS and S3 can do low-memory chunked multi-part 
+    uploads if necessary.
     """
     srcdir = cf_src.cloudpath.replace("file://", "")
     for block_paths in sip(paths, block_size):
@@ -1093,7 +1108,14 @@ class CloudFiles:
     self, cf_src, cf_dest, paths, 
     total, pbar, block_size
   ):
-    """For performing internal transfers in gs or s3."""
+    """
+    For performing internal transfers in gs or s3.
+    This avoids a large amount of data movement as 
+    otherwise the client would have to download and
+    then upload again. If the client is located outside
+    of the cloud, this is much slower and more expensive
+    than necessary.
+    """
     def thunk_copy(key):
       with cf_src._get_connection() as conn:
         if isinstance(key, dict):
