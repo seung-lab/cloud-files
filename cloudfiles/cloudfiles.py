@@ -1039,9 +1039,6 @@ class CloudFiles:
       if isinstance(path, dict):
         src = os.path.join(srcdir, path["path"])
         dest = os.path.join(destdir, path["dest_path"])
-      elif isinstance(path, (tuple,list)):
-        src = os.path.join(srcdir, path[0]) 
-        dest = os.path.join(destdir, path[1])
       else:
         src = os.path.join(srcdir, path)
         dest = os.path.join(destdir, path)
@@ -1068,8 +1065,6 @@ class CloudFiles:
         if isinstance(path, dict):
           src_path = path["path"]
           dest_path = path.get("dest_path", path["path"])
-        elif isinstance(path, (tuple,list)):
-          src_path, dest_path = path[0], path[1]
         else:
           src_path = path
           dest_path = posixpath.sep.join(path.split(os.path.sep))
@@ -1097,8 +1092,6 @@ class CloudFiles:
         if isinstance(key, dict):
           dest_key = key.get("dest_path", key["path"])
           src_key = key["path"]
-        elif isinstance(key, (tuple,list)):
-          src_key, dest_key = key[0], key[1]
         else:
           src_key = key
           dest_key = key
