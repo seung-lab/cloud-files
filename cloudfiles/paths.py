@@ -329,7 +329,7 @@ def extract(cloudpath:str, windows=None) -> ExtractedPath:
     cloudpath = toabs(cloudpath)
 
   bucket = None
-  if protocol in ('gs', 's3', 'matrix'):
+  if protocol in ('gs', 's3', 'matrix', 'mem'):
     match = re.match(bucket_re, cloudpath)
     if not match:
       raise error
