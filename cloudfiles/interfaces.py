@@ -9,6 +9,7 @@ import re
 
 import boto3
 import botocore
+import gevent.monkey
 from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
@@ -85,6 +86,30 @@ class FileInterface(StorageInterface):
   def get_path_to_file(self, file_path):
     return os.path.join(self._path.path, file_path)
 
+  @classmethod
+  def get_encoded_file_path(kls, path):
+    if os.path.exists(path):
+      encoding = None
+    elif os.path.exists(path + '.gz'):
+      encoding = "gzip"
+      path += '.gz'
+    elif os.path.exists(path + '.br'):
+      encoding = "br"
+      path += ".br"
+    elif os.path.exists(path + '.zstd'):
+      encoding = "zstd"
+      path += ".zstd"
+    elif os.path.exists(path + '.xz'):
+      encoding = "xz" # aka lzma
+      path += ".xz"
+    elif os.path.exists(path + '.bz2'):
+      encoding = "bzip2"
+      path += ".bz2"
+    else:
+      encoding = None
+
+    return path, encoding
+
   def put_file(
     self, file_path, content, 
     content_type, compress, 
@@ -130,23 +155,7 @@ class FileInterface(StorageInterface):
   def head(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    if os.path.exists(path + '.gz'):
-      encoding = "gzip"
-      path += '.gz'
-    elif os.path.exists(path + '.br'):
-      encoding = "br"
-      path += ".br"
-    elif os.path.exists(path + '.zstd'):
-      encoding = "zstd"
-      path += ".zstd"
-    elif os.path.exists(path + '.xz'):
-      encoding = "xz" # aka lzma
-      path += ".xz"
-    elif os.path.exists(path + '.bz2'):
-      encoding = "bzip2"
-      path += ".bz2"
-    else:
-      encoding = None   
+    path, encoding = self.get_encoded_file_path(path)
 
     try:
       statinfo = os.stat(path)
@@ -171,23 +180,7 @@ class FileInterface(StorageInterface):
   def get_file(self, file_path, start=None, end=None):
     path = self.get_path_to_file(file_path)
 
-    if os.path.exists(path + '.gz'):
-      encoding = "gzip"
-      path += '.gz'
-    elif os.path.exists(path + '.br'):
-      encoding = "br"
-      path += ".br"
-    elif os.path.exists(path + '.zstd'):
-      encoding = "zstd"
-      path += ".zstd"
-    elif os.path.exists(path + '.xz'):
-      encoding = "xz" # aka lzma
-      path += ".xz"
-    elif os.path.exists(path + '.bz2'):
-      encoding = "bzip2"
-      path += ".bz2"
-    else:
-      encoding = None
+    path, encoding = self.get_encoded_file_path(path)
 
     try:
       with open(path, 'rb') as f:
@@ -226,16 +219,12 @@ class FileInterface(StorageInterface):
 
   def delete_file(self, file_path):
     path = self.get_path_to_file(file_path)
-    if os.path.exists(path):
+    path, encoding = self.get_encoded_file_path(path)
+
+    try:
       os.remove(path)
-    elif os.path.exists(path + '.gz'):
-      os.remove(path + '.gz')
-    elif os.path.exists(path + ".br"):
-      os.remove(path + ".br")
-    elif os.path.exists(path + '.xz'):
-      os.remove(path + ".xz")
-    elif os.path.exists(path + '.bz2'):
-      os.remove(path + ".bz2")
+    except FileNotFoundError:
+      pass
 
   def delete_files(self, file_paths):
     for path in file_paths:
@@ -446,7 +435,8 @@ class GoogleCloudStorageInterface(StorageInterface):
     self._path = path
     self._request_payer = request_payer
     self._bucket = GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)].get_connection(secrets, None)
-    
+    self._secrets = secrets
+
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
 
@@ -476,6 +466,15 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     blob.md5_hash = md5(content)
     blob.upload_from_string(content, content_type)
+
+  @retry
+  def copy_file(self, src_path, dest_bucket, dest_key):
+    key = self.get_path_to_file(src_path)
+    source_blob = self._bucket.blob( key )
+    dest_bucket = GC_POOL[GCloudBucketPoolParams(dest_bucket, self._request_payer)].get_connection(self._secrets, None)
+    self._bucket.copy_blob(
+      source_blob, dest_bucket, dest_key
+    )
 
   @retry
   def get_file(self, file_path, start=None, end=None):
@@ -728,11 +727,16 @@ class S3Interface(StorageInterface):
 
     self._request_payer = request_payer
     self._path = path
-
-    service = path.alias or 's3'
-    self._conn = S3_POOL[S3ConnectionPoolParams(service, path.bucket, request_payer)].get_connection(secrets, path.host)
+    self._secrets = secrets
+    self._conn = self._get_bucket(path.bucket)
 
     self.composite_upload_threshold = composite_upload_threshold
+
+  def _get_bucket(self, bucket_name):
+    service = self._path.alias or 's3'
+    return S3_POOL[S3ConnectionPoolParams(service, bucket_name, self._request_payer)].get_connection(
+      self._secrets, self._path.host
+    )
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
@@ -777,6 +781,13 @@ class S3Interface(StorageInterface):
       content = BytesIO(content)
       multipart = True
 
+    # gevent monkey patching has a bad interaction with s3's use
+    # of concurrent.futures.ThreadPoolExecutor. Just disable multipart
+    # upload when monkeypatching is in effect.
+    if multipart and (len(gevent.monkey.saved) > 0):
+      multipart = False
+      content = content.read()
+
     if multipart:
       self._conn.upload_fileobj(content, self._path.bucket, key, ExtraArgs=attrs)
     else:
@@ -785,6 +796,16 @@ class S3Interface(StorageInterface):
       attrs['Key'] = key
       attrs['ContentMD5'] = md5(content)
       self._conn.put_object(**attrs)
+
+  @retry
+  def copy_file(self, src_path, dest_bucket_name, dest_key):
+    key = self.get_path_to_file(src_path)
+    dest_bucket = self._get_bucket(dest_bucket_name)
+    copy_source = {
+      'Bucket': self._path.bucket,
+      'Key': key,
+    }
+    dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
 
   @retry
   def get_file(self, file_path, start=None, end=None):

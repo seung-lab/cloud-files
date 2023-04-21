@@ -245,7 +245,7 @@ class CloudFiles:
   """
   def __init__(
     self, cloudpath:str, progress:bool = False, 
-    green:bool = False, secrets:SecretsType = None, num_threads:int = 20,
+    green:Optional[bool] = None, secrets:SecretsType = None, num_threads:int = 20,
     use_https:bool = False, endpoint:Optional[str] = None, 
     parallel:ParallelType = 1, request_payer:Optional[str] = None,
     composite_upload_threshold:int = int(1e8)
@@ -257,7 +257,7 @@ class CloudFiles:
     self.progress = progress
     self.secrets = secrets
     self.num_threads = num_threads
-    self.green = bool(green)
+    self.green = green
     self.parallel = int(parallel)
     self.request_payer = request_payer
     self.composite_upload_threshold = composite_upload_threshold
@@ -755,6 +755,7 @@ class CloudFiles:
       progress=False,
       concurrency=self.num_threads,
       green=self.green,
+      total=total,
     )
     pbar.close()
 
@@ -903,9 +904,29 @@ class CloudFiles:
     to the destination CloudFiles in batches sized 
     in the number of files.
 
-    cf_dest: another CloudFiles instance or a cloudpath
+    Where possible (file->file, file->cloud, gs->gs, and s3->s3),
+    this function will attempt to improve performance by using
+    specialized functions to perform the transfer.
+
+      - file->file: Uses OS functions for fast file copying (Python 3.8+)
+      - file->cloud: Uses file handles to allow low-memory
+        multipart upload
+      - gs->gs: Uses GCS copy API to minimize data movement
+      - s3->s3: Uses boto s3 copy API to minimize data movement
+
+    cf_src: another CloudFiles instance or cloudpath 
     paths: if None transfer all files from src, else if
       an iterable, transfer only these files.
+
+      A path is an iterable that contains str, dict, tuple, or list
+      elements. If dict, by adding the "dest_path" key, you can 
+      rename objects being copied. With tuple or list, the first
+      element of the pair is the source key, the second element
+      is the destination key.
+
+      A CloudFiles object may be supplied as a paths object
+      which will trigger the listing operation.
+
     block_size: number of files to transfer per a batch
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
@@ -927,9 +948,29 @@ class CloudFiles:
     to this CloudFiles in batches sized in the 
     number of files.
 
+    Where possible (file->file, file->cloud, gs->gs, and s3->s3),
+    this function will attempt to improve performance by using
+    specialized functions to perform the transfer.
+
+      - file->file: Uses OS functions for fast file copying (Python 3.8+)
+      - file->cloud: Uses file handles to allow low-memory
+        multipart upload
+      - gs->gs: Uses GCS copy API to minimize data movement
+      - s3->s3: Uses boto s3 copy API to minimize data movement
+
     cf_src: another CloudFiles instance or cloudpath 
     paths: if None transfer all files from src, else if
       an iterable, transfer only these files.
+
+      A path is an iterable that contains str, dict, tuple, or list
+      elements. If dict, by adding the "dest_path" key, you can 
+      rename objects being copied. With tuple or list, the first
+      element of the pair is the source key, the second element
+      is the destination key.
+
+      A CloudFiles object may be supplied as a paths object
+      which will trigger the listing operation.
+
     block_size: number of files to transfer per a batch
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
@@ -945,37 +986,158 @@ class CloudFiles:
 
     total = totalfn(paths, None)
 
-    # high performance, low memory shortcut
-    if (
-      cf_src._path.protocol == "file"
-      and self._path.protocol == "file"
-      and reencode is None
-    ):
-      srcdir = cf_src.cloudpath.replace("file://", "")
-      destdir = mkdir(self.cloudpath.replace("file://", ""))
-      for path in tqdm(paths, desc="Transferring", total=total, disable=(not self.progress)):
+    with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
+      if (
+        cf_src.protocol == "file"
+        and self.protocol == "file"
+        and reencode is None
+      ):
+        self.__transfer_file_to_file(cf_src, self, paths, total, pbar, block_size)
+      elif (
+        cf_src.protocol == "file"
+        and self.protocol != "file"
+        and reencode is None
+      ):
+        self.__transfer_file_to_remote(cf_src, self, paths, total, pbar, block_size)
+      elif (
+        (
+          (cf_src.protocol == "gs" and self.protocol == "gs")
+          or (
+            cf_src.protocol == "s3" and self.protocol == "s3"
+            and cf_src._path.host == self._path.host
+            and cf_src._path.alias == self._path.alias
+          )
+        )
+        and reencode is None
+      ):
+        self.__transfer_cloud_internal(cf_src, self, paths, total, pbar, block_size)
+      else:
+        self.__transfer_general(cf_src, self, paths, total, pbar, block_size, reencode)
+
+  def __transfer_general(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size,
+    reencode
+  ):
+    """
+    Downloads the file into RAM, transforms
+    the data, and uploads it. This is the slowest and
+    most memory intensive transfer variant, and 
+    doesn't avoid any data movement, but it can handle any
+    pair of endpoints as well as transcoding compression
+    formats.
+    """
+    for block_paths in sip(paths, block_size):
+      for path in block_paths:
+        if isinstance(path, dict):
+          if "dest_path" in path:
+            path["tags"] = { "dest_path": path["dest_path"] }
+      downloaded = cf_src.get(block_paths, raw=True, progress=False)
+      if reencode is not None:
+        downloaded = compression.transcode(downloaded, reencode, in_place=True)
+      def renameiter():
+        for item in downloaded:
+          if (
+            item["tags"] is not None
+            and "dest_path" in item["tags"]
+          ):
+            item["path"] = item["tags"]["dest_path"]
+            del item["tags"]["dest_path"]
+          yield item
+      self.puts(renameiter(), raw=True, progress=False, compress=reencode)
+      pbar.update(len(block_paths))
+
+  def __transfer_file_to_file(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size
+  ):
+    """
+    shutil.copyfile, starting in Python 3.8, uses
+    special OS kernel functions to accelerate file copies
+    """
+    srcdir = cf_src.cloudpath.replace("file://", "")
+    destdir = mkdir(cf_dest.cloudpath.replace("file://", ""))
+    for path in paths:
+      if isinstance(path, dict):
+        src = os.path.join(srcdir, path["path"])
+        dest = os.path.join(destdir, path["dest_path"])
+      else:
         src = os.path.join(srcdir, path)
         dest = os.path.join(destdir, path)
-        mkdir(os.path.dirname(dest))
-        shutil.copyfile(src, dest)
-      return
+      mkdir(os.path.dirname(dest))
+      src, encoding = FileInterface.get_encoded_file_path(src)
+      _, ext = os.path.splitext(src)
+      dest += ext
+      shutil.copyfile(src, dest) # avoids user space
+      pbar.update(1)
 
-    with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
-      for block_paths in sip(paths, block_size):
-        downloaded = cf_src.get(block_paths, raw=True, progress=False)
-        if reencode is not None:
-          downloaded = compression.transcode(downloaded, reencode, in_place=True)
+  def __transfer_file_to_remote(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size
+  ):
+    """
+    Provide file handles instead of slurped binaries 
+    so that GCS and S3 can do low-memory chunked multi-part 
+    uploads if necessary.
+    """
+    srcdir = cf_src.cloudpath.replace("file://", "")
+    for block_paths in sip(paths, block_size):
+      to_upload = []
+      for path in block_paths:
+        if isinstance(path, dict):
+          src_path = path["path"]
+          dest_path = path.get("dest_path", path["path"])
+        else:
+          src_path = path
+          dest_path = posixpath.sep.join(path.split(os.path.sep))
 
-        if (
-              cf_src._path.protocol == "file"
-          and self._path.protocol != "file"
-          and os.path.sep != posixpath.sep
-        ):
-          for download in downloaded:
-            download["path"] = posixpath.sep.join(download["path"].split(os.path.sep))
+        handle_path, encoding = FileInterface.get_encoded_file_path(
+          os.path.join(srcdir, src_path)
+        )
+        to_upload.append({
+          "path": dest_path,
+          "content": open(handle_path, "rb"),
+          "compress": encoding,
+        })
+      cf_dest.puts(to_upload, raw=True, progress=False)
+      for item in to_upload:
+        item["content"].close()
+      pbar.update(len(block_paths))
 
-        self.puts(downloaded, raw=True, progress=False, compress=reencode)
-        pbar.update(len(block_paths))
+  def __transfer_cloud_internal(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size
+  ):
+    """
+    For performing internal transfers in gs or s3.
+    This avoids a large amount of data movement as 
+    otherwise the client would have to download and
+    then upload again. If the client is located outside
+    of the cloud, this is much slower and more expensive
+    than necessary.
+    """
+    def thunk_copy(key):
+      with cf_src._get_connection() as conn:
+        if isinstance(key, dict):
+          dest_key = key.get("dest_path", key["path"])
+          src_key = key["path"]
+        else:
+          src_key = key
+          dest_key = key
+
+        dest_key = posixpath.join(cf_dest._path.path, dest_key)
+        conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
+      return 1
+
+    results = schedule_jobs(
+      fns=( partial(thunk_copy, path) for path in paths ),
+      progress=pbar,
+      concurrency=self.num_threads,
+      total=totalfn(paths, total),
+      green=self.green,
+      count_return=True,
+    )
+    return len(results)
 
   def join(self, *paths:str) -> str:
     """
