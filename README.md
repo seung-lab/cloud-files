@@ -60,8 +60,9 @@ CloudFiles was developed to access files from object storage without ever touchi
 8. High speed gzip decompression using libdeflate (compared with zlib).
 9. Bundled CLI tool.
 10. Accepts iterator and generator input.
-11. Resumable transfers.
+11. Resumable bulk transfers.
 12. Supports composite parallel upload for GCS and multi-part upload for AWS S3.
+13. Supports s3 and GCS internal copies to avoid unnecessary data movement.
 
 ## Installation 
 
@@ -412,9 +413,8 @@ For the cp command, the bundled CLI tool has a number of advantages vs. `gsutil`
 
 It also has some disadvantages:  
 
-1. gs:// to gs:// transfers are looped through the executing machine.
-2. Doesn't support all commands.
-3. File suffixes may be added to signify compression type on the local filesystem (e.g. `.gz`, `.br`, or `.zstd`). `cloudfiles ls` will list them without the extension and they will be converted into `Content-Encoding` on cloud storage.
+1. Doesn't support all commands.
+2. File suffixes may be added to signify compression type on the local filesystem (e.g. `.gz`, `.br`, or `.zstd`). `cloudfiles ls` will list them without the extension and they will be converted into `Content-Encoding` on cloud storage.
 
 ### `ls` Generative Expressions
 
