@@ -1018,9 +1018,12 @@ class CloudFiles:
             downloaded = compression.transcode(downloaded, reencode, in_place=True)
           def renameiter():
             for item in downloaded:
-              if "dest_path" in item:
-                item["path"] = item["dest_path"]
-                del item["dest_path"]
+              if (
+                item["tags"] is not None
+                and "dest_path" in item["tags"]
+              ):
+                item["path"] = item["tags"]["dest_path"]
+                del item["tags"]["dest_path"]
               yield item
           self.puts(renameiter(), raw=True, progress=False, compress=reencode)
           pbar.update(len(block_paths))

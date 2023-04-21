@@ -291,7 +291,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
 
     cfsrc.transfer_to(cfdest, paths=[{
       "path": xferpaths,
-      "dest_path": new_path,
+      "tags": { "dest_path": new_path },
     }], reencode=compression)
 
 def _cp(src, dst, compression, progress, block_size, paths):
