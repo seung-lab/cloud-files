@@ -245,7 +245,7 @@ class CloudFiles:
   """
   def __init__(
     self, cloudpath:str, progress:bool = False, 
-    green:bool = False, secrets:SecretsType = None, num_threads:int = 20,
+    green:Optional[bool] = None, secrets:SecretsType = None, num_threads:int = 20,
     use_https:bool = False, endpoint:Optional[str] = None, 
     parallel:ParallelType = 1, request_payer:Optional[str] = None,
     composite_upload_threshold:int = int(1e8)
@@ -257,7 +257,7 @@ class CloudFiles:
     self.progress = progress
     self.secrets = secrets
     self.num_threads = num_threads
-    self.green = bool(green)
+    self.green = green
     self.parallel = int(parallel)
     self.request_payer = request_payer
     self.composite_upload_threshold = composite_upload_threshold

@@ -113,7 +113,7 @@ def schedule_single_threaded_jobs(
 
 def schedule_jobs(
     fns, concurrency=DEFAULT_THREADS, 
-    progress=None, total=None, green=False,
+    progress=None, total=None, green=None,
     count_return=False
   ):
   """
@@ -124,7 +124,7 @@ def schedule_jobs(
   concurrency: number of threads
   progress: Falsey (no progress), String: Progress + description
   total: If fns is a generator, this is the number of items to be generated.
-  green: If True, use green threads.
+  green: If True, use green threads. If None, check if monkey patched.
 
   Return: list of results
   """
@@ -137,7 +137,7 @@ def schedule_jobs(
   ):
     return schedule_single_threaded_jobs(fns, progress, total, count_return)
     
-  if green:
+  if green == True or (green is None and gevent.monkey.saved):
     return schedule_green_jobs(fns, concurrency, progress, total, count_return)
 
   return schedule_threaded_jobs(fns, concurrency, progress, total, count_return)
