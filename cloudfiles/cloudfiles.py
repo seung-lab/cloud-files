@@ -1025,6 +1025,9 @@ class CloudFiles:
         src = os.path.join(srcdir, path)
         dest = os.path.join(destdir, path)
       mkdir(os.path.dirname(dest))
+      src, encoding = FileInterface.get_encoded_file_path(src)
+      _, ext = os.path.splitext(src)
+      dest += ext
       shutil.copyfile(src, dest) # avoids user space
       pbar.update(1)
 
