@@ -592,8 +592,8 @@ def test_s3_custom_endpoint_path():
   assert extract.host == 'https://s3-hpcrc.rc.princeton.edu'
 
 @pytest.mark.parametrize('compression', (None, 'gzip', 'br', 'zstd', 'xz', 'bz2'))
-@pytest.mark.parametrize('src_protocol', ( 'file', 's3'))
-@pytest.mark.parametrize('dest_protocol', ( 'file', 's3'))
+@pytest.mark.parametrize('src_protocol', ['mem', 'file', 's3'])
+@pytest.mark.parametrize('dest_protocol', ['mem', 'file', 's3'])
 def test_transfer_semantics(s3, compression, src_protocol, dest_protocol):
   from cloudfiles import CloudFiles, exceptions
 
