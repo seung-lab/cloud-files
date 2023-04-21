@@ -755,6 +755,7 @@ class CloudFiles:
       progress=False,
       concurrency=self.num_threads,
       green=self.green,
+      total=total,
     )
     pbar.close()
 

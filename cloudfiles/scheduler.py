@@ -130,7 +130,11 @@ def schedule_jobs(
   """
   if concurrency < 0:
     raise ValueError("concurrency value cannot be negative: {}".format(concurrency))
-  elif concurrency == 0:
+  elif (
+    concurrency == 0 
+    or (isinstance(total, int) and total <= 1) 
+    or (hasattr(fns, "__len__") and len(fns) <= 1)
+  ):
     return schedule_single_threaded_jobs(fns, progress, total, count_return)
     
   if green:
