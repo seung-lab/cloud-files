@@ -43,6 +43,8 @@ def s3(aws_credentials):
     import boto3
     conn = boto3.client('s3', region_name='us-east-1')
     conn.create_bucket(Bucket="cloudfiles")
+    conn.create_bucket(Bucket="cloudfiles_src")
+    conn.create_bucket(Bucket="cloudfiles_dest")
     yield conn
 
 @pytest.mark.parametrize("green", (False, True))
@@ -590,12 +592,18 @@ def test_s3_custom_endpoint_path():
   assert extract.host == 'https://s3-hpcrc.rc.princeton.edu'
 
 @pytest.mark.parametrize('compression', (None, 'gzip', 'br', 'zstd', 'xz', 'bz2'))
-def test_transfer_semantics(compression):
+@pytest.mark.parametrize('src_protocol', ( 'file', 's3'))
+@pytest.mark.parametrize('dest_protocol', ( 'file', 's3'))
+def test_transfer_semantics(s3, compression, src_protocol, dest_protocol):
   from cloudfiles import CloudFiles, exceptions
-  path = '/tmp/cloudfiles/xfer'
+
+  if src_protocol == "file":
+    path = '/tmp/cloudfiles/xfer'
+  else:
+    path = "cloudfiles_src/xfer"
   rmtree(path)
-  cff = CloudFiles('file://' + path)
-  cfm = CloudFiles('mem://cloudfiles/xfer')
+  cff = CloudFiles(f'{src_protocol}://{path}')
+  cfm = CloudFiles(f'{dest_protocol}://cloudfiles_dest/xfer')
   
   N = 128
 
@@ -614,7 +622,7 @@ def test_transfer_semantics(compression):
   cfm.delete(list(cfm))
   assert list(cfm) == []
 
-  cfm.transfer_from('file://' + path)
+  cfm.transfer_from(f'{src_protocol}://' + path)
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N
 
@@ -629,9 +637,10 @@ def test_transfer_semantics(compression):
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N  
 
-  data = cfm._get_connection()._data
-  data = [ os.path.splitext(d)[1] for d in data.keys() ] 
-  assert all([ ext == '.br' for ext in data ])
+  if dest_protocol == "mem":
+    data = cfm._get_connection()._data
+    data = [ os.path.splitext(d)[1] for d in data.keys() ] 
+    assert all([ ext == '.br' for ext in data ])
 
   cfm.delete(list(cfm))
   cff.delete(list(cff))
