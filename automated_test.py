@@ -598,12 +598,18 @@ def test_transfer_semantics(s3, compression, src_protocol, dest_protocol):
   from cloudfiles import CloudFiles, exceptions
 
   if src_protocol == "file":
-    path = '/tmp/cloudfiles/xfer'
+    path = '/tmp/cloudfiles_src/xfer'
   else:
     path = "cloudfiles_src/xfer"
+
+  if dest_protocol == "file":
+    dest_path = "/tmp/cloudfiles_dest/xfer"
+  else:
+    dest_path = "cloudfiles_dest/xfer"
+
   rmtree(path)
   cff = CloudFiles(f'{src_protocol}://{path}')
-  cfm = CloudFiles(f'{dest_protocol}://cloudfiles_dest/xfer')
+  cfm = CloudFiles(f'{dest_protocol}://{dest_path}')
   
   N = 128
 
