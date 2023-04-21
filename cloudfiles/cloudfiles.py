@@ -919,8 +919,8 @@ class CloudFiles:
       an iterable, transfer only these files.
 
       A path is an iterable that contains str, dict, tuple, or list
-      elements. If dict, by adding the "dest_path" key, you can 
-      rename objects being copied. With tuple or list, the first
+      elements. If dict, by adding the "dest_path" key to "tags", you 
+      can rename objects being copied. With tuple or list, the first
       element of the pair is the source key, the second element
       is the destination key.
 
@@ -963,8 +963,8 @@ class CloudFiles:
       an iterable, transfer only these files.
 
       A path is an iterable that contains str, dict, tuple, or list
-      elements. If dict, by adding the "dest_path" key, you can 
-      rename objects being copied. With tuple or list, the first
+      elements. If dict, by adding the "dest_path" key to "tags", you 
+      can rename objects being copied. With tuple or list, the first
       element of the pair is the source key, the second element
       is the destination key.
 
