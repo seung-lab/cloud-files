@@ -87,7 +87,9 @@ class FileInterface(StorageInterface):
 
   @classmethod
   def get_encoded_file_path(kls, path):
-    if os.path.exists(path + '.gz'):
+    if os.path.exists(path):
+      encoding = None
+    elif os.path.exists(path + '.gz'):
       encoding = "gzip"
       path += '.gz'
     elif os.path.exists(path + '.br'):
