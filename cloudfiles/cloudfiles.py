@@ -919,8 +919,8 @@ class CloudFiles:
       an iterable, transfer only these files.
 
       A path is an iterable that contains str, dict, tuple, or list
-      elements. If dict, by adding the "dest_path" key to "tags", you 
-      can rename objects being copied. With tuple or list, the first
+      elements. If dict, by adding the "dest_path" key, you can 
+      rename objects being copied. With tuple or list, the first
       element of the pair is the source key, the second element
       is the destination key.
 
@@ -963,8 +963,8 @@ class CloudFiles:
       an iterable, transfer only these files.
 
       A path is an iterable that contains str, dict, tuple, or list
-      elements. If dict, by adding the "dest_path" key to "tags", you 
-      can rename objects being copied. With tuple or list, the first
+      elements. If dict, by adding the "dest_path" key, you can 
+      rename objects being copied. With tuple or list, the first
       element of the pair is the source key, the second element
       is the destination key.
 
@@ -1013,6 +1013,10 @@ class CloudFiles:
         self.__transfer_cloud_internal(cf_src, self, paths, total, pbar, block_size)
       else:
         for block_paths in sip(paths, block_size):
+          for path in block_paths:
+            if isinstance(path, dict):
+              if "dest_path" in path:
+                path["tags"] = { "dest_path": dest_path }
           downloaded = cf_src.get(block_paths, raw=True, progress=False)
           if reencode is not None:
             downloaded = compression.transcode(downloaded, reencode, in_place=True)
