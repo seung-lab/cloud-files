@@ -131,8 +131,9 @@ from cloudfiles import CloudFiles
 
 cf = CloudFiles(
     cloudpath, progress=False, 
-    green=False, secrets=None, num_threads=20,
-    use_https=False, endpoint=None, request_payer=None
+    green=None, secrets=None, num_threads=20,
+    use_https=False, endpoint=None, request_payer=None,
+    composite_upload_threshold = int(1e8)
 )
 
 # cloudpath examples:
@@ -146,7 +147,7 @@ cf = CloudFiles('https://website.com/coolguy/') # arbitrary web server
 
 * cloudpath: The path to the bucket you are accessing. The path is formatted as `$PROTOCOL://BUCKET/PATH`. Files will then be accessed relative to the path. The protocols supported are `gs` (GCS), `s3` (AWS S3), `file` (local FS), `mem` (RAM), and `http`/`https`.
 * progress: Whether to display a progress bar when processing multiple items simultaneously.
-* green: Use green threads. For this to work properly, you must uncomment the top two lines.
+* green: Use green threads. For this to work properly, you must uncomment the top two lines. Green threads are used automatically upon monkey patching if green is None.
 * secrets: Provide secrets dynamically rather than fetching from the credentials directory `$HOME/.cloudvolume/secrets`.
 * num_threads: Number of simultaneous requests to make. Usually 20 per core is pretty close to optimal unless file sizes are extreme.
 * use_https: `gs://` and `s3://` require credentials to access their files. However, each has a read-only https endpoint that sometimes requires no credentials. If True, automatically convert `gs://` to `https://storage.googleapis.com/` and `s3://` to `https://s3.amazonaws.com/`.
@@ -300,6 +301,8 @@ cfg[:] = cff # default block size 64
 ```
 
 Transfer semantics provide a simple way to perform bulk file transfers. Use the `block_size` parameter to adjust the number of files handled in a given pass. This can be important for preventing memory blow-up and reducing latency between batches.
+
+gs to gs and s3 to s3 transfers will occur within the cloud without looping through the executing client provided no reencoding is specified.
 
 #### resumable transfer
 
