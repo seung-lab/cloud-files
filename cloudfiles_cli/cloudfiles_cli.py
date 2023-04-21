@@ -99,7 +99,7 @@ def ls(shortpath, flat, expr, cloudpath):
 
   flat = flat or flt
 
-  cf = CloudFiles(cloudpath, green=True)
+  cf = CloudFiles(cloudpath)
   iterables = []
   if expr:
     # TODO: make this a reality using a parser
@@ -237,7 +237,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
     xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
     srcpath = cloudpathjoin(srcpath, prefix)
   elif many:
-    xferpaths = CloudFiles(srcpath, green=True).list(prefix=prefix, flat=flat)
+    xferpaths = CloudFiles(srcpath).list(prefix=prefix, flat=flat)
 
   destpath = ndest
   if isinstance(xferpaths, str):
@@ -273,7 +273,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
         for _ in executor.imap(fn, sip(xferpaths, block_size)):
           pbar.update(block_size)
   else:
-    cfsrc = CloudFiles(srcpath, green=True, progress=progress)
+    cfsrc = CloudFiles(srcpath, progress=progress)
     if not cfsrc.exists(xferpaths):
       print(f"cloudfiles: source path not found: {cfsrc.abspath(xferpaths).replace('file://','')}")
       return
@@ -282,7 +282,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       _cp_stdout(srcpath, xferpaths)
       return
 
-    cfdest = CloudFiles(destpath, green=True, progress=progress)
+    cfdest = CloudFiles(destpath, progress=progress)
 
     if isdestdir:
       new_path = os.path.basename(nsrc)
@@ -295,8 +295,8 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
     }], reencode=compression)
 
 def _cp(src, dst, compression, progress, block_size, paths):
-  cfsrc = CloudFiles(src, green=True, progress=progress)
-  cfdest = CloudFiles(dst, green=True, progress=progress)
+  cfsrc = CloudFiles(src, progress=progress)
+  cfdest = CloudFiles(dst, progress=progress)
   cfsrc.transfer_to(
     cfdest, paths=paths, 
     reencode=compression, block_size=block_size
@@ -304,7 +304,7 @@ def _cp(src, dst, compression, progress, block_size, paths):
 
 def _cp_stdout(src, paths):
   paths = toiter(paths)
-  cf = CloudFiles(src, green=True, progress=False)
+  cf = CloudFiles(src, progress=False)
   for res in cf.get(paths):
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
@@ -473,7 +473,7 @@ def _rm_many(path, recursive, progress, parallel, block_size):
   xferpaths = os.path.basename(npath)
 
   if many:
-    xferpaths = CloudFiles(cfpath, green=True).list(prefix=prefix, flat=flat)
+    xferpaths = CloudFiles(cfpath).list(prefix=prefix, flat=flat)
 
   if parallel == 1 or not many:
     __rm(cfpath, progress, xferpaths)
@@ -486,7 +486,7 @@ def _rm_many(path, recursive, progress, parallel, block_size):
         pbar.update(block_size)
 
 def __rm(cloudpath, progress, paths):
-  CloudFiles(cloudpath, green=True, progress=progress).delete(paths)
+  CloudFiles(cloudpath, progress=progress).delete(paths)
 
 @main.command()
 @click.argument('paths', nargs=-1)
@@ -499,10 +499,10 @@ def du(paths, grand_total, summarize, human_readable):
   for path in paths:
     npath = normalize_path(path)
     if ispathdir(path):
-      cf = CloudFiles(npath, green=True)
+      cf = CloudFiles(npath)
       results.append(cf.size(cf.list()))
     else:
-      cf = CloudFiles(os.path.dirname(npath), green=True)
+      cf = CloudFiles(os.path.dirname(npath))
       sz = cf.size(os.path.basename(npath))
       if sz is None:
         print(f"cloudfiles: du: {path} does not exist")
@@ -552,11 +552,11 @@ def head(paths):
     npath = re.sub(r'\*+$', '', path)
     many, flat, prefix = get_mfp(path, False)
     if many:
-      cf = CloudFiles(npath, green=True)
+      cf = CloudFiles(npath)
       res = cf.head(cf.list(prefix=prefix, flat=flat))
       results.update(res)
     else:
-      cf = CloudFiles(os.path.dirname(npath), green=True)
+      cf = CloudFiles(os.path.dirname(npath))
       results[path] = cf.head(os.path.basename(npath))
 
   pp = pprint.PrettyPrinter(indent=2)
