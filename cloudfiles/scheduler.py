@@ -1,5 +1,6 @@
 import sys
 
+import gevent.monkey
 from tqdm import tqdm
 
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
