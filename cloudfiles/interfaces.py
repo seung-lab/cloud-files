@@ -2,6 +2,7 @@ import base64
 import binascii
 from collections import defaultdict, namedtuple
 from datetime import datetime
+from io import BytesIO
 import json
 import os.path
 import posixpath
