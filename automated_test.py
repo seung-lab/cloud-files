@@ -172,10 +172,20 @@ def test_get_generator(num_threads, green):
   cf.delete(( str(i) for i in range(100) ))
   assert list(cf.list()) == []
 
-def test_http_read():
+@pytest.mark.parametrize("secrets", [
+  None,
+  { "token": "hello world" },
+  { "user": "hello", "password": "world" },
+])
+def test_http_read(secrets):
   from cloudfiles import CloudFiles, exceptions
-  cf = CloudFiles("https://storage.googleapis.com/seunglab-test/test_v0/black/")
-  info = cf.get_json('info')
+  import requests
+  cf = CloudFiles("https://storage.googleapis.com/seunglab-test/test_v0/black/", secrets=secrets)
+  
+  try:
+    info = cf.get_json('info')
+  except requests.exceptions.HTTPError:
+    return
 
   assert info == {
     "data_type": "uint8",

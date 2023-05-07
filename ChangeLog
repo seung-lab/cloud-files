@@ -1,6 +1,42 @@
 CHANGES
 =======
 
+4.15.1
+------
+
+* fix: missing BytesIO import
+
+4.15.0
+------
+
+* perf: better memory usage for file to gs/s3 transfer (#87)
+* fix: add file handle support for MemoryInterface
+
+4.14.0
+------
+
+* docs: describe GCS composite and S3 multi-part uploads
+* docs: update highlights, show cloudfiles
+* install: update supported python versions
+* install: adjust python requires to be 3.7+
+* feat: make s3 multi-part threshold configurable
+* feat: add support for CLOUD\_VOLUME\_DIR and CLOUD\_FILES\_DIR env vars (#83)
+* feat: multi-part s3 upload support (#85)
+* feat: support for GCS composite uploads (#86)
+* feat: add and remove persistent aliases (#84)
+* feat: http basic auth support (#82)
+
+4.13.0
+------
+
+* feat: add clear\_memory function
+
+4.12.1
+------
+
+* feat: add .protocol to CloudFile object
+* chore: update ChangeLog
+
 4.12.0
 ------
 
