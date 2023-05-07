@@ -65,7 +65,6 @@ retry = tenacity.retry(
   reraise=True, 
   stop=tenacity.stop_after_attempt(7), 
   wait=tenacity.wait_random_exponential(0.5, 60.0),
-  retry=tenacity.retry_if_not_exception_type(requests.exceptions.HTTPError),
 )
 
 class StorageInterface(object):
