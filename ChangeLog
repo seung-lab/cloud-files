@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+4.15.2
+------
+
+* fix: ensure http secrets is compatible with graphene tokens (#89)
+
 4.15.1
 ------
 
