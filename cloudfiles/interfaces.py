@@ -612,7 +612,7 @@ class HttpInterface(StorageInterface):
       secrets = http_credentials()
 
     self.session = requests.Session()
-    if secrets:
+    if secrets and 'user' in secrets and 'password' in secrets:
       self.session.auth = (secrets['user'], secrets['password'])
 
   def get_path_to_file(self, file_path):
