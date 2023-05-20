@@ -101,7 +101,7 @@ def schedule_single_threaded_jobs(
     pbar = tqdm(
       total=totalfn(fns, total), 
       disable=(not progress), 
-      desc=progress
+      desc=(progress if isinstance(progress, str) else None)
     )
 
   with pbar:
