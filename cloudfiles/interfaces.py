@@ -190,15 +190,19 @@ class FileInterface(StorageInterface):
     global EXT_TEST_SEQUENCE
     global read_file
     path = self.get_path_to_file(file_path)
-  
+
+    i = 0
     try:
-      p, e = EXT_TEST_SEQUENCE[0]
-      return read_file(path + p, e, start, end)
-    except FileNotFoundError:
-      path, encoding = self.get_encoded_file_path(path)
-      return read_file(path, encoding, start, end)
-    except IOError:
-      return (None, encoding, None, None)
+      for i, (ext, encoding) in enumerate(EXT_TEST_SEQUENCE):
+        try:
+          return read_file(path + ext, encoding, start, end)
+        except FileNotFoundError:
+          continue
+    finally:
+      if i > 0:
+        EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
+
+    return (None, None, None, None)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
