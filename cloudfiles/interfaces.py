@@ -77,6 +77,27 @@ class StorageInterface(object):
   def __exit__(self, exception_type, exception_value, traceback):
     self.release_connection()
 
+EXT_TEST_SEQUENCE = [
+  ('', None),
+  ('.gz', 'gzip'),
+  ('.br', 'br'),
+  ('.zstd', 'zstd'),
+  ('.xz', 'xz'),
+  ('.bz2', 'bzip2')
+]
+
+def read_file(path, encoding, start, end):
+  with open(path, 'rb') as f:
+    if start is not None:
+      f.seek(start)
+    if end is not None:
+      start = start if start is not None else 0
+      num_bytes = end - start
+      data = f.read(num_bytes)
+    else:
+      data = f.read()
+  return (data, encoding, None, None)
+
 class FileInterface(StorageInterface):
   def __init__(self, path, secrets=None, request_payer=None, **kwargs):
     super(StorageInterface, self).__init__()
@@ -89,27 +110,14 @@ class FileInterface(StorageInterface):
 
   @classmethod
   def get_encoded_file_path(kls, path):
-    if os.path.exists(path):
-      encoding = None
-    elif os.path.exists(path + '.gz'):
-      encoding = "gzip"
-      path += '.gz'
-    elif os.path.exists(path + '.br'):
-      encoding = "br"
-      path += ".br"
-    elif os.path.exists(path + '.zstd'):
-      encoding = "zstd"
-      path += ".zstd"
-    elif os.path.exists(path + '.xz'):
-      encoding = "xz" # aka lzma
-      path += ".xz"
-    elif os.path.exists(path + '.bz2'):
-      encoding = "bzip2"
-      path += ".bz2"
-    else:
-      encoding = None
-
-    return path, encoding
+    global EXT_TEST_SEQUENCE
+    for i, (ext, encoding) in enumerate(EXT_TEST_SEQUENCE):
+      if os.path.exists(path + ext):
+        if i > 0:   
+          pair = EXT_TEST_SEQUENCE.pop(i)
+          EXT_TEST_SEQUENCE.insert(0, pair)
+        return path + ext, encoding
+    return '', None
 
   def put_file(
     self, file_path, content, 
@@ -179,28 +187,23 @@ class FileInterface(StorageInterface):
     }
 
   def get_file(self, file_path, start=None, end=None):
+    global EXT_TEST_SEQUENCE
+    global read_file
     path = self.get_path_to_file(file_path)
-
-    path, encoding = self.get_encoded_file_path(path)
-
+  
     try:
-      with open(path, 'rb') as f:
-        if start is not None:
-          f.seek(start)
-        if end is not None:
-          start = start if start is not None else 0
-          num_bytes = end - start
-          data = f.read(num_bytes)
-        else:
-          data = f.read()
-      return (data, encoding, None, None)
+      p, e = EXT_TEST_SEQUENCE[0]
+      return read_file(path + p, e, start, end)
+    except FileNotFoundError:
+      path, encoding = self.get_encoded_file_path(path)
+      return read_file(path, encoding, start, end)
     except IOError:
       return (None, encoding, None, None)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    exts = ('.gz', '.br', '.zstd', '.xz', '.bz2', '')
+    exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
     errors = (FileNotFoundError,)
 
     for ext in exts:

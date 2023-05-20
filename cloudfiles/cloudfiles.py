@@ -413,9 +413,13 @@ class CloudFiles:
       else:
         return ret['content']
 
+    num_threads = self.num_threads
+    if self.protocol == "file":
+      num_threads = 1
+
     results = schedule_jobs(
       fns=( partial(download, path) for path in paths ), 
-      concurrency=self.num_threads, 
+      concurrency=num_threads, 
       progress=progress,
       total=total,
       green=self.green,
