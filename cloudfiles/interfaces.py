@@ -16,6 +16,7 @@ import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
 import requests
 import shutil
+import threading
 import tenacity
 
 from .compression import COMPRESSION_TYPES
@@ -85,6 +86,7 @@ EXT_TEST_SEQUENCE = [
   ('.xz', 'xz'),
   ('.bz2', 'bzip2')
 ]
+EXT_TEST_SEQUENCE_LOCK = threading.Lock()
 
 def read_file(path, encoding, start, end):
   with open(path, 'rb') as f:
@@ -191,23 +193,28 @@ class FileInterface(StorageInterface):
     global read_file
     path = self.get_path_to_file(file_path)
 
+    with EXT_TEST_SEQUENCE_LOCK:
+      seq = list(EXT_TEST_SEQUENCE)
+
     i = 0
     try:
-      for i, (ext, encoding) in enumerate(EXT_TEST_SEQUENCE):
+      for i, (ext, encoding) in enumerate(seq):
         try:
           return read_file(path + ext, encoding, start, end)
         except FileNotFoundError:
           continue
     finally:
       if i > 0:
-        EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
+        with EXT_TEST_SEQUENCE_LOCK:
+          EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
 
     return (None, None, None, None)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
+    with EXT_TEST_SEQUENCE_LOCK:
+      exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
     errors = (FileNotFoundError,)
 
     for ext in exts:
