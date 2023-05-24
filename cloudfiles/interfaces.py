@@ -113,11 +113,15 @@ class FileInterface(StorageInterface):
   @classmethod
   def get_encoded_file_path(kls, path):
     global EXT_TEST_SEQUENCE
-    for i, (ext, encoding) in enumerate(EXT_TEST_SEQUENCE):
+    
+    with EXT_TEST_SEQUENCE_LOCK:
+      seq = list(EXT_TEST_SEQUENCE)
+
+    for i, (ext, encoding) in enumerate(seq):
       if os.path.exists(path + ext):
-        if i > 0:   
-          pair = EXT_TEST_SEQUENCE.pop(i)
-          EXT_TEST_SEQUENCE.insert(0, pair)
+        if i > 0:
+          with EXT_TEST_SEQUENCE_LOCK:
+            EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
         return path + ext, encoding
     return '', None
 

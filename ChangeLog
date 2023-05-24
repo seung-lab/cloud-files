@@ -1,6 +1,20 @@
 CHANGES
 =======
 
+4.17.0
+------
+
+* perf: make file writes more efficient
+
+4.16.0
+------
+
+* fix: make sequence testing thread safe
+* perf: avoid using exists when getting files
+* perf: don't use threads for file access
+* fix: allow progress to be a boolean for single threaded
+* chore: update config format
+
 4.15.2
 ------
 
