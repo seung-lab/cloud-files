@@ -128,10 +128,11 @@ class FileInterface(StorageInterface):
     storage_class=None
   ):
     path = self.get_path_to_file(file_path)
-    mkdir(os.path.dirname(path))
 
     # keep default as gzip
-    if compress == "br":
+    if not compress:
+      pass
+    elif compress == "br":
       path += ".br"
     elif compress in GZIP_TYPES:
       path += ".gz"
@@ -144,10 +145,12 @@ class FileInterface(StorageInterface):
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
-    if content \
-      and content_type \
-      and re.search('json|te?xt', content_type) \
-      and type(content) is str:
+    if (
+      content 
+      and type(content) is str 
+      and content_type 
+      and re.search('json|te?xt', content_type)
+    ):
 
       content = content.encode('utf-8')
 
@@ -160,6 +163,7 @@ class FileInterface(StorageInterface):
       with open(path, 'wb') as f:
         f.write(content)
     except IOError as err:
+      mkdir(os.path.dirname(path))
       with open(path, 'wb') as f:
         f.write(content)
 
