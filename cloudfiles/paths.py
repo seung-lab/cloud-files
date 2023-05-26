@@ -47,22 +47,18 @@ def update_aliases_from_file():
     add_alias(alias, val["host"])
 
 def cloudpath_error(cloudpath):
-  return yellow("""
+  return yellow(f"""
     Cloud Path must conform to [FORMAT://]PROTOCOL://PATH
     Examples: 
       precomputed://gs://test_bucket/em
       gs://test_bucket/em
       graphene://https://example.com/image/em
 
-    Supported Formats: None (precomputed), {}
-    Supported Protocols: {}
+    Supported Formats: None (precomputed), {", ".join(ALLOWED_FORMATS)}
+    Supported Protocols: {", ".join(ALLOWED_PROTOCOLS)}
 
-    Cloud Path Recieved: {}
-  """).format(
-    ", ".join(ALLOWED_FORMATS), 
-    ", ".join(ALLOWED_PROTOCOLS), 
-    cloudpath
-  )
+    Cloud Path Recieved: {cloudpath}
+  """)
 
 def mkregexp():
   fmt_capture = r'|'.join(ALLOWED_FORMATS)
@@ -73,6 +69,7 @@ def mkregexp():
   return regexp
 
 CLOUDPATH_REGEXP = re.compile(mkregexp())
+BUCKET_RE = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)(?:/|$)') # posix /what/a/great/path  
 
 def add_alias(alias:str, host:str):
   global ALIASES
@@ -317,7 +314,6 @@ def extract(cloudpath:str, windows=None) -> ExtractedPath:
   if len(cloudpath) == 0:
     return ExtractedPath('','','','','')
 
-  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)(?:/|$)') # posix /what/a/great/path  
   error = UnsupportedProtocolError(cloudpath_error(cloudpath))
 
   fmt, protocol, host, cloudpath, alias = extract_format_protocol(cloudpath)
@@ -330,7 +326,7 @@ def extract(cloudpath:str, windows=None) -> ExtractedPath:
 
   bucket = None
   if protocol in ('gs', 's3', 'matrix', 'mem'):
-    match = re.match(bucket_re, cloudpath)
+    match = re.match(BUCKET_RE, cloudpath)
     if not match:
       raise error
     (bucket,) = match.groups()
