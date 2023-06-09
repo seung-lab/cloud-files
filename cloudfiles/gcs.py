@@ -81,7 +81,7 @@ def composite_upload(
 ) -> int:
   from .cloudfiles import CloudFiles, CloudFile
   
-  content_encoding = None
+  content_encoding = compression.normalize_encoding(compress)
   if isinstance(handle, bytes):
     handle = io.BytesIO(
       compression.compress(handle, compress)

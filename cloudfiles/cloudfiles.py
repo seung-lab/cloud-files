@@ -557,6 +557,7 @@ class CloudFiles:
           content_type=content_type,
           cache_control=cache_control,
           storage_class=storage_class,
+          compress=file_compress,
         )
         return
 
