@@ -150,18 +150,16 @@ class FileInterface(StorageInterface):
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
-    lock_path = path + ".lock"
-    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-    with rw_lock.write_lock():
-      if (
-        content
-        and type(content) is str
-        and content_type
-        and re.search('json|te?xt', content_type)
-      ):
+    if (
+      content
+      and type(content) is str
+      and content_type
+      and re.search('json|te?xt', content_type)
+    ):
 
-        content = content.encode('utf-8')
+      content = content.encode('utf-8')
 
+    def do_put_file():
       if hasattr(content, "read") and hasattr(content, "seek"):
         with open(path, 'wb') as f:
           shutil.copyfileobj(content, f)
@@ -175,14 +173,20 @@ class FileInterface(StorageInterface):
         with open(path, 'wb') as f:
           f.write(content)
 
+    lock_path = path + ".lock"
+    try:
+      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+      with rw_lock.write_lock():
+        do_put_file()
+    except PermissionError:
+      do_put_file()
+
   def head(self, file_path):
     path = self.get_path_to_file(file_path)
 
     path, encoding = self.get_encoded_file_path(path)
 
-    lock_path = path + ".lock"
-    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-    with rw_lock.read_lock():
+    def do_head():
       try:
         statinfo = os.stat(path)
       except FileNotFoundError:
@@ -203,14 +207,20 @@ class FileInterface(StorageInterface):
         "Parts-Count": None,
       }
 
+    lock_path = path + ".lock"
+    try:
+      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+      with rw_lock.read_lock():
+        return do_head()
+    except PermissionError:
+      return do_head()
+
   def get_file(self, file_path, start=None, end=None):
     global EXT_TEST_SEQUENCE
     global read_file
     path = self.get_path_to_file(file_path)
 
-    lock_path = path + ".lock"
-    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-    with rw_lock.read_lock():
+    def do_get_file():
       with EXT_TEST_SEQUENCE_LOCK:
         seq = list(EXT_TEST_SEQUENCE)
 
@@ -228,12 +238,18 @@ class FileInterface(StorageInterface):
 
       return (None, None, None, None)
 
+    lock_path = path + ".lock"
+    try:
+      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+      with rw_lock.read_lock():
+        return do_get_file()
+    except PermissionError:
+      return do_get_file()
+
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    lock_path = path + ".lock"
-    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-    with rw_lock.read_lock():
+    def do_size():
       with EXT_TEST_SEQUENCE_LOCK:
         exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
       errors = (FileNotFoundError,)
@@ -246,11 +262,22 @@ class FileInterface(StorageInterface):
 
       return None
 
+    lock_path = path + ".lock"
+    try:
+      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+      with rw_lock.read_lock():
+        return do_size()
+    except PermissionError:
+      return do_size()
+
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
     lock_path = path + ".lock"
-    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-    with rw_lock.read_lock():
+    try:
+      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+      with rw_lock.read_lock():
+        return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
+    except PermissionError:
       return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
 
   def files_exist(self, file_paths):
@@ -258,15 +285,21 @@ class FileInterface(StorageInterface):
 
   def delete_file(self, file_path):
     path = self.get_path_to_file(file_path)
-    lock_path = path + ".lock"
-    rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-    with rw_lock.write_lock():
-      path, encoding = self.get_encoded_file_path(path)
+    path, encoding = self.get_encoded_file_path(path)
 
+    def do_delete_file():
       try:
         os.remove(path)
       except FileNotFoundError:
         pass
+
+    lock_path = path + ".lock"
+    try:
+      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+      with rw_lock.write_lock():
+        do_delete_file()
+    except PermissionError:
+      do_delete_file()
 
   def delete_files(self, file_paths):
     for path in file_paths:
