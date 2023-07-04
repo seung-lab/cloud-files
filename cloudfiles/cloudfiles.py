@@ -248,6 +248,7 @@ class CloudFiles:
     green:Optional[bool] = None, secrets:SecretsType = None, num_threads:int = 20,
     use_https:bool = False, endpoint:Optional[str] = None, 
     parallel:ParallelType = 1, request_payer:Optional[str] = None,
+    locking:Optional[bool] = None,
     composite_upload_threshold:int = int(1e8)
   ):
     if use_https:
@@ -260,6 +261,7 @@ class CloudFiles:
     self.green = green
     self.parallel = int(parallel)
     self.request_payer = request_payer
+    self.locking = locking
     self.composite_upload_threshold = composite_upload_threshold
 
     self._path = paths.extract(cloudpath)
@@ -281,6 +283,7 @@ class CloudFiles:
       self._path, 
       secrets=self.secrets,
       request_payer=self.request_payer,
+      locking=self.locking,
       composite_upload_threshold=self.composite_upload_threshold,
     )
 

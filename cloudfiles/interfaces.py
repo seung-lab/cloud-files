@@ -24,7 +24,7 @@ from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .exceptions import MD5IntegrityError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
-from .secrets import http_credentials, CLOUD_FILES_LOCK_DIR
+from .secrets import http_credentials, CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd','.bz2','.xz')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -102,18 +102,26 @@ def read_file(path, encoding, start, end):
   return (data, encoding, None, None)
 
 class FileInterface(StorageInterface):
-  def __init__(self, path, secrets=None, request_payer=None, **kwargs):
+  def __init__(self, path, secrets=None, request_payer=None, locking=None, **kwargs):
     super(StorageInterface, self).__init__()
     self._path = path
     if request_payer is not None:
       raise ValueError("Specifying a request payer for the FileInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
-    self._lock_dir = None
-    if CLOUD_FILES_LOCK_DIR:
-      if not os.path.exists(CLOUD_FILES_LOCK_DIR):
-        mkdir(CLOUD_FILES_LOCK_DIR)
-      if os.path.isdir(CLOUD_FILES_LOCK_DIR) and os.access(CLOUD_FILES_LOCK_DIR, os.R_OK|os.W_OK|os.X_OK):
-        self._lock_dir = CLOUD_FILES_LOCK_DIR
+    lock_dir = CLOUD_FILES_LOCK_DIR
+    if locking is True and lock_dir is None:
+      lock_dir = os.path.join(CLOUD_FILES_DIR, "locks")
+
+    if locking is False:
+      self._lock_dir = None
+    else:
+      self._lock_dir = None
+      if lock_dir:
+        if not os.path.exists(lock_dir):
+          mkdir(lock_dir)
+        if os.path.isdir(lock_dir) and os.access(lock_dir, os.R_OK|os.W_OK|os.X_OK):
+          self._lock_dir = lock_dir
+
 
 
   def get_path_to_file(self, file_path):
