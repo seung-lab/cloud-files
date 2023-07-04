@@ -24,7 +24,7 @@ from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .exceptions import MD5IntegrityError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
-from .secrets import http_credentials
+from .secrets import http_credentials, CLOUD_FILES_LOCK_DIR
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd','.bz2','.xz')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -108,6 +108,14 @@ class FileInterface(StorageInterface):
     if request_payer is not None:
       raise ValueError("Specifying a request payer for the FileInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
+    self._lock_dir = None
+    if CLOUD_FILES_LOCK_DIR:
+      if not os.path.exists(CLOUD_FILES_LOCK_DIR):
+        mkdir(CLOUD_FILES_LOCK_DIR)
+      if os.path.isdir(CLOUD_FILES_LOCK_DIR) and os.access(CLOUD_FILES_LOCK_DIR, os.R_OK|os.W_OK|os.X_OK):
+        self._lock_dir = CLOUD_FILES_LOCK_DIR
+
+
   def get_path_to_file(self, file_path):
     return os.path.join(self._path.path, file_path)
 
@@ -173,12 +181,13 @@ class FileInterface(StorageInterface):
         with open(path, 'wb') as f:
           f.write(content)
 
-    lock_path = path + ".lock"
-    try:
+    if self._lock_dir:
+      lock_path = os.path.join(self._lock_dir,
+                               os.path.abspath(path).replace(os.sep, "=+"))
       rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
       with rw_lock.write_lock():
         do_put_file()
-    except PermissionError:
+    else:
       do_put_file()
 
   def head(self, file_path):
@@ -207,12 +216,13 @@ class FileInterface(StorageInterface):
         "Parts-Count": None,
       }
 
-    lock_path = path + ".lock"
-    try:
+    if self._lock_dir:
+      lock_path = os.path.join(self._lock_dir,
+                               os.path.abspath(path).replace(os.sep, "=+"))
       rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
       with rw_lock.read_lock():
         return do_head()
-    except PermissionError:
+    else:
       return do_head()
 
   def get_file(self, file_path, start=None, end=None):
@@ -238,12 +248,13 @@ class FileInterface(StorageInterface):
 
       return (None, None, None, None)
 
-    lock_path = path + ".lock"
-    try:
+    if self._lock_dir:
+      lock_path = os.path.join(self._lock_dir,
+                               os.path.abspath(path).replace(os.sep, "=+"))
       rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
       with rw_lock.read_lock():
         return do_get_file()
-    except PermissionError:
+    else:
       return do_get_file()
 
   def size(self, file_path):
@@ -262,22 +273,24 @@ class FileInterface(StorageInterface):
 
       return None
 
-    lock_path = path + ".lock"
-    try:
+    if self._lock_dir:
+      lock_path = os.path.join(self._lock_dir,
+                               os.path.abspath(path).replace(os.sep, "=+"))
       rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
       with rw_lock.read_lock():
         return do_size()
-    except PermissionError:
+    else:
       return do_size()
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
-    lock_path = path + ".lock"
-    try:
+    if self._lock_dir:
+      lock_path = os.path.join(self._lock_dir,
+                               os.path.abspath(path).replace(os.sep, "=+"))
       rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
       with rw_lock.read_lock():
         return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
-    except PermissionError:
+    else:
       return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
 
   def files_exist(self, file_paths):
@@ -293,12 +306,13 @@ class FileInterface(StorageInterface):
       except FileNotFoundError:
         pass
 
-    lock_path = path + ".lock"
-    try:
+    if self._lock_dir:
+      lock_path = os.path.join(self._lock_dir,
+                               os.path.abspath(path).replace(os.sep, "=+"))
       rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
       with rw_lock.write_lock():
         do_delete_file()
-    except PermissionError:
+    else:
       do_delete_file()
 
   def delete_files(self, file_paths):

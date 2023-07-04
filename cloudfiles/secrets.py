@@ -17,6 +17,8 @@ CF_HOME = os.path.join(HOME, '.cloudfiles')
 CLOUD_FILES_DIR = os.environ.get("CLOUD_FILES_DIR", CF_HOME)
 CLOUD_FILES_SECRETS_DIR = os.path.join(CLOUD_FILES_DIR, 'secrets')
 
+CLOUD_FILES_LOCK_DIR = os.environ.get("CLOUD_FILES_LOCK_DIR", None)
+
 CredentialType = Dict[str,Union[str,int]]
 CredentialCacheType = Dict[str,CredentialType]
 
