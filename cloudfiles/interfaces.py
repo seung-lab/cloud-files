@@ -102,13 +102,15 @@ def read_file(path, encoding, start, end):
   return (data, encoding, None, None)
 
 class FileInterface(StorageInterface):
-  def __init__(self, path, secrets=None, request_payer=None, locking=None, **kwargs):
+  def __init__(self, path, secrets=None, request_payer=None, locking=None, lock_dir=None, **kwargs):
     super(StorageInterface, self).__init__()
     self._path = path
     if request_payer is not None:
       raise ValueError("Specifying a request payer for the FileInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
-    lock_dir = CLOUD_FILES_LOCK_DIR
+    if lock_dir is None:
+      lock_dir = CLOUD_FILES_LOCK_DIR
+
     if locking is True and lock_dir is None:
       lock_dir = os.path.join(CLOUD_FILES_DIR, "locks")
 
