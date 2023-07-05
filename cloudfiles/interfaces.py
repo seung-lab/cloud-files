@@ -125,6 +125,23 @@ class FileInterface(StorageInterface):
         return path + ext, encoding
     return '', None
 
+  @classmethod
+  def get_extension(kls, compress):
+    if not compress:
+      return ""
+    elif compress == "br":
+      return ".br"
+    elif compress in GZIP_TYPES:
+      return ".gz"
+    elif compress == "zstd":
+      return ".zstd"
+    elif compress in ("xz", "lzma"):
+      return ".xz"
+    elif compress in ("bzip2", "bz2"):
+      return ".bz2"
+    elif compress:
+      raise ValueError(f"Compression type {compress} not supported.")
+
   def put_file(
     self, file_path, content, 
     content_type, compress, 
@@ -132,22 +149,10 @@ class FileInterface(StorageInterface):
     storage_class=None
   ):
     path = self.get_path_to_file(file_path)
-
-    # keep default as gzip
-    if not compress:
-      pass
-    elif compress == "br":
-      path += ".br"
-    elif compress in GZIP_TYPES:
-      path += ".gz"
-    elif compress == "zstd":
-      path += ".zstd"
-    elif compress in ("xz", "lzma"):
-      path += ".xz"
-    elif compress in ("bzip2", "bz2"):
-      path += ".bz2"
-    elif compress:
-      raise ValueError("Compression type {} not supported.".format(compress))
+    compress_ext = self.get_extension(compress)
+    _, ext = os.path.splitext(path)
+    if ext != compress_ext:
+      path += compress_ext
 
     if (
       content 
