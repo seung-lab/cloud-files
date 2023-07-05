@@ -96,7 +96,7 @@ def composite_upload(
 
   num_parts = int(math.ceil(file_size / part_size))
 
-  if num_parts == 1:
+  if num_parts <= 1:
     CloudFile(cloudpath, secrets=secrets).put(
       handle.read(), 
       content_type=content_type,
