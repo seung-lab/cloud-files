@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+4.17.2
+------
+
+* fix: not passing compression values correctly to gcs composite upload
+* perf: faster path extraction
+
+4.17.1
+------
+
+* fix: threading error in get\_encoded\_file\_path
+
 4.17.0
 ------
 
