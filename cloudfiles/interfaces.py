@@ -737,7 +737,7 @@ class S3Interface(StorageInterface):
   # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Bucket.delete_objects
   # claims batch size limit is 1000
   delete_batch_size = 1000
-  def __init__(self, path, secrets=None, request_payer=None, composite_upload_threshold=int(1e8)):
+  def __init__(self, path, secrets=None, request_payer=None, composite_upload_threshold=int(1e8), **kwargs):
     super(StorageInterface, self).__init__()
     global S3_POOL
 
