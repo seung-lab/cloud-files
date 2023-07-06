@@ -19,3 +19,4 @@ tqdm
 urllib3>=1.26.3
 zstandard
 rsa>=4.7.2
+fasteners

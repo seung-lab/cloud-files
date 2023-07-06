@@ -18,12 +18,13 @@ import requests
 import shutil
 import threading
 import tenacity
+import fasteners
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .exceptions import MD5IntegrityError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
-from .secrets import http_credentials
+from .secrets import http_credentials, CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd','.bz2','.xz')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -101,11 +102,45 @@ def read_file(path, encoding, start, end):
   return (data, encoding, None, None)
 
 class FileInterface(StorageInterface):
-  def __init__(self, path, secrets=None, request_payer=None, **kwargs):
+  def __init__(self, path, secrets=None, request_payer=None, locking=None, lock_dir=None, **kwargs):
     super(StorageInterface, self).__init__()
     self._path = path
     if request_payer is not None:
       raise ValueError("Specifying a request payer for the FileInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
+
+    if lock_dir is None:
+      lock_dir = CLOUD_FILES_LOCK_DIR
+
+    if locking is True and lock_dir is None:
+      lock_dir = os.path.join(CLOUD_FILES_DIR, "locks")
+
+    if locking is False:
+      self._lock_dir = None
+    else:
+      self._lock_dir = None
+      if lock_dir:
+        if not os.path.exists(lock_dir):
+          mkdir(lock_dir)
+        if os.path.isdir(lock_dir) and os.access(lock_dir, os.R_OK|os.W_OK|os.X_OK):
+          self._lock_dir = lock_dir
+
+
+  def io_with_lock(self, io_func, target, exclusive=False):
+    if not self._lock_dir:
+      return io_func()
+    else:
+      abspath = os.path.abspath(target)
+      input_bytes = abspath.encode('utf-8')
+      crc_value = binascii.crc32(input_bytes)
+      lock_path = os.path.join(self._lock_dir, f"{os.path.basename(target)}.{crc_value}")
+      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+      if exclusive:
+        with rw_lock.write_lock():
+          return io_func()
+      else:
+        with rw_lock.read_lock():
+          return io_func()
+
 
   def get_path_to_file(self, file_path):
     return os.path.join(self._path.path, file_path)
@@ -155,92 +190,106 @@ class FileInterface(StorageInterface):
       path += compress_ext
 
     if (
-      content 
-      and type(content) is str 
-      and content_type 
+      content
+      and type(content) is str
+      and content_type
       and re.search('json|te?xt', content_type)
     ):
 
       content = content.encode('utf-8')
 
-    if hasattr(content, "read") and hasattr(content, "seek"):
-      with open(path, 'wb') as f:
-        shutil.copyfileobj(content, f)
-      return
+    def do_put_file():
+      if hasattr(content, "read") and hasattr(content, "seek"):
+        with open(path, 'wb') as f:
+          shutil.copyfileobj(content, f)
+        return
 
-    try:
-      with open(path, 'wb') as f:
-        f.write(content)
-    except IOError as err:
-      mkdir(os.path.dirname(path))
-      with open(path, 'wb') as f:
-        f.write(content)
+      try:
+        with open(path, 'wb') as f:
+          f.write(content)
+      except IOError as err:
+        mkdir(os.path.dirname(path))
+        with open(path, 'wb') as f:
+          f.write(content)
+
+    return self.io_with_lock(do_put_file, path, exclusive=True)
 
   def head(self, file_path):
     path = self.get_path_to_file(file_path)
 
     path, encoding = self.get_encoded_file_path(path)
 
-    try:
-      statinfo = os.stat(path)
-    except FileNotFoundError:
-      return None
+    def do_head():
+      try:
+        statinfo = os.stat(path)
+      except FileNotFoundError:
+        return None
 
-    return {
-      "Cache-Control": None,
-      "Content-Length": statinfo.st_size,
-      "Content-Type": None,
-      "ETag": None,
-      "Last-Modified": datetime.utcfromtimestamp(statinfo.st_mtime),
-      "Content-Md5": None,
-      "Content-Encoding": encoding,
-      "Content-Disposition": None,
-      "Content-Language": None,
-      "Storage-Class": None,
-      "Request-Charged": None,
-      "Parts-Count": None,
-    }
+      return {
+        "Cache-Control": None,
+        "Content-Length": statinfo.st_size,
+        "Content-Type": None,
+        "ETag": None,
+        "Last-Modified": datetime.utcfromtimestamp(statinfo.st_mtime),
+        "Content-Md5": None,
+        "Content-Encoding": encoding,
+        "Content-Disposition": None,
+        "Content-Language": None,
+        "Storage-Class": None,
+        "Request-Charged": None,
+        "Parts-Count": None,
+      }
+
+    return self.io_with_lock(do_head, path, exclusive=False)
 
   def get_file(self, file_path, start=None, end=None):
     global EXT_TEST_SEQUENCE
     global read_file
     path = self.get_path_to_file(file_path)
 
-    with EXT_TEST_SEQUENCE_LOCK:
-      seq = list(EXT_TEST_SEQUENCE)
+    def do_get_file():
+      with EXT_TEST_SEQUENCE_LOCK:
+        seq = list(EXT_TEST_SEQUENCE)
 
-    i = 0
-    try:
-      for i, (ext, encoding) in enumerate(seq):
-        try:
-          return read_file(path + ext, encoding, start, end)
-        except FileNotFoundError:
-          continue
-    finally:
-      if i > 0:
-        with EXT_TEST_SEQUENCE_LOCK:
-          EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
+      i = 0
+      try:
+        for i, (ext, encoding) in enumerate(seq):
+          try:
+            return read_file(path + ext, encoding, start, end)
+          except FileNotFoundError:
+            continue
+      finally:
+        if i > 0:
+          with EXT_TEST_SEQUENCE_LOCK:
+            EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
 
-    return (None, None, None, None)
+      return (None, None, None, None)
+
+    return self.io_with_lock(do_get_file, path, exclusive=False)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
 
-    with EXT_TEST_SEQUENCE_LOCK:
-      exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
-    errors = (FileNotFoundError,)
+    def do_size():
+      with EXT_TEST_SEQUENCE_LOCK:
+        exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
+      errors = (FileNotFoundError,)
 
-    for ext in exts:
-      try:
-        return os.path.getsize(path + ext)
-      except errors:
-        continue
+      for ext in exts:
+        try:
+          return os.path.getsize(path + ext)
+        except errors:
+          continue
 
-    return None
+      return None
+
+    return self.io_with_lock(do_size, path, exclusive=False)
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
-    return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
+    def do_exists():
+      return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
+    return self.io_with_lock(do_exists, path, exclusive=False)
 
   def files_exist(self, file_paths):
     return { path: self.exists(path) for path in file_paths }
@@ -249,10 +298,13 @@ class FileInterface(StorageInterface):
     path = self.get_path_to_file(file_path)
     path, encoding = self.get_encoded_file_path(path)
 
-    try:
-      os.remove(path)
-    except FileNotFoundError:
-      pass
+    def do_delete_file():
+      try:
+        os.remove(path)
+      except FileNotFoundError:
+        pass
+
+    return self.io_with_lock(do_delete_file, path, exclusive=True)
 
   def delete_files(self, file_paths):
     for path in file_paths:
