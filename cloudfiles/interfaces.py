@@ -125,6 +125,22 @@ class FileInterface(StorageInterface):
           self._lock_dir = lock_dir
 
 
+  def io_with_lock(self, io_func, target, exclusive=False):
+    if not self._lock_dir:
+      return io_func()
+    else:
+      abspath = os.path.abspath(target)
+      input_bytes = abspath.encode('utf-8')
+      crc_value = binascii.crc32(input_bytes)
+      lock_path = os.path.join(self._lock_dir, f"{os.path.basename(target)}.{crc_value}")
+      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
+      if exclusive:
+        with rw_lock.write_lock():
+          return io_func()
+      else:
+        with rw_lock.read_lock():
+          return io_func()
+
 
   def get_path_to_file(self, file_path):
     return os.path.join(self._path.path, file_path)
@@ -191,14 +207,7 @@ class FileInterface(StorageInterface):
         with open(path, 'wb') as f:
           f.write(content)
 
-    if self._lock_dir:
-      lock_path = os.path.join(self._lock_dir,
-                               os.path.abspath(path).replace(os.sep, "=+"))
-      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-      with rw_lock.write_lock():
-        do_put_file()
-    else:
-      do_put_file()
+    return self.io_with_lock(do_put_file, path, exclusive=True)
 
   def head(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -226,14 +235,7 @@ class FileInterface(StorageInterface):
         "Parts-Count": None,
       }
 
-    if self._lock_dir:
-      lock_path = os.path.join(self._lock_dir,
-                               os.path.abspath(path).replace(os.sep, "=+"))
-      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-      with rw_lock.read_lock():
-        return do_head()
-    else:
-      return do_head()
+    return self.io_with_lock(do_head, path, exclusive=False)
 
   def get_file(self, file_path, start=None, end=None):
     global EXT_TEST_SEQUENCE
@@ -258,14 +260,7 @@ class FileInterface(StorageInterface):
 
       return (None, None, None, None)
 
-    if self._lock_dir:
-      lock_path = os.path.join(self._lock_dir,
-                               os.path.abspath(path).replace(os.sep, "=+"))
-      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-      with rw_lock.read_lock():
-        return do_get_file()
-    else:
-      return do_get_file()
+    return self.io_with_lock(do_get_file, path, exclusive=False)
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -283,25 +278,13 @@ class FileInterface(StorageInterface):
 
       return None
 
-    if self._lock_dir:
-      lock_path = os.path.join(self._lock_dir,
-                               os.path.abspath(path).replace(os.sep, "=+"))
-      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-      with rw_lock.read_lock():
-        return do_size()
-    else:
-      return do_size()
+    return self.io_with_lock(do_size, path, exclusive=False)
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
-    if self._lock_dir:
-      lock_path = os.path.join(self._lock_dir,
-                               os.path.abspath(path).replace(os.sep, "=+"))
-      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-      with rw_lock.read_lock():
-        return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
-    else:
+    def do_exists():
       return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
+    return self.io_with_lock(do_exists, path, exclusive=False)
 
   def files_exist(self, file_paths):
     return { path: self.exists(path) for path in file_paths }
@@ -316,14 +299,7 @@ class FileInterface(StorageInterface):
       except FileNotFoundError:
         pass
 
-    if self._lock_dir:
-      lock_path = os.path.join(self._lock_dir,
-                               os.path.abspath(path).replace(os.sep, "=+"))
-      rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
-      with rw_lock.write_lock():
-        do_delete_file()
-    else:
-      do_delete_file()
+    return self.io_with_lock(do_delete_file, path, exclusive=True)
 
   def delete_files(self, file_paths):
     for path in file_paths:
