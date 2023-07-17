@@ -280,17 +280,16 @@ class CloudFiles:
     if self._lock_dir is not None:
       return self._lock_dir
 
-    self.lock_dir = CLOUD_FILES_LOCK_DIR
+    self._lock_dir = CLOUD_FILES_LOCK_DIR
 
-    if self.locking is True and self._lock_dir is None:
+    if self._lock_dir is None:
       self._lock_dir = os.path.join(CLOUD_FILES_DIR, "locks")
 
-    if not os.path.exists(self._lock_dir):
+    if self.protocol == "file" and self.locking and not os.path.exists(self._lock_dir):
       mkdir(self._lock_dir)
-      if os.path.isdir(lock_dir) and os.access(lock_dir, os.R_OK|os.W_OK|os.X_OK):
-        self._lock_dir = lock_dir
-      else:
+      if not (os.path.isdir(self._lock_dir) and os.access(self._lock_dir, os.R_OK|os.W_OK|os.X_OK)):
         self._lock_dir = None
+        raise PermissionError(f"Unable to access {self._lock_dir}")
 
     return self._lock_dir
 
