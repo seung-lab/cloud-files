@@ -390,6 +390,18 @@ Locking is enabled if:
 
 Locking is always disabled if `locking=False`. This can be advantageous for performance reasons but may require careful design of access patterns to avoid reading a file that is being written to.
 
+You can check the current assigned locks directory:
+
+```python
+cf.lock_dir
+```
+
+You can clear the lock dir of all locks with:
+
+```python
+cf.clear_locks()
+```
+
 
 ## CloudFiles CLI Tool
 
