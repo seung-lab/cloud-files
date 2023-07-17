@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+4.18.0
+------
+
+* Use fasteners to lock local files (#91)
+* chore: update changelog
+* fix: improper handling of extensions
+* fix: zero-length file uploads to GCS don't crash
+* Add kwargs to S3Interface (#94)
+
 4.17.2
 ------
 

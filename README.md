@@ -50,7 +50,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 
 ## Highlights
 
-1. Fast file access with transparent threading and optionally multi-process.
+1. Fast file access with transparent threading and optionally multi-process access w/ local file locking.
 2. Google Cloud Storage, Amazon S3, local filesystems, and arbitrary web servers making hybrid or multi-cloud easy.
 3. Robust to flaky network connections. Uses exponential random window retries to avoid network collisions on a large cluster. Validates md5 for gcs and s3.
 4. gzip, brotli, bz2, zstd, and xz compression.
@@ -377,6 +377,19 @@ First, it uses a connection pool to avoid needing to reestablish connections or 
 Second, it uses an exponential random window backoff to retry failed connections and requests. The exponential backoff allows increasing breathing room for an overloaded server and the random window decorrelates independent attempts by a cluster. If the backoff was not growing, the retry attempts by a large cluster would be too rapid fire or inefficiently slow. If the attempts were not decorrellated, then regardless of the backoff, the servers will often all try again around the same time. We backoff seven times starting from 0.5 seconds to 60 seconds, doubling the random window each time.
 
 Third, for Google Cloud Storage (GCS) and S3 endpoints, we compute the md5 digest both sending and receiving to ensure data corruption did not occur in transit and that the server sent the full response. We cannot validate the digest for partial ("Range") reads. For [composite objects](https://cloud.google.com/storage/docs/composite-objects) (GCS) we can check the [crc32c](https://pypi.org/project/crc32c/) check-sum which catches transmission errors but not tampering (though MD5 isn't secure at all anymore). We are unable to perform validation for [multi-part uploads](https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html) (S3). Using custom encryption keys may also create validation problems.
+
+## Local File Locking
+
+When accessing local files (`file://`), CloudFiles can use the `fasteners` library to perform locking so multi-process IO can be performed safely. These options have no effect on remote file access such as `gs://` or `s3://`.
+
+Lock files are by default stored in `$CLOUD_FILES_DIR/locks` (usually `~/.cloudfiles/locks`). 
+
+Locking is enabled if:
+1. `CloudFiles(..., locking=True)`
+2. `CloudFiles(..., locking=None)` and a locking directory is set either via `CloudFiles(..., lock_dir=...)` or via the environment variable `CLOUD_FILES_LOCK_DIR`.
+
+Locking is always disabled if `locking=False`. This can be advantageous for performance reasons but may require careful design of access patterns to avoid reading a file that is being written to.
+
 
 ## CloudFiles CLI Tool
 
