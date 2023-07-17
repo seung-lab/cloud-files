@@ -1098,3 +1098,19 @@ def test_add_persistent_alias():
   cloudfiles.paths.remove_persistent_alias("example")  
 
 
+def test_lock_clearing():
+  from cloudfiles import CloudFiles
+  import re
+
+  cf = CloudFiles("file:///tmp/cloudfiles/", locking=True)
+  cf.clear_locks()
+  cf.put("hello.txt", b"hello world")
+  lst = os.listdir(cf.lock_dir)
+  match = re.match(r"^hello\.txt\.\d+", lst[0])
+  if not match:
+    assert False, "Unable to locate a lock for hello.txt"
+  cf.clear_locks()
+  lst = os.listdir(cf.lock_dir)
+  assert len(lst) == 0
+
+
