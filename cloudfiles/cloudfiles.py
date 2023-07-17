@@ -295,6 +295,9 @@ class CloudFiles:
 
   def clear_locks(self):
     """Removes temporary lock files in locking directory."""
+    if self.lock_dir is None:
+      return
+
     for direntry in os.scandir(self.lock_dir):
       os.remove(direntry.path)
 
