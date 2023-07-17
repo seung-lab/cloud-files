@@ -1246,6 +1246,13 @@ class CloudFile:
   def protocol(self):
     return self.cf.protocol
 
+  @property
+  def lock_dir(self):
+    return self.cf.lock_dir
+
+  def clear_locks(self):
+    return self.cf.clear_locks()
+
   def delete(self) -> None:
     """Deletes the file."""
     return self.cf.delete(self.filename)
