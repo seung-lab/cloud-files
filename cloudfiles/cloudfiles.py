@@ -33,6 +33,7 @@ from .lib import (
   md5, crc32c, decode_crc32c_b64
 )
 from .paths import ALIASES
+from .secrets import CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .typing import (
   CompressType, GetPathType, PutScalarType,
@@ -263,9 +264,9 @@ class CloudFiles:
     self.parallel = int(parallel)
     self.request_payer = request_payer
     self.locking = locking
-    self.lock_dir = lock_dir
     self.composite_upload_threshold = composite_upload_threshold
 
+    self._lock_dir = lock_dir
     self._path = paths.extract(cloudpath)
     if endpoint:
       self._path = paths.ExtractedPath(host=endpoint, **self._path)
@@ -273,6 +274,30 @@ class CloudFiles:
 
     if self._path.protocol == 'mem':
       self.num_threads = 0
+
+  @property
+  def lock_dir(self):
+    if self._lock_dir is not None:
+      return self._lock_dir
+
+    self.lock_dir = CLOUD_FILES_LOCK_DIR
+
+    if self.locking is True and self._lock_dir is None:
+      self._lock_dir = os.path.join(CLOUD_FILES_DIR, "locks")
+
+    if not os.path.exists(self._lock_dir):
+      mkdir(self._lock_dir)
+      if os.path.isdir(lock_dir) and os.access(lock_dir, os.R_OK|os.W_OK|os.X_OK):
+        self._lock_dir = lock_dir
+      else:
+        self._lock_dir = None
+
+    return self._lock_dir
+
+  def clear_locks(self):
+    """Removes temporary lock files in locking directory."""
+    for direntry in os.scandir(self.lock_dir):
+      os.remove(direntry.path)
 
   def _progress_description(self, prefix):
     if isinstance(self.progress, str):
@@ -1201,12 +1226,16 @@ class CloudFile:
     self, path:str, cache_meta:bool = False, 
     secrets:SecretsType = None,
     composite_upload_threshold:int = int(1e8),
+    locking:bool = True,
+    lock_dir:Optional[str] = None,
   ):
     path = paths.normalize(path)
     self.cf = CloudFiles(
       paths.dirname(path), 
       secrets=secrets, 
-      composite_upload_threshold=composite_upload_threshold
+      composite_upload_threshold=composite_upload_threshold,
+      locking=locking,
+      lock_dir=lock_dir,
     )
     self.filename = paths.basename(path)
     

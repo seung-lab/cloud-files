@@ -108,31 +108,17 @@ class FileInterface(StorageInterface):
     if request_payer is not None:
       raise ValueError("Specifying a request payer for the FileInterface is not supported. request_payer must be None, got '{}'.".format(request_payer))
 
-    if lock_dir is None:
-      lock_dir = CLOUD_FILES_LOCK_DIR
-
-    if locking is True and lock_dir is None:
-      lock_dir = os.path.join(CLOUD_FILES_DIR, "locks")
-
-    if locking is False:
-      self._lock_dir = None
-    else:
-      self._lock_dir = None
-      if lock_dir:
-        if not os.path.exists(lock_dir):
-          mkdir(lock_dir)
-        if os.path.isdir(lock_dir) and os.access(lock_dir, os.R_OK|os.W_OK|os.X_OK):
-          self._lock_dir = lock_dir
-
+    self.locking = locking
+    self.lock_dir = lock_dir
 
   def io_with_lock(self, io_func, target, exclusive=False):
-    if not self._lock_dir:
+    if not self.locking:
       return io_func()
     else:
       abspath = os.path.abspath(target)
       input_bytes = abspath.encode('utf-8')
       crc_value = binascii.crc32(input_bytes)
-      lock_path = os.path.join(self._lock_dir, f"{os.path.basename(target)}.{crc_value}")
+      lock_path = os.path.join(self.lock_dir, f"{os.path.basename(target)}.{crc_value}")
       rw_lock = fasteners.InterProcessReaderWriterLock(lock_path)
       if exclusive:
         with rw_lock.write_lock():
