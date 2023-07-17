@@ -461,7 +461,7 @@ The alias file is only accessed (and cached) if CloudFiles encounters an unknown
 
 CloudFiles is derived from the [CloudVolume.Storage](https://github.com/seung-lab/cloud-volume/tree/master/cloudvolume/storage) system.  
 
-Storage was initially created by William Silversmith and Ignacio Tartavull. It was maintained and improved by William Silversmith and includes improvements by Nico Kemnitz (extremely fast exists) and Ben Falk (brotli). Manuel Castro added the ability to chose cloud storage class. Thanks to the anonymous author from https://teppen.io/ for their s3 etag validation code.
+Storage was initially created by William Silversmith and Ignacio Tartavull. It was maintained and improved by William Silversmith and includes improvements by Nico Kemnitz (extremely fast exists), Ben Falk (brotli), and Ran Lu (local file locking). Manuel Castro added the ability to chose cloud storage class. Thanks to the anonymous author from https://teppen.io/ for their s3 etag validation code.
 
 
 
