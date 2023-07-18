@@ -60,6 +60,7 @@ def ispathdir(cloudpath):
   expath = extract(normalize_path(cloudpath))
   return (
     (expath.protocol != "file" and cloudpath[-1] == "/")
+    or (expath.protocol != "file" and expath.path == "" and expath.bucket != "")
     or (expath.protocol == "file" and cloudpath[-1] == os.path.sep)
     or (expath.protocol == "file" and os.path.isdir(expath.path))
   )
