@@ -1313,6 +1313,26 @@ class CloudFile:
     self._size = self.cf.size(self.filename)
     return self._size
 
+  def transfer_to(self, cloudpath):
+    epath = paths.extract(cloudpath)
+    self.cf.transfer_to(
+      paths.asbucketpath(epath), 
+      paths=[{
+        "path": self.filename,
+        "dest_path": epath.path,
+      }],
+    )
+
+  def transfer_from(self, cloudpath):
+    epath = paths.extract(cloudpath)
+    self.cf.transfer_from(
+      paths.asbucketpath(epath), 
+      paths=[{
+        "path": self.filename,
+        "dest_path": epath.path,
+      }],
+    )
+
   def __len__(self):
     return self.size()
 

@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+4.18.1
+------
+
+* test: check that clearing and creating locks works
+* fix: don't crash if lock dir is None when clearing locks
+* docs: how to clear locks
+* feat: add lock mechanisms to CloudFile
+* redesign: reorganize lock\_dir so that it only tests the fs for file://
+* feat: add lock clearing function
+* docs: add credit for Ran Lu
+* docs: describe how to use local file locking
+
 4.18.0
 ------
 
