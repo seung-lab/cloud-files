@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+4.19.0
+------
+
+* feat: add transfer\_to/from support for single files
+* fix(cli): process matrix://bucket without a trailing slash correctly
+
 4.18.1
 ------
 

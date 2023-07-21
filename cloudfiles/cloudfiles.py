@@ -1328,8 +1328,8 @@ class CloudFile:
     self.cf.transfer_from(
       paths.asbucketpath(epath), 
       paths=[{
-        "path": self.filename,
-        "dest_path": epath.path,
+        "path": epath.path,
+        "dest_path": self.filename,
       }],
     )
 
