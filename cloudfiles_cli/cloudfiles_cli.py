@@ -171,8 +171,13 @@ def get_mfp(path, recursive):
 @click.option('-c', '--compression', default='same', help="Destination compression type. Options: same, none, gzip, br, zstd", show_default=True)
 @click.option('--progress', is_flag=True, default=False, help="Show transfer progress.", show_default=True)
 @click.option('-b', '--block-size', default=128, help="Number of files to download at a time.", show_default=True)
+@click.option('--part-bytes', default=int(1e8), help="Composite upload threshold in bytes. Splits a file into pieces for some cloud services like gs and s3.", show_default=True)
 @click.pass_context
-def cp(ctx, source, destination, recursive, compression, progress, block_size):
+def cp(
+  ctx, source, destination, 
+  recursive, compression, progress, 
+  block_size, part_bytes
+):
   """
   Copy one or more files from a source to destination.
 
@@ -189,9 +194,9 @@ def cp(ctx, source, destination, recursive, compression, progress, block_size):
     return
 
   for src in source:
-    _cp_single(ctx, src, destination, recursive, compression, progress, block_size)
+    _cp_single(ctx, src, destination, recursive, compression, progress, block_size, part_bytes)
 
-def _cp_single(ctx, source, destination, recursive, compression, progress, block_size):
+def _cp_single(ctx, source, destination, recursive, compression, progress, block_size, part_bytes):
   use_stdin = (source == '-')
   use_stdout = (destination == '-')
 
@@ -283,7 +288,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       _cp_stdout(srcpath, xferpaths)
       return
 
-    cfdest = CloudFiles(destpath, progress=progress)
+    cfdest = CloudFiles(destpath, progress=progress, composite_upload_threshold=part_bytes)
 
     if isdestdir:
       new_path = os.path.basename(nsrc)
@@ -295,9 +300,9 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       "dest_path": new_path,
     }], reencode=compression)
 
-def _cp(src, dst, compression, progress, block_size, paths):
-  cfsrc = CloudFiles(src, progress=progress)
-  cfdest = CloudFiles(dst, progress=progress)
+def _cp(src, dst, compression, progress, block_size, part_bytes, paths):
+  cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes)
+  cfdest = CloudFiles(dst, progress=progress, composite_upload_threshold=part_bytes)
   cfsrc.transfer_to(
     cfdest, paths=paths, 
     reencode=compression, block_size=block_size
