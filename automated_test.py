@@ -697,7 +697,7 @@ def test_to_https_protocol():
   assert pth == "https://s3-hpcrc.rc.princeton.edu/my_bucket/to/heaven"
 
   pth = to_https_protocol("tigerdata://my_bucket/to/heaven")
-  assert pth == "https://tigerdata.princeton.edu/my_bucket/to/heaven"
+  assert pth == "https://td.princeton.edu/my_bucket/to/heaven"
 
   pth = to_https_protocol("file://my_bucket/to/heaven")
   assert pth == "file://my_bucket/to/heaven"

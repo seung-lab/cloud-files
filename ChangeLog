@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+4.19.2
+------
+
+* redesign: tigerdata.princeton.edu is now td.princeton.edu
+
+4.19.1
+------
+
+* feat: add reencode to CloudFiles transfer\_to/from
+* fix: inverted order of arguments for transfer\_from
+
 4.19.0
 ------
 
