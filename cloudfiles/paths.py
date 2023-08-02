@@ -19,7 +19,7 @@ ExtractedPath = namedtuple('ExtractedPath',
 ALIAS_FILE = os.path.join(CLOUD_FILES_DIR, "aliases.json")
 OFFICIAL_ALIASES = {
   "matrix": "s3://https://s3-hpcrc.rc.princeton.edu/",
-  "tigerdata": "s3://https://tigerdata.princeton.edu/",
+  "tigerdata": "s3://https://td.princeton.edu/",
 }
 ALIASES_FROM_FILE = None
 ALIASES = {}
