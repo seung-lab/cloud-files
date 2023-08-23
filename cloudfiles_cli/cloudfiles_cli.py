@@ -260,7 +260,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
 
   if not isinstance(xferpaths, str):
     if parallel == 1:
-      _cp(srcpath, destpath, compression, progress, block_size, xferpaths)
+      _cp(srcpath, destpath, compression, progress, block_size, part_bytes, xferpaths)
       return 
 
     total = None
@@ -272,7 +272,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
     if use_stdout:
       fn = partial(_cp_stdout, srcpath)
     else:
-      fn = partial(_cp, srcpath, destpath, compression, False, block_size)
+      fn = partial(_cp, srcpath, destpath, compression, False, block_size, part_bytes)
 
     with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
       with pathos.pools.ProcessPool(parallel) as executor:
