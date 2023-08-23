@@ -101,7 +101,11 @@ def test_read_write(s3, protocol, num_threads, green):
   results = cf.get_json('info')
   assert results == { 'omg': 'wow' }
 
-  cf.delete('info')
+  cf = CloudFile(cf.join(url, "info"))
+  results = cf.get_json()
+  assert results == { 'omg': 'wow' }
+
+  cf.delete()
 
   if protocol == 'file':
     rmtree(url)
