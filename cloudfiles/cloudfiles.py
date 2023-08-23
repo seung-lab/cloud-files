@@ -1285,6 +1285,10 @@ class CloudFile:
 
     return self.cf.get(reqs, raw=raw)
 
+  def get_json(self) -> Union[dict,list]:
+    """Download a json file and decode to a dict or list."""
+    return self.cf.get_json(self.filename)
+
   def put(self, content:bytes, *args, **kwargs):
     """Upload a file."""
     res = self.cf.put(self.filename, content, *args, **kwargs)
