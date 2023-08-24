@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+4.20.0
+------
+
+* fix(cli): missing part\_bytes argument in a few placs
+* test: add CF.get\_json test
+* feat: add CloudFile.get\_json
+* feat: add --part-bytes to cp CLI
+* fixtest: tigerdata -> td
+
 4.19.2
 ------
 

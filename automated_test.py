@@ -102,6 +102,7 @@ def test_read_write(s3, protocol, num_threads, green):
   assert results == { 'omg': 'wow' }
 
   cf = CloudFile(cf.join(url, "info"))
+  cf.put_json({ 'omg': 'wow' }, cache_control='no-cache')
   results = cf.get_json()
   assert results == { 'omg': 'wow' }
 

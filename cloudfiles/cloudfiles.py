@@ -1301,7 +1301,20 @@ class CloudFile:
 
   def put_json(self, content, *args, **kwargs):
     """Upload a file as JSON."""
-    return self.put(self.filename, content, *args, **kwargs)    
+    content = jsonify(content)
+
+    content_type = "application/json"
+    if content_type not in args:
+      kwargs["content_type"] = "application/json"
+    
+    try:
+      return self.cf.put(self.filename, content, *args, **kwargs)
+    finally:
+      if hasattr(content, "__len__"):
+        self._size = len(content)
+      else:
+        content.seek(0, os.SEEK_END)
+        self._size = content.tell()
 
   def head(self) -> dict:
     """Get the file metadata."""
