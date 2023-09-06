@@ -553,7 +553,7 @@ class GoogleCloudStorageInterface(StorageInterface):
       end = int(end - 1)
 
     try:
-      content = blob.download_as_bytes(start=start, end=end, raw_download=True)
+      content = blob.download_as_bytes(start=start, end=end, raw_download=True, checksum=None)
     except google.cloud.exceptions.NotFound as err:
       return (None, None, None, None)
 
