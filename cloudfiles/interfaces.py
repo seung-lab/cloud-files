@@ -228,7 +228,7 @@ class FileInterface(StorageInterface):
 
     return self.io_with_lock(do_head, path, exclusive=False)
 
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path, start=None, end=None, part_size=None):
     global EXT_TEST_SEQUENCE
     global read_file
     path = self.get_path_to_file(file_path)
@@ -388,7 +388,7 @@ class MemoryInterface(StorageInterface):
     else:
       self._data[path] = content
 
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path, start=None, end=None, part_size=None):
     path = self.get_path_to_file(file_path)
 
     if path + '.gz' in self._data:
@@ -543,7 +543,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     )
 
   @retry
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path, start=None, end=None, part_size=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
@@ -703,7 +703,7 @@ class HttpInterface(StorageInterface):
     return resp.headers
 
   @retry
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path, start=None, end=None, part_size=None):
     key = self.get_path_to_file(file_path)
 
     if start is not None or end is not None:
@@ -874,7 +874,7 @@ class S3Interface(StorageInterface):
     dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
 
   @retry
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path, start=None, end=None, part_size=None):
     """
     There are many types of execptions which can get raised
     from this method. We want to make sure we only return
@@ -913,7 +913,7 @@ class S3Interface(StorageInterface):
         # AWS has special multipart validation
         # so we handle it here... leaky abstraction.
         if '-' in etag: 
-          if not validate_s3_multipart_etag(content, etag):
+          if not validate_s3_multipart_etag(content, etag, part_size):
             raise MD5IntegrityError(f"{file_path} failed its multipart md5 check. server md5: {etag}")
           etag = None
         else:

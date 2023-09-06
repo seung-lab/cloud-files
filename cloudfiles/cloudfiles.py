@@ -332,7 +332,8 @@ class CloudFiles:
     self, paths:GetPathType, total:Optional[int] = None, 
     raw:bool = False, progress:Optional[bool] = None, 
     parallel:Optional[ParallelType] = None,
-    return_dict:bool = False, raise_errors:bool = True
+    return_dict:bool = False, raise_errors:bool = True,
+    part_size:Optional[int] = None
   ) -> Union[dict,bytes,List[dict]]:
     """
     Download one or more files. Return order is not guaranteed to match input.
@@ -350,6 +351,10 @@ class CloudFiles:
       not support the `len` operator.
     raw: download without decompressing
     parallel: number of concurrent processes (0 means all cores)
+    part_size: when working with composite s3 files on s3 emulators,
+      they may use a different part size when computing the etag 
+      checksum. if you know the part size (in bytes) you can provide
+      it here. This only has meaning for s3 paths with multi-part objects.
     return_dict: Turn output into { path: binary } and drops the 
       extra information. Errors will be raised immediately.
     raise_errors: Raise the first error immediately instead 
@@ -408,7 +413,9 @@ class CloudFiles:
       server_hash_type = None
       try:
         with self._get_connection() as conn:
-          content, encoding, server_hash, server_hash_type = conn.get_file(path, start=start, end=end)
+          content, encoding, server_hash, server_hash_type = conn.get_file(
+            path, start=start, end=end, part_size=part_size
+          )
         
         # md5s don't match for partial reads
         if start is None and end is None:

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import base64
 import binascii
 import hashlib
@@ -195,7 +197,9 @@ def calc_s3_multipart_etag(content, partsize):
     md5_digests.append(hashlib.md5(chunk).digest())
   return hashlib.md5(b''.join(md5_digests)).hexdigest() + '-' + str(len(md5_digests))
 
-def validate_s3_multipart_etag(content, etag):
+def validate_s3_multipart_etag(
+  content:bytes, etag:str, part_size:Optional[int]
+) -> bool:
   filesize = len(content)
   num_parts = int(etag.split('-')[1])
 
@@ -212,6 +216,9 @@ def validate_s3_multipart_etag(content, etag):
     15728640, # s3cmd aka 15 MiB (15 * 2**20)
     factor_of_1MB() # Used by many clients to upload large files
   ]
+
+  if part_size is not None:
+    partsizes = [ part_size ] + partsizes
 
   for partsize in filter(possible_partsizes, partsizes):
     if etag == calc_s3_multipart_etag(content, partsize):
