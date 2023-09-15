@@ -559,7 +559,9 @@ class GoogleCloudStorageInterface(StorageInterface):
   def copy_file(self, src_path, dest_bucket, dest_key):
     key = self.get_path_to_file(src_path)
     source_blob = self._bucket.blob( key )
-    dest_bucket = GC_POOL[GCloudBucketPoolParams(dest_bucket, self._request_payer)].get_connection(self._secrets, None)
+    with GCS_BUCKET_POOL_LOCK:
+     pool = GC_POOL[GCloudBucketPoolParams(dest_bucket, self._request_payer)]
+    dest_bucket = pool.get_connection(self._secrets, None)
     self._bucket.copy_blob(
       source_blob, dest_bucket, dest_key
     )
@@ -686,7 +688,9 @@ class GoogleCloudStorageInterface(StorageInterface):
 
   def release_connection(self):
     global GC_POOL
-    GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)].release_connection(self._bucket)
+    with GCS_BUCKET_POOL_LOCK:
+      pool = GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)]
+    pool.release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
   def __init__(self, path, secrets=None, request_payer=None, **kwargs):
@@ -1099,4 +1103,6 @@ class S3Interface(StorageInterface):
   def release_connection(self):
     global S3_POOL
     service = self._path.alias or 's3'
-    S3_POOL[S3ConnectionPoolParams(service, self._path.bucket, self._request_payer)].release_connection(self._conn)
+    with S3_BUCKET_POOL_LOCK:
+      pool = S3_POOL[S3ConnectionPoolParams(service, self._path.bucket, self._request_payer)]
+    pool.release_connection(self._conn)
