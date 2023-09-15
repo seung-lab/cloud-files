@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+4.21.0
+------
+
+* feat: support non-standard s3 part sizes for multi-part objects
+* Disable internal checksum validation in GCS client (#96)
+
+4.20.1
+------
+
+* fix: CloudFile.put\_json not operative
+
 4.20.0
 ------
 
