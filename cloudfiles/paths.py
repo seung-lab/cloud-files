@@ -1,3 +1,4 @@
+from functools import lru_cache
 from collections import namedtuple
 import orjson
 import os.path
@@ -295,6 +296,7 @@ def extract_format_protocol(cloudpath:str) -> tuple:
 
   return (fmt, proto, endpoint, cloudpath, alias)
 
+@lru_cache(maxsize=10, typed=False)
 def extract(cloudpath:str, windows=None) -> ExtractedPath:
   """
   Given a valid cloudpath of the form 
