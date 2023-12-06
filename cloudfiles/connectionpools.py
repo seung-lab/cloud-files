@@ -6,7 +6,8 @@ import threading
 import time
 from functools import partial
 
-import boto3 
+import boto3
+import botocore
 from google.cloud.storage import Client
 from google.oauth2 import service_account
 import tenacity
@@ -110,6 +111,11 @@ class S3ConnectionPool(ConnectionPool):
       secrets = json.loads(secrets)
 
     additional_args = {}
+
+    if secrets is None or len(secrets)==0:
+      # attempt to operate unsigned like `aws s3 cp --no-sign-request`
+      additional_args['config'] = botocore.client.Config(signature_version=botocore.UNSIGNED)
+
     if endpoint is not None:
       additional_args['endpoint_url'] = endpoint
 
