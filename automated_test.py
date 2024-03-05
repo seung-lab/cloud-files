@@ -44,6 +44,16 @@ def s3(aws_credentials):
     conn.create_bucket(Bucket="cloudfiles_dest")
     yield conn
 
+def test_aws_credentials(aws_credentials):
+  from cloudfiles import secrets
+  expected = {
+    'AWS_ACCESS_KEY_ID': 'testing',
+    'AWS_SECRET_ACCESS_KEY': 'testing',
+    'AWS_SESSION_TOKEN': 'testing',
+    'AWS_DEFAULT_REGION': 'us-east-1',
+  }
+  assert secrets.aws_credentials() == expected
+
 @pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("num_threads", (0, 5, 20))
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))

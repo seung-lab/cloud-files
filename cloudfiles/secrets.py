@@ -128,6 +128,7 @@ def aws_credentials(bucket = '', service = 'aws'):
       aws_credentials = {
         'AWS_ACCESS_KEY_ID': os.environ['AWS_ACCESS_KEY_ID'],
         'AWS_SECRET_ACCESS_KEY': os.environ['AWS_SECRET_ACCESS_KEY'],
+        'AWS_SESSION_TOKEN': os.environ['AWS_SESSION_TOKEN'],
       }
     if 'AWS_DEFAULT_REGION' in os.environ:
       aws_credentials['AWS_DEFAULT_REGION'] = os.environ['AWS_DEFAULT_REGION']
