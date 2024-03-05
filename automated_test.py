@@ -52,7 +52,7 @@ def test_aws_credentials(aws_credentials):
     'AWS_SESSION_TOKEN': 'testing',
     'AWS_DEFAULT_REGION': 'us-east-1',
   }
-  assert secrets.aws_credentials() == expected
+  assert secrets.aws_credentials(skip_files=True) == expected
 
 @pytest.mark.parametrize("green", (False, True))
 @pytest.mark.parametrize("num_threads", (0, 5, 20))

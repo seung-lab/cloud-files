@@ -456,6 +456,8 @@ class CloudFiles:
     num_threads = self.num_threads
     if self.protocol == "file":
       num_threads = 1
+    elif self.protocol == "mem":
+      num_threads = 0
 
     results = schedule_jobs(
       fns=( partial(download, path) for path in paths ), 

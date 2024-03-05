@@ -96,7 +96,7 @@ def google_credentials(bucket = ''):
 
 AWS_CREDENTIALS_CACHE:CredentialCacheType = defaultdict(dict)
 aws_credentials_path = secretpath('aws-secret.json')
-def aws_credentials(bucket = '', service = 'aws'):
+def aws_credentials(bucket = '', service = 'aws', skip_files=False):
   global AWS_CREDENTIALS_CACHE
 
   if service == 's3':
@@ -115,12 +115,13 @@ def aws_credentials(bucket = '', service = 'aws'):
     paths = [ secretpath('{}-{}-secret.json'.format(bucket, service)) ] + paths
 
   aws_credentials = {}
-  aws_credentials_path = secretpath(default_file_path)
-  for aws_credentials_path in paths:
-    if os.path.exists(aws_credentials_path):
-      with open(aws_credentials_path, 'r') as f:
-        aws_credentials = json.loads(f.read())
-      break
+  if not skip_files:
+    aws_credentials_path = secretpath(default_file_path)
+    for aws_credentials_path in paths:
+      if os.path.exists(aws_credentials_path):
+        with open(aws_credentials_path, 'r') as f:
+          aws_credentials = json.loads(f.read())
+        break
   
   if not aws_credentials:
     # did not find any secret json file, will try to find it in environment variables
