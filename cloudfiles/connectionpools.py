@@ -117,6 +117,7 @@ class S3ConnectionPool(ConnectionPool):
       's3',
       aws_access_key_id=secrets.get('AWS_ACCESS_KEY_ID', None),
       aws_secret_access_key=secrets.get('AWS_SECRET_ACCESS_KEY', None),
+      aws_session_token=secrets.get('AWS_SESSION_TOKEN', None),
       region_name=secrets.get('AWS_DEFAULT_REGION', 'us-east-1'),
       **additional_args
     )
