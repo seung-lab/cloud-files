@@ -7,6 +7,9 @@ import time
 from functools import partial
 
 import boto3 
+from botocore import UNSIGNED
+from botocore.config import Config
+
 from google.cloud.storage import Client
 from google.oauth2 import service_account
 import tenacity
@@ -55,13 +58,13 @@ class ConnectionPool(object):
   def _create_connection(self, secrets, endpoint):
     raise NotImplementedError
 
-  def get_connection(self, secrets=None, endpoint=None):
+  def get_connection(self, secrets=None, endpoint=None, no_sign_request=False):
     with self._lock:
       try:        
         conn = self.pool.get(block=False)
         self.pool.task_done()
       except queue.Empty:
-        conn = self._create_connection(secrets, endpoint)
+        conn = self._create_connection(secrets, endpoint, no_sign_request)
       finally:
         self.outstanding += 1
 
@@ -103,7 +106,7 @@ class S3ConnectionPool(ConnectionPool):
     super(S3ConnectionPool, self).__init__()
 
   @retry
-  def _create_connection(self, secrets=None, endpoint=None):
+  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False):
     if secrets is None:
       secrets = self.credentials
     if isinstance(secrets, str):
@@ -113,12 +116,17 @@ class S3ConnectionPool(ConnectionPool):
     if endpoint is not None:
       additional_args['endpoint_url'] = endpoint
 
+    config = None
+    if no_sign_request:
+      config = Config(signature_version=UNSIGNED)
+
     return boto3.client(
       's3',
       aws_access_key_id=secrets.get('AWS_ACCESS_KEY_ID', None),
       aws_secret_access_key=secrets.get('AWS_SECRET_ACCESS_KEY', None),
       aws_session_token=secrets.get('AWS_SESSION_TOKEN', None),
       region_name=secrets.get('AWS_DEFAULT_REGION', 'us-east-1'),
+      config=config,
       **additional_args
     )
       
@@ -136,7 +144,7 @@ class GCloudBucketPool(ConnectionPool):
     super(GCloudBucketPool, self).__init__()
 
   @retry
-  def _create_connection(self, secrets=None, endpoint=None):
+  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False):
     if secrets is None:
       secrets = self.credentials
     
@@ -163,7 +171,7 @@ class MemoryPool(ConnectionPool):
     self.data = MEMORY_DATA
     super(MemoryPool, self).__init__()
 
-  def _create_connection(self, secrets=None, endpoint=None):
+  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False):
     if self.bucket not in self.data:
       self.data[self.bucket] = {}
     return self.data[self.bucket]

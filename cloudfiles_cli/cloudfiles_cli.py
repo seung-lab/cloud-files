@@ -172,11 +172,12 @@ def get_mfp(path, recursive):
 @click.option('--progress', is_flag=True, default=False, help="Show transfer progress.", show_default=True)
 @click.option('-b', '--block-size', default=128, help="Number of files to download at a time.", show_default=True)
 @click.option('--part-bytes', default=int(1e8), help="Composite upload threshold in bytes. Splits a file into pieces for some cloud services like gs and s3.", show_default=True)
+@click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
 @click.pass_context
 def cp(
   ctx, source, destination, 
   recursive, compression, progress, 
-  block_size, part_bytes
+  block_size, part_bytes, no_sign_request,
 ):
   """
   Copy one or more files from a source to destination.
@@ -194,9 +195,17 @@ def cp(
     return
 
   for src in source:
-    _cp_single(ctx, src, destination, recursive, compression, progress, block_size, part_bytes)
+    _cp_single(
+      ctx, src, destination, recursive, 
+      compression, progress, block_size, 
+      part_bytes, no_sign_request
+    )
 
-def _cp_single(ctx, source, destination, recursive, compression, progress, block_size, part_bytes):
+def _cp_single(
+  ctx, source, destination, recursive, 
+  compression, progress, block_size,
+  part_bytes, no_sign_request
+):
   use_stdin = (source == '-')
   use_stdout = (destination == '-')
 
@@ -243,7 +252,9 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
     xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
     srcpath = cloudpathjoin(srcpath, prefix)
   elif many:
-    xferpaths = CloudFiles(srcpath).list(prefix=prefix, flat=flat)
+    xferpaths = CloudFiles(
+      srcpath, no_sign_request=no_sign_request
+    ).list(prefix=prefix, flat=flat)
 
   destpath = ndest
   if isinstance(xferpaths, str):
@@ -260,7 +271,7 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
 
   if not isinstance(xferpaths, str):
     if parallel == 1:
-      _cp(srcpath, destpath, compression, progress, block_size, part_bytes, xferpaths)
+      _cp(srcpath, destpath, compression, progress, block_size, part_bytes, no_sign_request, xferpaths)
       return 
 
     total = None
@@ -270,16 +281,16 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       pass
 
     if use_stdout:
-      fn = partial(_cp_stdout, srcpath)
+      fn = partial(_cp_stdout, no_sign_request, srcpath)
     else:
-      fn = partial(_cp, srcpath, destpath, compression, False, block_size, part_bytes)
+      fn = partial(_cp, srcpath, destpath, compression, False, block_size, part_bytes, no_sign_request)
 
     with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
       with pathos.pools.ProcessPool(parallel) as executor:
         for _ in executor.imap(fn, sip(xferpaths, block_size)):
           pbar.update(block_size)
   else:
-    cfsrc = CloudFiles(srcpath, progress=progress)
+    cfsrc = CloudFiles(srcpath, progress=progress, no_sign_request=no_sign_request)
     if not cfsrc.exists(xferpaths):
       print(f"cloudfiles: source path not found: {cfsrc.abspath(xferpaths).replace('file://','')}")
       return
@@ -288,7 +299,11 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       _cp_stdout(srcpath, xferpaths)
       return
 
-    cfdest = CloudFiles(destpath, progress=progress, composite_upload_threshold=part_bytes)
+    cfdest = CloudFiles(
+      destpath, 
+      progress=progress, 
+      composite_upload_threshold=part_bytes,
+    )
 
     if isdestdir:
       new_path = os.path.basename(nsrc)
@@ -300,17 +315,17 @@ def _cp_single(ctx, source, destination, recursive, compression, progress, block
       "dest_path": new_path,
     }], reencode=compression)
 
-def _cp(src, dst, compression, progress, block_size, part_bytes, paths):
-  cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes)
+def _cp(src, dst, compression, progress, block_size, part_bytes, no_sign_request, paths):
+  cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes, no_sign_request=no_sign_request)
   cfdest = CloudFiles(dst, progress=progress, composite_upload_threshold=part_bytes)
   cfsrc.transfer_to(
     cfdest, paths=paths, 
     reencode=compression, block_size=block_size
   )
 
-def _cp_stdout(src, paths):
+def _cp_stdout(src, no_sign_request, paths):
   paths = toiter(paths)
-  cf = CloudFiles(src, progress=False)
+  cf = CloudFiles(src, progress=False, no_sign_request=no_sign_request)
   for res in cf.get(paths):
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
@@ -372,7 +387,8 @@ def xferexecute(db, progress, lease_msec, block_size):
 @main.command()
 @click.argument("sources", nargs=-1)
 @click.option('-r', '--range', 'byte_range', default=None, help='Retrieve start-end bytes.')
-def cat(sources, byte_range):
+@click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
+def cat(sources, byte_range, no_sign_request):
   """Concatenate the contents of each input file and write to stdout."""
   if '-' in sources and len(sources) == 1:
     sources = sys.stdin.readlines()
@@ -386,7 +402,7 @@ def cat(sources, byte_range):
     byte_range[0] = int(byte_range[0] or 0)
     byte_range[1] = int(byte_range[1]) if byte_range[1] not in ("", None) else None
     src = normalize_path(sources[0])
-    cf = CloudFiles(os.path.dirname(src))
+    cf = CloudFiles(os.path.dirname(src), no_sign_request=no_sign_request)
     download = cf[os.path.basename(src), byte_range[0]:byte_range[1]]
     if download is None:
       print(f'cloudfiles: {src} does not exist')
@@ -397,7 +413,7 @@ def cat(sources, byte_range):
   for srcs in sip(sources, 10):
     srcs = [ normalize_path(src) for src in srcs ]
     order = { src: i for i, src in enumerate(srcs) }
-    files = cloudfiles.dl(srcs)
+    files = cloudfiles.dl(srcs, no_sign_request=no_sign_request)
     output = [ None for _ in range(len(srcs)) ]
     for res in files:
       if res["content"] is None:

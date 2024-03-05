@@ -251,7 +251,8 @@ class CloudFiles:
     parallel:ParallelType = 1, request_payer:Optional[str] = None,
     locking:Optional[bool] = None,
     lock_dir:Optional[str] = None,
-    composite_upload_threshold:int = int(1e8)
+    composite_upload_threshold:int = int(1e8),
+    no_sign_request:bool = False,
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -265,6 +266,7 @@ class CloudFiles:
     self.request_payer = request_payer
     self.locking = locking
     self.composite_upload_threshold = composite_upload_threshold
+    self.no_sign_request = bool(no_sign_request)
 
     self._lock_dir = lock_dir
     self._path = paths.extract(cloudpath)
@@ -315,6 +317,7 @@ class CloudFiles:
       locking=self.locking,
       lock_dir=self.lock_dir,
       composite_upload_threshold=self.composite_upload_threshold,
+      no_sign_request=self.no_sign_request,
     )
 
   @property
