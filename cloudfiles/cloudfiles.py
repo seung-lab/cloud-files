@@ -83,8 +83,7 @@ def parallelize(desc=None, returns_list=False):
         sig = inspect.signature(fn).bind(*args, **kwargs)
         parallel = sig.arguments.get("parallel", None)
       except TypeError:
-        parallel = kwargs.get("parallel", None)
-        del kwargs["parallel"]
+        parallel = kwargs.pop("parallel", None)
         sig = inspect.signature(fn).bind_partial(*args, **kwargs)
 
       params = sig.arguments
