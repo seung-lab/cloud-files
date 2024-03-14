@@ -521,7 +521,7 @@ class CloudFiles:
   def puts(
     self, files:PutType, 
     content_type:Optional[str] = None, compress:CompressType = None, 
-    compression_level:Optional[int]=None, cache_control:Optional[str] = None,
+    compression_level:Optional[int] = None, cache_control:Optional[str] = None,
     total:Optional[int] = None, raw:bool = False, progress:Optional[bool] = None,
     parallel:ParallelType = 1, storage_class:Optional[str] = None
   ) -> int:
@@ -945,8 +945,12 @@ class CloudFiles:
         yield f
 
   def transfer_to(
-    self, cf_dest:Any, paths:Any = None, # recursive CloudFiles not supported as type
-    block_size:int = 64, reencode:Optional[str] = None
+    self, 
+    cf_dest:Any, 
+    paths:Any = None, # recursive CloudFiles not supported as type
+    block_size:int = 64, 
+    reencode:Optional[str] = None,
+    content_type:Optional[str] = None,
   ) -> None:
     """
     Transfer all files from this CloudFiles storage 
@@ -979,6 +983,8 @@ class CloudFiles:
     block_size: number of files to transfer per a batch
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
+    content_type: if provided, set the Content-Type header
+      on the upload. This is necessary for e.g. file->cloud
     """
     if isinstance(cf_dest, str):
       cf_dest = CloudFiles(
@@ -986,11 +992,15 @@ class CloudFiles:
         green=self.green, num_threads=self.num_threads,
       )
 
-    return cf_dest.transfer_from(self, paths, block_size, reencode)
+    return cf_dest.transfer_from(self, paths, block_size, reencode, content_type)
 
   def transfer_from(
-    self, cf_src:Any, paths:Any = None, # recursive CloudFiles not supported as type
-    block_size:int = 64, reencode:Optional[str] = None
+    self, 
+    cf_src:Any, 
+    paths:Any = None, # recursive CloudFiles not supported as type
+    block_size:int = 64, 
+    reencode:Optional[str] = None,
+    content_type:Optional[str] = None,
   ) -> None:
     """
     Transfer all files from the source CloudFiles storage 
@@ -1023,6 +1033,8 @@ class CloudFiles:
     block_size: number of files to transfer per a batch
     reencode: if not None, reencode the compression type
       as '' (None), 'gzip', 'br', 'zstd'
+    content_type: if provided, set the Content-Type header
+      on the upload. This is necessary for e.g. file->cloud
     """
     if isinstance(cf_src, str):
       cf_src = CloudFiles(
@@ -1047,7 +1059,10 @@ class CloudFiles:
         and self.protocol != "file"
         and reencode is None
       ):
-        self.__transfer_file_to_remote(cf_src, self, paths, total, pbar, block_size)
+        self.__transfer_file_to_remote(
+          cf_src, self, paths, total, 
+          pbar, block_size, content_type
+        )
       elif (
         (
           (cf_src.protocol == "gs" and self.protocol == "gs")
@@ -1059,14 +1074,21 @@ class CloudFiles:
         )
         and reencode is None
       ):
-        self.__transfer_cloud_internal(cf_src, self, paths, total, pbar, block_size)
+        self.__transfer_cloud_internal(
+          cf_src, self, paths, 
+          total, pbar, block_size
+        )
       else:
-        self.__transfer_general(cf_src, self, paths, total, pbar, block_size, reencode)
+        self.__transfer_general(
+          cf_src, self, paths, total, 
+          pbar, block_size, 
+          reencode, content_type
+        )
 
   def __transfer_general(
     self, cf_src, cf_dest, paths, 
     total, pbar, block_size,
-    reencode
+    reencode, content_type
   ):
     """
     Downloads the file into RAM, transforms
@@ -1093,7 +1115,13 @@ class CloudFiles:
             item["path"] = item["tags"]["dest_path"]
             del item["tags"]["dest_path"]
           yield item
-      self.puts(renameiter(), raw=True, progress=False, compress=reencode)
+      self.puts(
+        renameiter(), 
+        raw=True, 
+        progress=False, 
+        compress=reencode,
+        content_type=content_type,
+      )
       pbar.update(len(block_paths))
 
   def __transfer_file_to_file(
@@ -1125,7 +1153,7 @@ class CloudFiles:
 
   def __transfer_file_to_remote(
     self, cf_src, cf_dest, paths, 
-    total, pbar, block_size
+    total, pbar, block_size, content_type
   ):
     """
     Provide file handles instead of slurped binaries 
@@ -1151,7 +1179,7 @@ class CloudFiles:
           "content": open(handle_path, "rb"),
           "compress": encoding,
         })
-      cf_dest.puts(to_upload, raw=True, progress=False)
+      cf_dest.puts(to_upload, raw=True, progress=False, content_type=content_type)
       for item in to_upload:
         item["content"].close()
       pbar.update(len(block_paths))
