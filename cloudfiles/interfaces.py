@@ -22,7 +22,7 @@ import fasteners
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
-from .exceptions import MD5IntegrityError
+from .exceptions import MD5IntegrityError, CompressionError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
 from .secrets import http_credentials, CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 
@@ -81,6 +81,21 @@ retry = tenacity.retry(
   stop=tenacity.stop_after_attempt(7), 
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
+
+def retry_if_not(exception_type):
+  if type(exception_type) != list:
+    exception_type = [ exception_type ]
+
+  conditions = tenacity.retry_if_not_exception_type(exception_type[0])
+  for et in exception_type[1:]:
+    conditions = conditions | tenacity.retry_if_not_exception_type(et)
+
+  return tenacity.retry(
+    retry=conditions,
+    reraise=True, 
+    stop=tenacity.stop_after_attempt(7), 
+    wait=tenacity.wait_random_exponential(0.5, 60.0),
+  ) 
 
 class StorageInterface(object):
   exists_batch_size = 1
@@ -528,7 +543,7 @@ class GoogleCloudStorageInterface(StorageInterface):
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)
 
-  @retry
+  @retry_if_not(CompressionError)
   def put_file(self, file_path, content, content_type,
                compress, cache_control=None, storage_class=None):
     key = self.get_path_to_file(file_path)
@@ -545,7 +560,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     elif compress in ("bzip2", "bz2"):
       blob.content_encoding = "bz2"
     elif compress:
-      raise ValueError("Compression type {} not supported.".format(compress))
+      raise CompressionError("Compression type {} not supported.".format(compress))
 
     if cache_control:
       blob.cache_control = cache_control
@@ -562,11 +577,17 @@ class GoogleCloudStorageInterface(StorageInterface):
     with GCS_BUCKET_POOL_LOCK:
      pool = GC_POOL[GCloudBucketPoolParams(dest_bucket, self._request_payer)]
     dest_bucket = pool.get_connection(self._secrets, None)
-    self._bucket.copy_blob(
-      source_blob, dest_bucket, dest_key
-    )
 
-  @retry
+    try:
+      self._bucket.copy_blob(
+        source_blob, dest_bucket, dest_key
+      )
+    except google.api_core.exceptions.NotFound:
+      return False
+
+    return True
+
+  @retry_if_not(google.cloud.exceptions.NotFound)
   def get_file(self, file_path, start=None, end=None, part_size=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
@@ -590,7 +611,7 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     return (content, blob.content_encoding, hash_value, hash_type)
 
-  @retry
+  @retry_if_not(google.cloud.exceptions.NotFound)
   def head(self, file_path):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.get_blob(key)
@@ -609,7 +630,7 @@ class GoogleCloudStorageInterface(StorageInterface):
       "Component-Count": blob.component_count,
     }
 
-  @retry
+  @retry_if_not(google.cloud.exceptions.NotFound)
   def size(self, file_path):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.get_blob(key)
@@ -617,7 +638,7 @@ class GoogleCloudStorageInterface(StorageInterface):
       return blob.size
     return None
 
-  @retry
+  @retry_if_not(google.cloud.exceptions.NotFound)
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob(key)
@@ -907,7 +928,15 @@ class S3Interface(StorageInterface):
       'Bucket': self._path.bucket,
       'Key': key,
     }
-    dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
+    try:
+      dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
+    except botocore.exceptions.ClientError as err: 
+      if err.response['Error']['Code'] == 'NoSuchKey':
+        return False
+      else:
+        raise
+
+    return True
 
   @retry
   def get_file(self, file_path, start=None, end=None, part_size=None):
