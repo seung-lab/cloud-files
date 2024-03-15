@@ -951,6 +951,7 @@ class CloudFiles:
     block_size:int = 64, 
     reencode:Optional[str] = None,
     content_type:Optional[str] = None,
+    allow_missing:bool = False,
   ) -> None:
     """
     Transfer all files from this CloudFiles storage 
@@ -992,7 +993,11 @@ class CloudFiles:
         green=self.green, num_threads=self.num_threads,
       )
 
-    return cf_dest.transfer_from(self, paths, block_size, reencode, content_type)
+    return cf_dest.transfer_from(
+      self, paths, block_size, 
+      reencode, content_type,
+      allow_missing,
+    )
 
   def transfer_from(
     self, 
@@ -1001,6 +1006,7 @@ class CloudFiles:
     block_size:int = 64, 
     reencode:Optional[str] = None,
     content_type:Optional[str] = None,
+    allow_missing:bool = False,
   ) -> None:
     """
     Transfer all files from the source CloudFiles storage 
@@ -1053,7 +1059,10 @@ class CloudFiles:
         and self.protocol == "file"
         and reencode is None
       ):
-        self.__transfer_file_to_file(cf_src, self, paths, total, pbar, block_size)
+        self.__transfer_file_to_file(
+          cf_src, self, paths, total, 
+          pbar, block_size, allow_missing
+        )
       elif (
         cf_src.protocol == "file"
         and self.protocol != "file"
@@ -1061,7 +1070,8 @@ class CloudFiles:
       ):
         self.__transfer_file_to_remote(
           cf_src, self, paths, total, 
-          pbar, block_size, content_type
+          pbar, block_size, content_type,
+          allow_missing,
         )
       elif (
         (
@@ -1076,19 +1086,22 @@ class CloudFiles:
       ):
         self.__transfer_cloud_internal(
           cf_src, self, paths, 
-          total, pbar, block_size
+          total, pbar, block_size, 
+          allow_missing,
         )
       else:
         self.__transfer_general(
           cf_src, self, paths, total, 
           pbar, block_size, 
-          reencode, content_type
+          reencode, content_type, 
+          allow_missing,
         )
 
   def __transfer_general(
     self, cf_src, cf_dest, paths, 
     total, pbar, block_size,
-    reencode, content_type
+    reencode, content_type, 
+    allow_missing
   ):
     """
     Downloads the file into RAM, transforms
@@ -1107,7 +1120,13 @@ class CloudFiles:
       if reencode is not None:
         downloaded = compression.transcode(downloaded, reencode, in_place=True)
       def renameiter():
+        nonlocal allow_missing
         for item in downloaded:
+          if item["content"] is None:
+            if allow_missing:
+              item["content"] = b""
+            else:
+              raise FileNotFoundError(f"{item['path']}")
           if (
             item["tags"] is not None
             and "dest_path" in item["tags"]
@@ -1126,7 +1145,7 @@ class CloudFiles:
 
   def __transfer_file_to_file(
     self, cf_src, cf_dest, paths, 
-    total, pbar, block_size
+    total, pbar, block_size, allow_missing
   ):
     """
     shutil.copyfile, starting in Python 3.8, uses
@@ -1148,12 +1167,21 @@ class CloudFiles:
       if dest_ext_compress != dest_ext:
         dest += dest_ext_compress
 
-      shutil.copyfile(src, dest) # avoids user space
+      try:
+        shutil.copyfile(src, dest) # avoids user space
+      except FileNotFoundError:
+        if allow_missing:
+          with open(dest, "wb") as f:
+            f.write(b'')
+        else:
+          raise
+
       pbar.update(1)
 
   def __transfer_file_to_remote(
     self, cf_src, cf_dest, paths, 
-    total, pbar, block_size, content_type
+    total, pbar, block_size, content_type,
+    allow_missing
   ):
     """
     Provide file handles instead of slurped binaries 
@@ -1174,19 +1202,29 @@ class CloudFiles:
         handle_path, encoding = FileInterface.get_encoded_file_path(
           os.path.join(srcdir, src_path)
         )
+        try: 
+          handle = open(handle_path, "rb")
+        except FileNotFoundError:
+          if allow_missing:
+            handle = b''
+          else:
+            raise
+
         to_upload.append({
           "path": dest_path,
-          "content": open(handle_path, "rb"),
+          "content": handle,
           "compress": encoding,
         })
       cf_dest.puts(to_upload, raw=True, progress=False, content_type=content_type)
       for item in to_upload:
-        item["content"].close()
+        handle = item["content"]
+        if hasattr(handle, "close"):
+          handle.close()
       pbar.update(len(block_paths))
 
   def __transfer_cloud_internal(
     self, cf_src, cf_dest, paths, 
-    total, pbar, block_size
+    total, pbar, block_size, allow_missing
   ):
     """
     For performing internal transfers in gs or s3.
@@ -1206,8 +1244,12 @@ class CloudFiles:
           dest_key = key
 
         dest_key = posixpath.join(cf_dest._path.path, dest_key)
-        conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
-      return 1
+        found = conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
+
+      if found == False and not allow_missing:
+        raise FileNotFoundError(key["path"])
+
+      return int(found)
 
     results = schedule_jobs(
       fns=( partial(thunk_copy, path) for path in paths ),
