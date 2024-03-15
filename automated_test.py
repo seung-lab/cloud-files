@@ -613,10 +613,11 @@ def test_s3_custom_endpoint_path():
   assert extract.path == 'world'
   assert extract.host == 'https://s3-hpcrc.rc.princeton.edu'
 
+@pytest.mark.parametrize('allow_missing', [False, True])
 @pytest.mark.parametrize('compression', (None, 'gzip', 'br', 'zstd', 'xz', 'bz2'))
 @pytest.mark.parametrize('src_protocol', ['mem', 'file', 's3'])
 @pytest.mark.parametrize('dest_protocol', ['mem', 'file', 's3'])
-def test_transfer_semantics(s3, compression, src_protocol, dest_protocol):
+def test_transfer_semantics(s3, compression, src_protocol, dest_protocol, allow_missing):
   from cloudfiles import CloudFiles, exceptions
 
   if src_protocol == "file":
@@ -650,18 +651,18 @@ def test_transfer_semantics(s3, compression, src_protocol, dest_protocol):
   cfm.delete(list(cfm))
   assert list(cfm) == []
 
-  cfm.transfer_from(f'{src_protocol}://' + path)
+  cfm.transfer_from(f'{src_protocol}://' + path, allow_missing=allow_missing)
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N
 
   cfm.delete(list(cfm))
 
-  cff.transfer_to(cfm.cloudpath)
+  cff.transfer_to(cfm.cloudpath, allow_missing=allow_missing)
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N  
   cfm.delete(list(cfm))
 
-  cff.transfer_to(cfm.cloudpath, reencode='br')
+  cff.transfer_to(cfm.cloudpath, reencode='br', allow_missing=allow_missing)
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N  
 
@@ -669,6 +670,16 @@ def test_transfer_semantics(s3, compression, src_protocol, dest_protocol):
     data = cfm._get_connection()._data
     data = [ os.path.splitext(d)[1] for d in data.keys() ] 
     assert all([ ext == '.br' for ext in data ])
+
+  if not allow_missing:
+    try:
+      cff.transfer_to(cfm.cloudpath, paths=["dne"], allow_missing=False)
+      assert False
+    except FileNotFoundError:
+      pass
+  else:
+    cff.transfer_to(cfm.cloudpath, paths=["dne"], allow_missing=True)
+    assert cfm.exists("dne")
 
   cfm.delete(list(cfm))
   cff.delete(list(cff))
