@@ -1,6 +1,29 @@
 CHANGES
 =======
 
+4.23.0
+------
+
+* feat: add content type to transfer\_to/from
+* fix: avoid an error when deleting "parallel" from kwargs
+
+4.22.0
+------
+
+* feat: add no\_sign\_request for s3 services
+* ci: remove py37 add py312
+* fixtest: bump moto version and fix backwards incompatible calls
+* fixtest: files present don't interfere with aws credentials
+* Add support for AWS\_SESSION\_TOKEN (#102)
+* perf: faster path extraction via caching computations
+
+4.21.1
+------
+
+* chore: update ChangeLog
+* fix: annotate other callsites with locks
+* perf: fix potential for multi-thread collision when creating pools
+
 4.21.0
 ------
 
