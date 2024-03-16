@@ -1247,7 +1247,7 @@ class CloudFiles:
         found = conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
 
       if found == False and not allow_missing:
-        raise FileNotFoundError(key["path"])
+        raise FileNotFoundError(src_key)
 
       return int(found)
 

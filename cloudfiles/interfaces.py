@@ -931,7 +931,7 @@ class S3Interface(StorageInterface):
     try:
       dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
     except botocore.exceptions.ClientError as err: 
-      if err.response['Error']['Code'] == 'NoSuchKey':
+      if err.response['Error']['Code'] in ('NoSuchKey', '404'):
         return False
       else:
         raise
