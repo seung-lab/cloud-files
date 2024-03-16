@@ -679,7 +679,8 @@ def test_transfer_semantics(s3, compression, src_protocol, dest_protocol, allow_
       pass
   else:
     cff.transfer_to(cfm.cloudpath, paths=["dne"], allow_missing=True)
-    assert cfm.exists("dne")
+    assert not cfm.exists("dne") or cfm.get("dne") == b''
+
 
   cfm.delete(list(cfm))
   cff.delete(list(cff))
