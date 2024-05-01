@@ -198,6 +198,7 @@ def test_http_read(secrets):
   cf = CloudFiles("https://storage.googleapis.com/seunglab-test/test_v0/black/", secrets=secrets)
   
   try:
+    head = cf.head('info')
     info = cf.get_json('info')
   except requests.exceptions.HTTPError:
     return

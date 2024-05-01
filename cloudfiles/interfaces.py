@@ -745,9 +745,9 @@ class HttpInterface(StorageInterface):
   @retry
   def head(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = self.session.head(key)
-    resp.raise_for_status()
-    return resp.headers
+    with self.session.head(key) as resp:
+      resp.raise_for_status()
+      return resp.headers
 
   @retry
   def get_file(self, file_path, start=None, end=None, part_size=None):
@@ -762,6 +762,7 @@ class HttpInterface(StorageInterface):
       resp = self.session.get(key)
     if resp.status_code in (404, 403):
       return (None, None, None, None)
+    resp.close()
     resp.raise_for_status()
 
     # Don't check MD5 for http because the etag can come in many
@@ -779,9 +780,8 @@ class HttpInterface(StorageInterface):
   @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = self.session.get(key, stream=True)
-    resp.close()
-    return resp.ok
+    with self.session.get(key, stream=True) as resp:
+      return resp.ok
 
   def files_exist(self, file_paths):
     return {path: self.exists(path) for path in file_paths}
@@ -804,6 +804,7 @@ class HttpInterface(StorageInterface):
         params={ "prefix": prefix, "pageToken": token },
       )
       results.raise_for_status()
+      results.close()
       return results.json()
 
     token = None
