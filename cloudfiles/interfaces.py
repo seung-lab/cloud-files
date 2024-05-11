@@ -749,6 +749,10 @@ class HttpInterface(StorageInterface):
       resp.raise_for_status()
       return resp.headers
 
+  def size(self, file_path):
+    headers = self.head(file_path)
+    return int(headers["Content-Length"])
+
   @retry
   def get_file(self, file_path, start=None, end=None, part_size=None):
     key = self.get_path_to_file(file_path)
