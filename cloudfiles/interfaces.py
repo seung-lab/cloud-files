@@ -860,6 +860,9 @@ class HttpInterface(StorageInterface):
 
         yield txt
 
+      if flat:
+        break
+
   def list_files(self, prefix, flat=False):
     if self._path.host == "https://storage.googleapis.com":
       yield from self._list_files_google(prefix, flat)
