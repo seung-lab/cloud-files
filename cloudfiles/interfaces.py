@@ -822,9 +822,54 @@ class HttpInterface(StorageInterface):
       if token is None:
         break
 
+  def _list_files_apache(self, prefix, flat):
+    import lxml.html
+    
+    if prefix != '':
+      raise ValueError("Prefixes are not supported for Apache servers.")
+
+    baseurl = posixpath.join(self._path.host, self._path.path)
+
+    directories = ['']
+
+    while directories:
+      directory = directories.pop()
+      url = posixpath.join(baseurl, directory)
+
+      resp = requests.get(url)
+      resp.raise_for_status()
+
+      if 'text/html' not in resp.headers["Content-Type"]:
+        raise ValueError("Unable to parse non-HTML output from Apache servers.")
+
+      entities = lxml.html.document_fromstring(resp.content)
+
+      h1 = entities.xpath("body/h1")[0].text_content()
+      if "Index of" not in h1:
+        raise ValueError("Unable to parse non-index page.")
+
+      for li in entities.xpath("body/ul/li"):
+        txt = li.text_content().strip()
+        if txt == "Parent Directory":
+          continue
+        elif txt[-1] == '/':
+          directories.append(
+            posixpath.join(directory, txt)
+          )
+          continue
+
+        yield txt
+
   def list_files(self, prefix, flat=False):
     if self._path.host == "https://storage.googleapis.com":
       yield from self._list_files_google(prefix, flat)
+    
+    url = posixpath.join(self._path.host, self._path.path, prefix)
+    resp = requests.head(url)
+
+    server = resp.headers.get("Server", "").lower()
+    if 'apache' in server:
+      yield from self._list_files_apache(prefix, flat)
     else:
       raise NotImplementedError()
 

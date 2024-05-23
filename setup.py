@@ -11,6 +11,9 @@ setuptools.setup(
       "cloudfiles=cloudfiles_cli:main"
     ],
   },
+  extras_require={
+    "apache": [ "lxml", ],
+  },
   pbr=True
 )
 
