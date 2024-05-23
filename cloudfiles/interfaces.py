@@ -843,6 +843,7 @@ class HttpInterface(StorageInterface):
         raise ValueError("Unable to parse non-HTML output from Apache servers.")
 
       entities = lxml.html.document_fromstring(resp.content)
+      resp.close()
 
       h1 = entities.xpath("body/h1")[0].text_content()
       if "Index of" not in h1:
@@ -858,7 +859,7 @@ class HttpInterface(StorageInterface):
           )
           continue
 
-        yield txt
+        yield posixpath.join(directory, txt)
 
       if flat:
         break
