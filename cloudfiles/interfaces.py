@@ -824,9 +824,6 @@ class HttpInterface(StorageInterface):
 
   def _list_files_apache(self, prefix, flat):
     import lxml.html
-    
-    if prefix != '':
-      raise ValueError("Prefixes are not supported for Apache servers.")
 
     baseurl = posixpath.join(self._path.host, self._path.path)
 
@@ -853,13 +850,16 @@ class HttpInterface(StorageInterface):
         txt = li.text_content().strip()
         if txt == "Parent Directory":
           continue
-        elif txt[-1] == '/':
-          directories.append(
-            posixpath.join(directory, txt)
-          )
+        
+        txt = posixpath.join(directory, txt)
+        if prefix and not txt.startswith(prefix):
           continue
 
-        yield posixpath.join(directory, txt)
+        if txt[-1] == '/':
+          directories.append(txt)
+          continue
+
+        yield txt
 
       if flat:
         break
