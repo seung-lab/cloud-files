@@ -714,6 +714,8 @@ class GoogleCloudStorageInterface(StorageInterface):
     pool.release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
+  adaptor = requests.adapters.HTTPAdapter()
+  
   def __init__(self, path, secrets=None, request_payer=None, **kwargs):
     super(StorageInterface, self).__init__()
     self._path = path
@@ -724,6 +726,8 @@ class HttpInterface(StorageInterface):
       secrets = http_credentials()
 
     self.session = requests.Session()
+    self.session.mount('http://', self.adaptor)
+    self.session.mount('https://', self.adaptor)
     if secrets and 'user' in secrets and 'password' in secrets:
       self.session.auth = (secrets['user'], secrets['password'])
 
@@ -822,9 +826,58 @@ class HttpInterface(StorageInterface):
       if token is None:
         break
 
+  def _list_files_apache(self, prefix, flat):
+    import lxml.html
+
+    baseurl = posixpath.join(self._path.host, self._path.path)
+
+    directories = ['']
+
+    while directories:
+      directory = directories.pop()
+      url = posixpath.join(baseurl, directory)
+
+      resp = requests.get(url)
+      resp.raise_for_status()
+
+      if 'text/html' not in resp.headers["Content-Type"]:
+        raise ValueError("Unable to parse non-HTML output from Apache servers.")
+
+      entities = lxml.html.document_fromstring(resp.content)
+      resp.close()
+
+      h1 = entities.xpath("body/h1")[0].text_content()
+      if "Index of" not in h1:
+        raise ValueError("Unable to parse non-index page.")
+
+      for li in entities.xpath("body/ul/li"):
+        txt = li.text_content().strip()
+        if txt == "Parent Directory":
+          continue
+        
+        txt = posixpath.join(directory, txt)
+        if prefix and not txt.startswith(prefix):
+          continue
+
+        if txt[-1] == '/':
+          directories.append(txt)
+          continue
+
+        yield txt
+
+      if flat:
+        break
+
   def list_files(self, prefix, flat=False):
     if self._path.host == "https://storage.googleapis.com":
       yield from self._list_files_google(prefix, flat)
+    
+    url = posixpath.join(self._path.host, self._path.path, prefix)
+    resp = requests.head(url)
+
+    server = resp.headers.get("Server", "").lower()
+    if 'apache' in server:
+      yield from self._list_files_apache(prefix, flat)
     else:
       raise NotImplementedError()
 
