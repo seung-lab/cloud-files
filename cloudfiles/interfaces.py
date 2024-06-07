@@ -714,6 +714,8 @@ class GoogleCloudStorageInterface(StorageInterface):
     pool.release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
+  adaptor = requests.adapters.HTTPAdapter()
+  
   def __init__(self, path, secrets=None, request_payer=None, **kwargs):
     super(StorageInterface, self).__init__()
     self._path = path
@@ -724,6 +726,8 @@ class HttpInterface(StorageInterface):
       secrets = http_credentials()
 
     self.session = requests.Session()
+    self.session.mount('http://', self.adaptor)
+    self.session.mount('https://', self.adaptor)
     if secrets and 'user' in secrets and 'password' in secrets:
       self.session.auth = (secrets['user'], secrets['password'])
 
