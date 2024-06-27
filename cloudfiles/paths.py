@@ -152,11 +152,16 @@ for alias, host in OFFICIAL_ALIASES.items():
 ## Other Path Library Functions
 
 def normalize(path):
-  proto = get_protocol(path)
+  fmt, proto, endpoint, cloudpath, alias = extract_format_protocol(
+    path, allow_defaults=False
+  )
+
   if proto is None:
     proto = "file"
-    path = toabs(path)
-    return f"file://{path}"
+    cloudpath = toabs(cloudpath)
+    fmt = f"{fmt}://" if fmt else ""
+    path = f"{fmt}{proto}://{cloudpath}"
+
   return path
 
 def dirname(path):
@@ -269,7 +274,7 @@ def pop_protocol(cloudpath):
 
   return (protocol, cloudpath)
 
-def extract_format_protocol(cloudpath:str) -> tuple:
+def extract_format_protocol(cloudpath:str, allow_defaults=True) -> tuple:
   error = UnsupportedProtocolError(cloudpath_error(cloudpath))
 
   alias, cloudpath = resolve_alias(cloudpath)
@@ -281,7 +286,9 @@ def extract_format_protocol(cloudpath:str) -> tuple:
   groups = m.groups()
   cloudpath = re.sub(CLOUDPATH_REGEXP, '', cloudpath, count=1)
 
-  fmt = m.group('fmt') or 'precomputed'
+  fmt = m.group('fmt')
+  if not fmt and allow_defaults:
+    fmt = 'precomputed'
   proto = m.group('proto')
   endpoint = None
 
