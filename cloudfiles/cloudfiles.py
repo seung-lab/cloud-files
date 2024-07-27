@@ -44,7 +44,7 @@ from .scheduler import schedule_jobs
 from .interfaces import (
   FileInterface, HttpInterface, 
   S3Interface, GoogleCloudStorageInterface,
-  MemoryInterface
+  MemoryInterface, CaveInterface,
 )
 
 INTERFACES = {
@@ -54,6 +54,7 @@ INTERFACES = {
   'http': HttpInterface,
   'https': HttpInterface,
   'mem': MemoryInterface,
+  'middleauth+https': CaveInterface,
 }
 for alias in ALIASES:
   INTERFACES[alias] = S3Interface

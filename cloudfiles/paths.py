@@ -26,7 +26,8 @@ ALIASES_FROM_FILE = None
 ALIASES = {}
 BASE_ALLOWED_PROTOCOLS = [ 
   'gs', 'file', 's3', 
-  'http', 'https', 'mem' 
+  'http', 'https', 'mem',
+  'middleauth+https', 'ngauth+https',
 ]
 ALLOWED_PROTOCOLS = list(BASE_ALLOWED_PROTOCOLS)
 ALLOWED_FORMATS = [ 
@@ -69,7 +70,13 @@ def cloudpath_error(cloudpath):
 def mkregexp():
   fmt_capture = r'|'.join(ALLOWED_FORMATS)
   fmt_capture = "(?:(?P<fmt>{})://)".format(fmt_capture)
-  proto_capture = r'|'.join(ALLOWED_PROTOCOLS)
+
+  allowed_protos = [
+    p.replace('+', r'\+')
+    for p in ALLOWED_PROTOCOLS
+  ]
+
+  proto_capture = r'|'.join(allowed_protos)
   proto_capture = "(?:(?P<proto>{})://)".format(proto_capture)
   regexp = "{}?{}?".format(fmt_capture, proto_capture)
   return regexp
@@ -292,8 +299,9 @@ def extract_format_protocol(cloudpath:str, allow_defaults=True) -> tuple:
   proto = m.group('proto')
   endpoint = None
 
-  if proto in ('http', 'https'):
-    cloudpath = proto + "://" + cloudpath
+  tmp_proto = proto.replace("middleauth+", "").replace("ngauth+", "")
+  if tmp_proto in ('http', 'https'):
+    cloudpath = tmp_proto + "://" + cloudpath
     parse = urllib.parse.urlparse(cloudpath)
     endpoint = parse.scheme + "://" + parse.netloc
     cloudpath = cloudpath.replace(endpoint, '', 1)
