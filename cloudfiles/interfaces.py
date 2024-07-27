@@ -1218,6 +1218,12 @@ class S3Interface(StorageInterface):
     pool.release_connection(self._conn)
 
 class CaveInterface(HttpInterface):
+  """
+  CAVE is an internal system that powers proofreading 
+  systems in Seung Lab. If you have no idea what this
+  is, don't worry about it.
+  see: https://github.com/CAVEconnectome
+  """
   def default_headers(self):
     cred = cave_credentials()
     return {
