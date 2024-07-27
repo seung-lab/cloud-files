@@ -564,6 +564,15 @@ def test_path_extraction():
         'a/username2/b/c/d', None, None
       ))
 
+def test_middleauth_path_extraction():
+  import cloudfiles.paths
+  path = cloudfiles.paths.extract('middleauth+https://example.com/wow/cool/')
+  assert path.format == 'precomputed'
+  assert path.protocol == 'middleauth+https'
+  assert path.bucket is None
+  assert path.path == 'wow/cool/'
+  assert path.host == "https://example.com"
+
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
 def test_access_non_cannonical_minimal_path(s3, protocol):
   from cloudfiles import CloudFiles, exceptions

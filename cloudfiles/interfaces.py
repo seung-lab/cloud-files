@@ -24,7 +24,12 @@ from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .exceptions import MD5IntegrityError, CompressionError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
-from .secrets import http_credentials, CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
+from .secrets import (
+  http_credentials,
+  cave_credentials,
+  CLOUD_FILES_DIR, 
+  CLOUD_FILES_LOCK_DIR,
+)
 
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd','.bz2','.xz')
 GZIP_TYPES = (True, 'gzip', 1)
@@ -731,6 +736,9 @@ class HttpInterface(StorageInterface):
     if secrets and 'user' in secrets and 'password' in secrets:
       self.session.auth = (secrets['user'], secrets['password'])
 
+  def default_headers(self):
+    return {}
+
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.host, self._path.path, file_path)
 
@@ -749,7 +757,8 @@ class HttpInterface(StorageInterface):
   @retry
   def head(self, file_path):
     key = self.get_path_to_file(file_path)
-    with self.session.head(key) as resp:
+    headers = self.default_headers()
+    with self.session.head(key, headers=headers) as resp:
       resp.raise_for_status()
       return resp.headers
 
@@ -761,13 +770,14 @@ class HttpInterface(StorageInterface):
   def get_file(self, file_path, start=None, end=None, part_size=None):
     key = self.get_path_to_file(file_path)
 
+    headers = self.default_headers()
     if start is not None or end is not None:
       start = int(start) if start is not None else 0
       end = int(end - 1) if end is not None else ''
-      headers = { "Range": "bytes={}-{}".format(start, end) }
-      resp = self.session.get(key, headers=headers)
-    else:
-      resp = self.session.get(key)
+      headers["Range"] = f"bytes={start}-{end}"
+    
+    resp = self.session.get(key, headers=headers)
+    
     if resp.status_code in (404, 403):
       return (None, None, None, None)
     resp.close()
@@ -788,7 +798,8 @@ class HttpInterface(StorageInterface):
   @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
-    with self.session.get(key, stream=True) as resp:
+    headers = self.default_headers()
+    with self.session.get(key, stream=True, headers=headers) as resp:
       return resp.ok
 
   def files_exist(self, file_paths):
@@ -805,11 +816,15 @@ class HttpInterface(StorageInterface):
     if prefix and prefix[-1] != '/':
       prefix += '/'
 
+    headers = self.default_headers()
+
     @retry
     def request(token):
+      nonlocal headers
       results = self.session.get(
         f"https://storage.googleapis.com/storage/v1/b/{bucket}/o",
         params={ "prefix": prefix, "pageToken": token },
+        headers=headers,
       )
       results.raise_for_status()
       results.close()
@@ -832,12 +847,13 @@ class HttpInterface(StorageInterface):
     baseurl = posixpath.join(self._path.host, self._path.path)
 
     directories = ['']
+    headers = self.default_headers()
 
     while directories:
       directory = directories.pop()
       url = posixpath.join(baseurl, directory)
 
-      resp = requests.get(url)
+      resp = requests.get(url, headers=headers)
       resp.raise_for_status()
 
       if 'text/html' not in resp.headers["Content-Type"]:
@@ -1200,3 +1216,16 @@ class S3Interface(StorageInterface):
     with S3_BUCKET_POOL_LOCK:
       pool = S3_POOL[S3ConnectionPoolParams(service, self._path.bucket, self._request_payer)]
     pool.release_connection(self._conn)
+
+class CaveInterface(HttpInterface):
+  """
+  CAVE is an internal system that powers proofreading 
+  systems in Seung Lab. If you have no idea what this
+  is, don't worry about it.
+  see: https://github.com/CAVEconnectome
+  """
+  def default_headers(self):
+    cred = cave_credentials()
+    return {
+      "Authorization": f"Bearer {cred['token']}",
+    }

@@ -137,6 +137,24 @@ def aws_credentials(bucket = '', service = 'aws', skip_files=False):
   AWS_CREDENTIALS_CACHE[service][bucket] = aws_credentials
   return aws_credentials
 
+CAVE_CREDENTIALS = None
+def cave_credentials():
+  global CAVE_CREDENTIALS
+  default_file_path = 'cave-secret.json'
+  path = secretpath(default_file_path)
+
+  if CAVE_CREDENTIALS:
+    return CAVE_CREDENTIALS
+
+  if os.path.exists(path):
+    with open(path, 'rt') as f:
+      CAVE_CREDENTIALS = json.loads(f.read())
+  else:
+    CAVE_CREDENTIALS = None
+
+  return CAVE_CREDENTIALS
+
+
 HTTP_CREDENTIALS = None
 def http_credentials():
   global HTTP_CREDENTIALS
