@@ -299,7 +299,10 @@ def extract_format_protocol(cloudpath:str, allow_defaults=True) -> tuple:
   proto = m.group('proto')
   endpoint = None
 
-  tmp_proto = proto.replace("middleauth+", "").replace("ngauth+", "")
+  tmp_proto = None
+  if proto is not None:
+    tmp_proto = proto.replace("middleauth+", "").replace("ngauth+", "")
+  
   if tmp_proto in ('http', 'https'):
     cloudpath = tmp_proto + "://" + cloudpath
     parse = urllib.parse.urlparse(cloudpath)
