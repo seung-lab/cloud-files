@@ -163,8 +163,10 @@ class ResumableFileSet:
     return int(res[0])
 
   def release(self):
+    cur = self.conn.cursor()
     cur.execute(f"UPDATE filelist SET lease = 0")
     cur.execute("commit")
+    cur.close()
 
   def __len__(self):
     return self.remaining()
