@@ -39,6 +39,9 @@ class ResumableFileSet:
     self.conn = sqlite3.connect(db_path)
     self.lease_msec = int(lease_msec)
 
+    self._total = 0
+    self._total_dirty = True
+
   def __del__(self):
     self.conn.close()
 
@@ -91,7 +94,9 @@ class ResumableFileSet:
       cur.execute(f"INSERT INTO filelist(filename,finished,lease) VALUES {bindlist}", filenames)
       cur.execute("commit")
 
-    cur.close()    
+    cur.close()
+
+    self._total_dirty = True
 
   def metadata(self):
     cur = self.conn.cursor()
@@ -140,33 +145,46 @@ class ResumableFileSet:
 
     cur.close()
 
-  def total(self):
+  def _scalar_query(self, sql:str) -> int:
     cur = self.conn.cursor()
-    cur.execute(f"SELECT count(filename) FROM filelist")
+    cur.execute(sql)
     res = cur.fetchone()
     cur.close()
     return int(res[0])
+
+  def total(self):
+    """Returns the total number of tasks (both processed and unprocessed)."""
+    if not self._total_dirty:
+      return self._total
+
+    self._total = self._scalar_query(f"SELECT max(id) FROM filelist")
+    self._total_dirty = False
+    return self._total
+
+  def finished(self):
+    return self._scalar_query(f"SELECT value FROM stats WHERE id = 1")
 
   def remaining(self):
-    cur = self.conn.cursor()
-    cur.execute(f"SELECT count(filename) FROM filelist WHERE finished = 0")
-    res = cur.fetchone()
-    cur.close()
-    return int(res[0])
+    return self.total() - self.finished()
+
+  def num_leased(self):
+    ts = int(now_msec())
+    return self._scalar_query(
+      f"SELECT count(filename) FROM filelist WHERE finished = 0 AND lease > {ts}"
+    )
 
   def available(self):
-    cur = self.conn.cursor()
-    ts = int(now_msec() + self.lease_msec)
-    cur.execute(f"SELECT count(filename) FROM filelist WHERE finished = 0 AND lease < {ts}")
-    res = cur.fetchone()
-    cur.close()
-    return int(res[0])
+    ts = int(now_msec())
+    return self._scalar_query(
+      f"SELECT count(filename) FROM filelist WHERE finished = 0 AND lease <= {ts}"
+    )
 
   def release(self):
     cur = self.conn.cursor()
     cur.execute(f"UPDATE filelist SET lease = 0")
     cur.execute("commit")
     cur.close()
+
 
   def __len__(self):
     return self.remaining()
