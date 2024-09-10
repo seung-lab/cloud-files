@@ -120,7 +120,7 @@ class ResumableFileSet:
     N = 0
 
     while True:
-      ts = now_msec() + self.lease_msec
+      ts = now_msec()
       cur.execute(f"""SELECT filename FROM filelist WHERE finished = 0 AND lease <= {ts} LIMIT {int(block_size)}""")
       rows = cur.fetchmany(block_size)
       N += len(rows)
