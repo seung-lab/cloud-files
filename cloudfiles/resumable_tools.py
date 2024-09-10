@@ -81,6 +81,18 @@ class ResumableFileSet:
     """)
     cur.execute("CREATE INDEX resumableidxfin ON filelist(finished,lease)")
     cur.execute("CREATE INDEX resumableidxfile ON filelist(filename)")
+
+    cur.execute(f"""
+      CREATE TABLE stats (
+        id {INTEGER} PRIMARY KEY {AUTOINC},
+        key TEXT NOT NULL,
+        value {INTEGER}
+      )
+    """)
+    cur.execute(
+      "INSERT INTO stats(id, key, value) VALUES (?,?,?)",
+      [1, 'finished', 0]
+    )
     cur.close()
 
   def insert(self, fname_iter):
@@ -116,6 +128,7 @@ class ResumableFileSet:
     for filenames in sip(fname_iter, SQLITE_MAX_PARAMS):
       bindlist = ",".join([f"{BIND}"] * len(filenames))
       cur.execute(f"UPDATE filelist SET finished = 1 WHERE filename in ({bindlist})", filenames)
+      cur.execute(f"UPDATE stats SET value = value + {len(filenames)} WHERE id = 1")
       cur.execute("commit")
     cur.close()
 
