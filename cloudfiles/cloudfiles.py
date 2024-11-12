@@ -1305,21 +1305,16 @@ class CloudFiles:
         cf_dest, progress=False, 
         green=self.green, num_threads=self.num_threads,
       )
+    
     total = totalfn(path_pairs, total)
 
     disable = not (self.progress if progress is None else progress)
 
     if self.protocol == "file" and cf_dest.protocol == "file":
-      for src, dest in tqdm(path_pairs, total=total, disable=disable, desc="Moving"):
-        src = self.join(self.cloudpath, src).replace("file://", "")
-        dest = cf_dest.join(cf_dest.cloudpath, dest).replace("file://", "")
-        mkdir(os.path.dirname(dest))
-        src, encoding = FileInterface.get_encoded_file_path(src)
-        _, dest_ext = os.path.splitext(dest)
-        dest_ext_compress = FileInterface.get_extension(encoding)
-        if dest_ext_compress != dest_ext:
-          dest += dest_ext_compress
-        shutil.move(src, dest)
+      self.__moves_file_to_file(
+        cf_dest, path_pairs, total, 
+        disable, block_size
+      )
       return
 
     pbar = tqdm(total=total, disable=disable, desc="Moving")
@@ -1335,6 +1330,30 @@ class CloudFiles:
         ), progress=False)
         self.delete(( src for src, dest in subpairs ), progress=False)
         pbar.update(len(subpairs))
+
+  def __moves_file_to_file(
+    self, 
+    cf_dest:Any, 
+    path_pairs:Sequence[Tuple[str,str]], 
+    total:Optional[int], 
+    disable:bool,
+    block_size:int,
+  ):
+    for src, dest in tqdm(path_pairs, total=total, disable=disable, desc="Moving"):
+      src = self.join(self.cloudpath, src).replace("file://", "")
+      dest = cf_dest.join(cf_dest.cloudpath, dest).replace("file://", "")
+
+      if os.path.isdir(dest):
+        dest = cf_dest.join(dest, os.path.basename(src))
+      else:
+        mkdir(os.path.dirname(dest))
+
+      src, encoding = FileInterface.get_encoded_file_path(src)
+      _, dest_ext = os.path.splitext(dest)
+      dest_ext_compress = FileInterface.get_extension(encoding)
+      if dest_ext_compress != dest_ext:
+        dest += dest_ext_compress
+      shutil.move(src, dest)
 
   def join(self, *paths:str) -> str:
     """
