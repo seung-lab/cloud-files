@@ -1324,11 +1324,10 @@ class CloudFiles:
 
     with pbar:
       for subpairs in sip(paths, block_size):
-        subtotal = len(subpairs)
-        subpairs = (
+        subpairs = [
           ((pair, pair) if isinstance(pair, str) else pair)
           for pair in subpairs
-        )
+        ]
 
         self.transfer_to(cf_dest, paths=(
           {
@@ -1338,7 +1337,7 @@ class CloudFiles:
           for src, dest in subpairs
         ), progress=False)
         self.delete(( src for src, dest in subpairs ), progress=False)
-        pbar.update(subtotal)
+        pbar.update(len(subpairs))
 
   def __moves_file_to_file(
     self, 
