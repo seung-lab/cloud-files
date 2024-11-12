@@ -1,6 +1,44 @@
 CHANGES
 =======
 
+* fix: add drop table stats
+* perf: add in stats table for faster xfer performance
+* feat: import improvements to ResumableFileSet from transcoder
+* fix: release in xfer
+* fix: leasing was broken
+* feat: add middleauth+https paths indicate CAVE interface (#106)
+
+4.26.0
+------
+
+* feat: make it possible to normalize e.g. zarr2://./helloworld
+* feat: add all current neuroglancer formats to parsing list
+
+4.25.0
+------
+
+* feat: list for apache servers (#104)
+
+4.24.2
+------
+
+* feat: add size operator to CloudFiles for HTTP interface
+
+4.24.1
+------
+
+* fix: close unused connections for HTTP interface
+
+4.24.0
+------
+
+* fix: check for 404 and use proper key variable
+* test: modify dne test
+* docs: update authors, changelog
+* feat: add support for allow\_missing to interfaces
+* test: check to see if allow\_missing works
+* feat: add allow\_missing to transfer\_to/from
+
 4.23.0
 ------
 

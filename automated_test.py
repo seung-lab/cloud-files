@@ -1151,3 +1151,36 @@ def test_lock_clearing():
   assert len(lst) == 0
 
 
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
+def test_move(s3, protocol):
+  from cloudfiles import CloudFiles
+
+  url = compute_url(protocol, "move")
+
+  cf = CloudFiles(url)
+  cf.puts([
+    ('hello', b'world'),
+    ('lamp', b'emporium'),
+  ])
+
+  print(cf.exists(["hola"]))
+
+  cf.move("hello", f"{protocol}://move/hola")
+
+  # assert any(cf.exists(["hello", "lamp"]).values()) == False
+  print(os.listdir("/tmp/cloudfiles/move/"))
+  print(cf.exists(["hola"]))
+  assert all(cf.exists(["hola"]).values()) == True
+
+
+
+
+
+
+
+
+
+
+
+
+

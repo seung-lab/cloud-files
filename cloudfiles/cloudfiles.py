@@ -2,7 +2,7 @@ from typing import (
   Any, Dict, Optional, 
   Union, List, Tuple, 
   Callable, Generator, 
-  Iterable, cast, BinaryIO
+  Sequence, cast, BinaryIO
 )
 
 from queue import Queue
@@ -953,6 +953,7 @@ class CloudFiles:
     reencode:Optional[str] = None,
     content_type:Optional[str] = None,
     allow_missing:bool = False,
+    progress:Optional[bool] = None,
   ) -> None:
     """
     Transfer all files from this CloudFiles storage 
@@ -969,7 +970,7 @@ class CloudFiles:
       - gs->gs: Uses GCS copy API to minimize data movement
       - s3->s3: Uses boto s3 copy API to minimize data movement
 
-    cf_src: another CloudFiles instance or cloudpath 
+    cf_dest: another CloudFiles instance or cloudpath 
     paths: if None transfer all files from src, else if
       an iterable, transfer only these files.
 
@@ -997,7 +998,8 @@ class CloudFiles:
     return cf_dest.transfer_from(
       self, paths, block_size, 
       reencode, content_type,
-      allow_missing,
+      allow_missing, 
+      progress,
     )
 
   def transfer_from(
@@ -1008,6 +1010,7 @@ class CloudFiles:
     reencode:Optional[str] = None,
     content_type:Optional[str] = None,
     allow_missing:bool = False,
+    progress:Optional[bool] = None,
   ) -> None:
     """
     Transfer all files from the source CloudFiles storage 
@@ -1054,7 +1057,15 @@ class CloudFiles:
 
     total = totalfn(paths, None)
 
-    with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
+    disable = progress
+    if disable is None:
+      disable = self.progress
+    if disable is None:
+      disable = False
+    else:
+      disable = not disable
+
+    with tqdm(desc="Transferring", total=total, disable=disable) as pbar:
       if (
         cf_src.protocol == "file"
         and self.protocol == "file"
@@ -1262,6 +1273,68 @@ class CloudFiles:
     )
     return len(results)
 
+  def move(self, src:str, dest:str):
+    """Move (rename) src to dest.
+
+    src and dest do not have to be on the same filesystem.
+    """
+    epath = paths.extract(dest)
+    full_cloudpath = paths.asprotocolpath(epath)
+    dest_cloudpath = paths.dirname(full_cloudpath)
+    base_dest = paths.basename(full_cloudpath)
+
+    return self.moves(dest_cloudpath, [
+      (src, base_dest)
+    ], block_size=1, progress=False)
+
+  def moves(
+    self,
+    cf_dest:Any,
+    path_pairs:Sequence[Tuple[str, str]],
+    block_size:int = 64, 
+    total:Optional[int] = None,
+    progress:Optional[bool] = None,
+  ):
+    """
+    Move (rename) files.
+
+    pairs: [ (src, dest), (src, dest), ... ]
+    """
+    if isinstance(cf_dest, str):
+      cf_dest = CloudFiles(
+        cf_dest, progress=False, 
+        green=self.green, num_threads=self.num_threads,
+      )
+    total = totalfn(path_pairs, total)
+
+    disable = not (self.progress if progress is None else progress)
+    pbar = tqdm(total=total, disable=disable, desc="Moving")
+
+    if self.protocol == "file" and edest.protocol == "file":
+      for src, dest in pbar:
+        src = self.join(self.cloudpath, src).replace("file://", "")
+        dest = cf_dest.join(cf_dest.cloudpath, dest).replace("file://", "")
+        mkdir(os.path.dirname(dest))
+        src, encoding = FileInterface.get_encoded_file_path(src)
+        _, dest_ext = os.path.splitext(dest)
+        dest_ext_compress = FileInterface.get_extension(encoding)
+        if dest_ext_compress != dest_ext:
+          dest += dest_ext_compress
+        shutil.move(src, dest)
+      return
+
+    with pbar:
+      for subpairs in sip(path_pairs, block_size):
+        self.transfer_to(cf_dest, paths=(
+          {
+            "path": src,
+            "dest_path": dest,
+          } 
+          for src, dest in subpairs
+        ), progress=False)
+        self.delete(( src for src, dest in subpairs ), progress=False)
+        pbar.update(len(subpairs))
+
   def join(self, *paths:str) -> str:
     """
     Convenience method for joining path strings
@@ -1439,6 +1512,10 @@ class CloudFile:
       }],
       reencode=reencode,
     )
+
+  def move(self, dest):
+    """Move (rename) this file to dest."""
+    return self.cf.move(self.filename, dest)
 
   def __len__(self):
     return self.size()
