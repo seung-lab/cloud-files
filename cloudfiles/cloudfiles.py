@@ -1293,7 +1293,7 @@ class CloudFiles:
   def moves(
     self,
     cf_dest:Any,
-    path_pairs:Sequence[Tuple[str, str]],
+    paths:Union[Sequence[str], Sequence[Tuple[str, str]]],
     block_size:int = 64, 
     total:Optional[int] = None,
     progress:Optional[bool] = None,
@@ -1309,13 +1309,13 @@ class CloudFiles:
         green=self.green, num_threads=self.num_threads,
       )
     
-    total = totalfn(path_pairs, total)
+    total = totalfn(paths, total)
 
     disable = not (self.progress if progress is None else progress)
 
     if self.protocol == "file" and cf_dest.protocol == "file":
       self.__moves_file_to_file(
-        cf_dest, path_pairs, total, 
+        cf_dest, paths, total, 
         disable, block_size
       )
       return
@@ -1323,7 +1323,12 @@ class CloudFiles:
     pbar = tqdm(total=total, disable=disable, desc="Moving")
 
     with pbar:
-      for subpairs in sip(path_pairs, block_size):
+      for subpairs in sip(paths, block_size):
+        subpairs = (
+          ((pair, pair) if isinstance(pair, str) else pair)
+          for pair in subpairs
+        )
+
         self.transfer_to(cf_dest, paths=(
           {
             "path": src,
@@ -1337,12 +1342,18 @@ class CloudFiles:
   def __moves_file_to_file(
     self, 
     cf_dest:Any, 
-    path_pairs:Sequence[Tuple[str,str]], 
+    paths:Union[Sequence[str], Sequence[Tuple[str,str]]],
     total:Optional[int], 
     disable:bool,
     block_size:int,
   ):
-    for src, dest in tqdm(path_pairs, total=total, disable=disable, desc="Moving"):
+    for pair in tqdm(paths, total=total, disable=disable, desc="Moving"):
+      if isinstance(pair, str):
+        src = pair
+        dest = pair
+      else:
+        (src, dest) = pair
+
       src = self.join(self.cloudpath, src).replace("file://", "")
       dest = cf_dest.join(cf_dest.cloudpath, dest).replace("file://", "")
 
