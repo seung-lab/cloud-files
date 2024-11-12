@@ -1162,15 +1162,25 @@ def test_move(s3, protocol):
     ('hello', b'world'),
     ('lamp', b'emporium'),
   ])
-
-  print(cf.exists(["hola"]))
-
-  cf.move("hello", f"{protocol}://move/hola")
-
-  # assert any(cf.exists(["hello", "lamp"]).values()) == False
-  print(os.listdir("/tmp/cloudfiles/move/"))
-  print(cf.exists(["hola"]))
+  cf.move("hello", f"{url}/hola")
+  
   assert all(cf.exists(["hola"]).values()) == True
+  assert all(cf.exists(["hello"]).values()) == False
+
+  cf.puts([
+    ('hello', b'world'),
+    ('lamp', b'emporium'),
+  ])
+
+  cf.delete("hola")
+
+  cf.moves(f"{url}", [
+    ("hello", f"hola"),
+    ("lamp", f"lampara"),
+  ])
+
+  assert all(cf.exists(["hola", "lampara"]).values()) == True
+  assert all(cf.exists(["hello", "lamp"]).values()) == False
 
 
 
