@@ -435,7 +435,7 @@ def _mv_single(
 
     fn = partial(_mv, srcpath, destpath, False, block_size, part_bytes, no_sign_request)
 
-    with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
+    with tqdm(desc="Moving", total=total, disable=(not progress)) as pbar:
       with pathos.pools.ProcessPool(parallel) as executor:
         for _ in executor.imap(fn, sip(xferpaths, block_size)):
           pbar.update(block_size)
