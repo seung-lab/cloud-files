@@ -349,17 +349,22 @@ def mv(
     print("cloudfiles: destination must be a directory for multiple source files.")
     return
 
+  ctx.ensure_object(dict)
+  parallel = int(ctx.obj.get("parallel", 1))
+
   for src in source:
     _mv_single(
-      ctx, src, destination, 
+      src, destination, 
       progress, block_size, 
-      part_bytes, no_sign_request
+      part_bytes, no_sign_request,
+      parallel
     )
 
 def _mv_single(
-  ctx, source, destination, 
+  source, destination, 
   progress, block_size,
-  part_bytes, no_sign_request
+  part_bytes, no_sign_request,
+  parallel
 ):
   use_stdin = (source == '-')
 
@@ -390,9 +395,6 @@ def _mv_single(
       if nsrc[-1] == '/':
         nsrc = nsrc[:-1]
       ndest = cloudpathjoin(ndest, os.path.basename(nsrc))
-
-  ctx.ensure_object(dict)
-  parallel = int(ctx.obj.get("parallel", 1))
 
   # The else clause here is to handle single file transfers
   srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
