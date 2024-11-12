@@ -373,7 +373,7 @@ def _mv_single(
   endest = cloudfiles.paths.extract(ndest)
 
   if ensrc.protocol == "file" and endest.protocol == "file" and issrcdir:
-    shutil.move(nsrc.replace("file://", ""), ndest.replace("file://"))
+    shutil.move(nsrc.replace("file://", ""), ndest.replace("file://", ""))
     return
 
   recursive = issrcdir
@@ -451,15 +451,7 @@ def _mv_single(
       composite_upload_threshold=part_bytes,
     )
 
-    if isdestdir:
-      new_path = os.path.basename(nsrc)
-    else:
-      new_path = os.path.basename(ndest)
-
-    cfsrc.transfer_to(cfdest, paths=[{
-      "path": xferpaths,
-      "dest_path": new_path,
-    }], reencode=compression)
+    cfsrc.move(xferpaths, ndest)
 
 def _mv(src, dst, progress, block_size, part_bytes, no_sign_request, paths):
   cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes, no_sign_request=no_sign_request)
