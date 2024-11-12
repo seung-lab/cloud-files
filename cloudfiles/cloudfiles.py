@@ -1308,10 +1308,9 @@ class CloudFiles:
     total = totalfn(path_pairs, total)
 
     disable = not (self.progress if progress is None else progress)
-    pbar = tqdm(total=total, disable=disable, desc="Moving")
 
-    if self.protocol == "file" and edest.protocol == "file":
-      for src, dest in pbar:
+    if self.protocol == "file" and cf_dest.protocol == "file":
+      for src, dest in tqdm(path_pairs, total=total, disable=disable, desc="Moving"):
         src = self.join(self.cloudpath, src).replace("file://", "")
         dest = cf_dest.join(cf_dest.cloudpath, dest).replace("file://", "")
         mkdir(os.path.dirname(dest))
@@ -1322,6 +1321,8 @@ class CloudFiles:
           dest += dest_ext_compress
         shutil.move(src, dest)
       return
+
+    pbar = tqdm(total=total, disable=disable, desc="Moving")
 
     with pbar:
       for subpairs in sip(path_pairs, block_size):
