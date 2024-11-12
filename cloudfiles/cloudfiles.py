@@ -1222,6 +1222,9 @@ class CloudFiles:
           else:
             raise
 
+        if dest_path == '':
+          dest_path = src_path
+
         to_upload.append({
           "path": dest_path,
           "content": handle,
