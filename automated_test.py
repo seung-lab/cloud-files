@@ -1223,3 +1223,14 @@ def test_cli_move_python(s3, protocol):
   assert cf.exists("move/1") == True
   assert cf.exists("1") == False
 
+@pytest.mark.parametrize("protocol", ["file", "mem", "s3"])
+def test_touch(s3, protocol):
+  from cloudfiles import CloudFiles
+
+  url = compute_url(protocol, "touch")
+
+  cf = CloudFiles(url)
+
+  cf.touch([ str(i) for i in range(20) ])
+
+  assert sorted(list(cf)) == sorted([ str(i) for i in range(20) ])
