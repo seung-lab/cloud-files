@@ -29,7 +29,7 @@ from . import compression, paths, gcs
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
   mkdir, totalfn, toiter, scatter, jsonify, nvl, 
-  duplicates, first, sip,
+  duplicates, first, sip, touch,
   md5, crc32c, decode_crc32c_b64
 )
 from .paths import ALIASES
@@ -919,6 +919,28 @@ class CloudFiles:
     )
     return len(results)
 
+  def touch(
+    self, paths:GetPathType, 
+    progress:Optional[bool] = None, total:Optional[int] = None
+  ):
+    """Create a zero byte file if it doesn't exist."""
+    paths = toiter(paths)
+    progress = nvl(progress, self.progress)
+    total = totalfn(paths, total)
+
+    if self.protocol == "file":
+      for path in tqdm(paths, disable=(not progress), total=total):
+        touch(path)
+      return
+
+    result = self.exists(paths, total=total, progress=progress)
+
+    self.puts([ 
+      (fname, b'') 
+      for fname, exists in results.items() 
+      if not exists 
+    ], progress=progress)
+
   def list(
     self, prefix:str = "", flat:bool = False
   ) -> Generator[str,None,None]:
@@ -1546,6 +1568,9 @@ class CloudFile:
       }],
       reencode=reencode,
     )
+
+  def touch(self):
+    return self.cf.touch(self.filename)
 
   def move(self, dest):
     """Move (rename) this file to dest."""
