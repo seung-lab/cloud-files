@@ -929,11 +929,12 @@ class CloudFiles:
     total = totalfn(paths, total)
 
     if self.protocol == "file":
+      basepath = self.cloudpath.replace("file://", "")
       for path in tqdm(paths, disable=(not progress), total=total):
-        touch(path)
+        touch(self.join(basepath, path))
       return
 
-    result = self.exists(paths, total=total, progress=progress)
+    results = self.exists(paths, total=total, progress=progress)
 
     self.puts([ 
       (fname, b'') 
