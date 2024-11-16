@@ -38,6 +38,12 @@ cf.delete(paths, parallel=2) # threaded + two processes
 boolean = cf.exists('filename')
 results = cf.exists([ 'filename_1', ... ]) # threaded
 
+cf.move("a", "gs://bucket/b")
+cf.moves("gs://bucket/", [ ("a", "b") ])
+
+cf.touch("example")
+cf.touch([ "example", "example2" ])
+
 # for single files
 cf = CloudFile("gs://bucket/file1")
 info = cf.head()
