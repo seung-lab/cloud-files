@@ -420,6 +420,10 @@ cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
 cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
 # decompress
 cloudfiles cp -c none s3://bkt/file.txt gs://bkt2/
+# move or rename files
+cloudfiles mv s3://bkt/file.txt gs://bkt2/
+# create an empty file if not existing
+cloudfiles touch s3://bkt/empty.txt
 # pass from stdin (use "-" for source argument)
 find some_dir | cloudfiles cp - s3://bkt/
 # resumable transfers
