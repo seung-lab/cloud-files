@@ -32,7 +32,7 @@ from .lib import (
   duplicates, first, sip, touch,
   md5, crc32c, decode_crc32c_b64
 )
-from .paths import ALIASES
+from .paths import ALIASES, find_common_buckets
 from .secrets import CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .typing import (
