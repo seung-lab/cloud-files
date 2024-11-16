@@ -1234,3 +1234,7 @@ def test_touch(s3, protocol):
   cf.touch([ str(i) for i in range(20) ])
 
   assert sorted(list(cf)) == sorted([ str(i) for i in range(20) ])
+
+  cf.touch([ str(i) for i in range(20) ])
+
+  assert sorted(list(cf)) == sorted([ str(i) for i in range(20) ])

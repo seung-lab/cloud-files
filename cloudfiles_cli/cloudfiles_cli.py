@@ -27,7 +27,7 @@ import cloudfiles.paths
 from cloudfiles import CloudFiles
 from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
-from cloudfiles.paths import extract, get_protocol
+from cloudfiles.paths import extract, get_protocol, find_common_buckets
 from cloudfiles.lib import (
   mkdir, toabs, sip, toiter, 
   first, red, green,
@@ -461,6 +461,27 @@ def _mv(src, dst, progress, block_size, part_bytes, no_sign_request, paths):
   cfsrc.moves(
     cfdest, paths=paths, block_size=block_size
   )
+
+@main.command()
+@click.argument("sources", nargs=-1)
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.", show_default=True)
+@click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
+@click.pass_context
+def touch(
+  ctx, sources,
+  progress, no_sign_request,
+):
+  sources = list(map(normalize_path, sources))
+  sources = [ src.replace("precomputed://", "") for src in sources ]
+  pbar = tqdm(total=len(sources), desc="Touch", disable=(not progress))
+
+  clustered = find_common_buckets(sources)
+
+  with pbar:
+    for bucket, items in clustered.items():
+      cf = CloudFiles(bucket, no_sign_request=no_sign_request, progress=False)
+      cf.touch(items)
+      pbar.update(len(items))
 
 @main.group("xfer")
 def xfergroup():

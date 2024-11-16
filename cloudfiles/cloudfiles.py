@@ -182,7 +182,7 @@ def path_to_byte_range_tags(path):
   if isinstance(path, str):
     return (path, None, None, None)
   return (path['path'], path.get('start', None), path.get('end', None), path.get('tags', None))
-  
+
 def dl(
   cloudpaths:GetPathType, raw:bool=False, **kwargs
 ) -> Union[bytes,List[dict]]:
@@ -193,23 +193,8 @@ def dl(
   dict.
   """
   cloudpaths, is_multiple = toiter(cloudpaths, is_iter=True)
-  clustered = defaultdict(list)
-  total = 0
-  for path in cloudpaths:
-    pth = path
-    byte_range = None
-    if isinstance(path, dict):
-      pth = path["path"]
-      byte_range = path["byte_range"]
-
-    epath = paths.extract(pth)
-    bucketpath = paths.asbucketpath(epath)
-    clustered[bucketpath].append({ 
-      "path": epath.path,
-      "start": (byte_range[0] if byte_range else None), # type: ignore
-      "end": (byte_range[1] if byte_range else None), # type: ignore
-    })
-    total += 1
+  clustered = find_common_buckets(cloudpaths)
+  total = sum([ len(bucket) for bucket in clustered.values() ])
 
   progress = kwargs.get("progress", False) and total > 1
   pbar = tqdm(total=total, desc="Downloading", disable=(not progress))
@@ -920,10 +905,15 @@ class CloudFiles:
     return len(results)
 
   def touch(
-    self, paths:GetPathType, 
-    progress:Optional[bool] = None, total:Optional[int] = None
+    self, 
+    paths:GetPathType,
+    progress:Optional[bool] = None,
+    total:Optional[int] = None,
+    nocopy:bool = False,
   ):
-    """Create a zero byte file if it doesn't exist."""
+    """
+    Create a zero byte file if it doesn't exist.
+    """
     paths = toiter(paths)
     progress = nvl(progress, self.progress)
     total = totalfn(paths, total)
@@ -931,16 +921,42 @@ class CloudFiles:
     if self.protocol == "file":
       basepath = self.cloudpath.replace("file://", "")
       for path in tqdm(paths, disable=(not progress), total=total):
-        touch(self.join(basepath, path))
+        pth = path
+        if isinstance(path, dict):
+          pth = path["path"]
+        touch(self.join(basepath, pth))
       return
 
     results = self.exists(paths, total=total, progress=progress)
 
-    self.puts([ 
+    dne = [ 
       (fname, b'') 
       for fname, exists in results.items() 
       if not exists 
-    ], progress=progress)
+    ]
+
+    self.puts(dne, progress=progress)
+
+    # def thunk_copy(path):
+    #   with self._get_connection() as conn:
+    #     conn.copy_file(path, self._path.bucket, self.join(self._path.path, path))
+    #   return 1
+
+    # if not nocopy:
+    #   already_exists = ( 
+    #     fname
+    #     for fname, exists in results.items() 
+    #     if exists 
+    #   )
+
+    #   results = schedule_jobs(
+    #     fns=( partial(thunk_copy, path) for path in already_exists ),
+    #     progress=progress,
+    #     total=(total - len(dne)),
+    #     concurrency=self.num_threads,
+    #     green=self.green,
+    #     count_return=True,
+    #   )
 
   def list(
     self, prefix:str = "", flat:bool = False
