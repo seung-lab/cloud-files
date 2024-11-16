@@ -1182,6 +1182,8 @@ def test_move(s3, protocol):
   assert all(cf.exists(["hola", "lampara"]).values()) == True
   assert all(cf.exists(["hello", "lamp"]).values()) == False
 
+  cf.delete([ "hola", "hello", "lamp", "lampara" ])
+
 @pytest.mark.parametrize("protocol", ["file", "s3"])
 def test_cli_move_python(s3, protocol):
   from cloudfiles_cli.cloudfiles_cli import _mv_single
