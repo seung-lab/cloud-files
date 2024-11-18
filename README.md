@@ -38,6 +38,12 @@ cf.delete(paths, parallel=2) # threaded + two processes
 boolean = cf.exists('filename')
 results = cf.exists([ 'filename_1', ... ]) # threaded
 
+cf.move("a", "gs://bucket/b")
+cf.moves("gs://bucket/", [ ("a", "b") ])
+
+cf.touch("example")
+cf.touch([ "example", "example2" ])
+
 # for single files
 cf = CloudFile("gs://bucket/file1")
 info = cf.head()
@@ -414,6 +420,10 @@ cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
 cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
 # decompress
 cloudfiles cp -c none s3://bkt/file.txt gs://bkt2/
+# move or rename files
+cloudfiles mv s3://bkt/file.txt gs://bkt2/
+# create an empty file if not existing
+cloudfiles touch s3://bkt/empty.txt
 # pass from stdin (use "-" for source argument)
 find some_dir | cloudfiles cp - s3://bkt/
 # resumable transfers

@@ -474,6 +474,14 @@ class MemoryInterface(StorageInterface):
 
     return None
 
+  def copy_file(self, src_path, dest_bucket, dest_key):
+    key = self.get_path_to_file(src_path)
+    with MEM_BUCKET_POOL_LOCK:
+     pool = MEM_POOL[MemoryPoolParams(dest_bucket)]
+    dest_bucket = pool.get_connection(None, None)
+    dest_bucket[dest_key] = self._data[key]
+    return True
+
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
     return path in self._data or any(( (path + ext in self._data) for ext in COMPRESSION_EXTENSIONS ))

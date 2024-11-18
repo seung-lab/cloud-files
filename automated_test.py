@@ -1151,3 +1151,92 @@ def test_lock_clearing():
   assert len(lst) == 0
 
 
+@pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))
+def test_move(s3, protocol):
+  from cloudfiles import CloudFiles
+
+  url = compute_url(protocol, "move")
+
+  cf = CloudFiles(url)
+  cf.puts([
+    ('hello', b'world'),
+    ('lamp', b'emporium'),
+  ])
+  cf.move("hello", f"{url}/hola")
+  
+  assert all(cf.exists(["hola"]).values()) == True
+  assert all(cf.exists(["hello"]).values()) == False
+
+  cf.puts([
+    ('hello', b'world'),
+    ('lamp', b'emporium'),
+  ])
+
+  cf.delete("hola")
+
+  cf.moves(f"{url}", [
+    ("hello", f"hola"),
+    ("lamp", f"lampara"),
+  ])
+
+  assert all(cf.exists(["hola", "lampara"]).values()) == True
+  assert all(cf.exists(["hello", "lamp"]).values()) == False
+
+  cf.delete([ "hola", "hello", "lamp", "lampara" ])
+
+@pytest.mark.parametrize("protocol", ["file", "s3"])
+def test_cli_move_python(s3, protocol):
+  from cloudfiles_cli.cloudfiles_cli import _mv_single
+  from cloudfiles import CloudFiles, exceptions
+
+  test_dir = compute_url(protocol, "cli_mv_python")
+  test_dir2 = compute_url(protocol, "cli_mv_python2")
+  cf = CloudFiles(test_dir)
+
+  N = 100
+
+  def mkfiles():
+    cf.delete(cf.list())
+    for i in range(N):
+      cf[str(i)] = b"hello world"
+
+  def run_mv(src, dest):
+    _mv_single(
+      src, dest, 
+      progress=False, block_size=5,
+      part_bytes=int(100e6), no_sign_request=True,
+      parallel=1
+    )
+
+  mkfiles()
+  run_mv(test_dir, test_dir2)
+  assert sorted(list(cf)) == []
+
+  cf2 = CloudFiles(test_dir2)
+  print(sorted(list(cf2)))
+  assert sorted(list(cf2)) == sorted([ f'{i}' for i in range(N) ])
+
+  mkfiles()
+  run_mv(f"{test_dir}/*", f"{test_dir}/move/")
+  assert sorted(list(cf.list(prefix="move"))) == sorted([ f'move/{i}' for i in range(N) ])
+
+  mkfiles()
+  run_mv(f"{test_dir}/1", f"{test_dir}/move/1")
+  assert cf.exists("move/1") == True
+  assert cf.exists("1") == False
+
+@pytest.mark.parametrize("protocol", ["file", "mem", "s3"])
+def test_touch(s3, protocol):
+  from cloudfiles import CloudFiles
+
+  url = compute_url(protocol, "touch")
+
+  cf = CloudFiles(url)
+
+  cf.touch([ str(i) for i in range(20) ])
+
+  assert sorted(list(cf)) == sorted([ str(i) for i in range(20) ])
+
+  cf.touch([ str(i) for i in range(20) ])
+
+  assert sorted(list(cf)) == sorted([ str(i) for i in range(20) ])

@@ -2,7 +2,7 @@ from typing import (
   Any, Dict, Optional, 
   Union, List, Tuple, 
   Callable, Generator, 
-  Iterable, cast, BinaryIO
+  Sequence, cast, BinaryIO
 )
 
 from queue import Queue
@@ -29,10 +29,10 @@ from . import compression, paths, gcs
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
   mkdir, totalfn, toiter, scatter, jsonify, nvl, 
-  duplicates, first, sip,
+  duplicates, first, sip, touch,
   md5, crc32c, decode_crc32c_b64
 )
-from .paths import ALIASES
+from .paths import ALIASES, find_common_buckets
 from .secrets import CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .typing import (
@@ -182,7 +182,7 @@ def path_to_byte_range_tags(path):
   if isinstance(path, str):
     return (path, None, None, None)
   return (path['path'], path.get('start', None), path.get('end', None), path.get('tags', None))
-  
+
 def dl(
   cloudpaths:GetPathType, raw:bool=False, **kwargs
 ) -> Union[bytes,List[dict]]:
@@ -193,23 +193,8 @@ def dl(
   dict.
   """
   cloudpaths, is_multiple = toiter(cloudpaths, is_iter=True)
-  clustered = defaultdict(list)
-  total = 0
-  for path in cloudpaths:
-    pth = path
-    byte_range = None
-    if isinstance(path, dict):
-      pth = path["path"]
-      byte_range = path["byte_range"]
-
-    epath = paths.extract(pth)
-    bucketpath = paths.asbucketpath(epath)
-    clustered[bucketpath].append({ 
-      "path": epath.path,
-      "start": (byte_range[0] if byte_range else None), # type: ignore
-      "end": (byte_range[1] if byte_range else None), # type: ignore
-    })
-    total += 1
+  clustered = find_common_buckets(cloudpaths)
+  total = sum([ len(bucket) for bucket in clustered.values() ])
 
   progress = kwargs.get("progress", False) and total > 1
   pbar = tqdm(total=total, desc="Downloading", disable=(not progress))
@@ -919,6 +904,60 @@ class CloudFiles:
     )
     return len(results)
 
+  def touch(
+    self, 
+    paths:GetPathType,
+    progress:Optional[bool] = None,
+    total:Optional[int] = None,
+    nocopy:bool = False,
+  ):
+    """
+    Create a zero byte file if it doesn't exist.
+    """
+    paths = toiter(paths)
+    progress = nvl(progress, self.progress)
+    total = totalfn(paths, total)
+
+    if self.protocol == "file":
+      basepath = self.cloudpath.replace("file://", "")
+      for path in tqdm(paths, disable=(not progress), total=total):
+        pth = path
+        if isinstance(path, dict):
+          pth = path["path"]
+        touch(self.join(basepath, pth))
+      return
+
+    results = self.exists(paths, total=total, progress=progress)
+
+    dne = [ 
+      (fname, b'') 
+      for fname, exists in results.items() 
+      if not exists 
+    ]
+
+    self.puts(dne, progress=progress)
+
+    # def thunk_copy(path):
+    #   with self._get_connection() as conn:
+    #     conn.copy_file(path, self._path.bucket, self.join(self._path.path, path))
+    #   return 1
+
+    # if not nocopy:
+    #   already_exists = ( 
+    #     fname
+    #     for fname, exists in results.items() 
+    #     if exists 
+    #   )
+
+    #   results = schedule_jobs(
+    #     fns=( partial(thunk_copy, path) for path in already_exists ),
+    #     progress=progress,
+    #     total=(total - len(dne)),
+    #     concurrency=self.num_threads,
+    #     green=self.green,
+    #     count_return=True,
+    #   )
+
   def list(
     self, prefix:str = "", flat:bool = False
   ) -> Generator[str,None,None]:
@@ -953,6 +992,7 @@ class CloudFiles:
     reencode:Optional[str] = None,
     content_type:Optional[str] = None,
     allow_missing:bool = False,
+    progress:Optional[bool] = None,
   ) -> None:
     """
     Transfer all files from this CloudFiles storage 
@@ -969,7 +1009,7 @@ class CloudFiles:
       - gs->gs: Uses GCS copy API to minimize data movement
       - s3->s3: Uses boto s3 copy API to minimize data movement
 
-    cf_src: another CloudFiles instance or cloudpath 
+    cf_dest: another CloudFiles instance or cloudpath 
     paths: if None transfer all files from src, else if
       an iterable, transfer only these files.
 
@@ -997,7 +1037,8 @@ class CloudFiles:
     return cf_dest.transfer_from(
       self, paths, block_size, 
       reencode, content_type,
-      allow_missing,
+      allow_missing, 
+      progress,
     )
 
   def transfer_from(
@@ -1008,6 +1049,7 @@ class CloudFiles:
     reencode:Optional[str] = None,
     content_type:Optional[str] = None,
     allow_missing:bool = False,
+    progress:Optional[bool] = None,
   ) -> None:
     """
     Transfer all files from the source CloudFiles storage 
@@ -1054,7 +1096,15 @@ class CloudFiles:
 
     total = totalfn(paths, None)
 
-    with tqdm(desc="Transferring", total=total, disable=(not self.progress)) as pbar:
+    disable = progress
+    if disable is None:
+      disable = self.progress
+    if disable is None:
+      disable = False
+    else:
+      disable = not disable
+
+    with tqdm(desc="Transferring", total=total, disable=disable) as pbar:
       if (
         cf_src.protocol == "file"
         and self.protocol == "file"
@@ -1211,6 +1261,9 @@ class CloudFiles:
           else:
             raise
 
+        if dest_path == '':
+          dest_path = src_path
+
         to_upload.append({
           "path": dest_path,
           "content": handle,
@@ -1261,6 +1314,99 @@ class CloudFiles:
       count_return=True,
     )
     return len(results)
+
+  def move(self, src:str, dest:str):
+    """Move (rename) src to dest.
+
+    src and dest do not have to be on the same filesystem.
+    """
+    epath = paths.extract(dest)
+    full_cloudpath = paths.asprotocolpath(epath)
+    dest_cloudpath = paths.dirname(full_cloudpath)
+    base_dest = paths.basename(full_cloudpath)
+
+    return self.moves(dest_cloudpath, [
+      (src, base_dest)
+    ], block_size=1, progress=False)
+
+  def moves(
+    self,
+    cf_dest:Any,
+    paths:Union[Sequence[str], Sequence[Tuple[str, str]]],
+    block_size:int = 64, 
+    total:Optional[int] = None,
+    progress:Optional[bool] = None,
+  ):
+    """
+    Move (rename) files.
+
+    pairs: [ (src, dest), (src, dest), ... ]
+    """
+    if isinstance(cf_dest, str):
+      cf_dest = CloudFiles(
+        cf_dest, progress=False, 
+        green=self.green, num_threads=self.num_threads,
+      )
+    
+    total = totalfn(paths, total)
+
+    disable = not (self.progress if progress is None else progress)
+
+    if self.protocol == "file" and cf_dest.protocol == "file":
+      self.__moves_file_to_file(
+        cf_dest, paths, total, 
+        disable, block_size
+      )
+      return
+
+    pbar = tqdm(total=total, disable=disable, desc="Moving")
+
+    with pbar:
+      for subpairs in sip(paths, block_size):
+        subpairs = [
+          ((pair, pair) if isinstance(pair, str) else pair)
+          for pair in subpairs
+        ]
+
+        self.transfer_to(cf_dest, paths=(
+          {
+            "path": src,
+            "dest_path": dest,
+          } 
+          for src, dest in subpairs
+        ), progress=False)
+        self.delete(( src for src, dest in subpairs ), progress=False)
+        pbar.update(len(subpairs))
+
+  def __moves_file_to_file(
+    self, 
+    cf_dest:Any, 
+    paths:Union[Sequence[str], Sequence[Tuple[str,str]]],
+    total:Optional[int], 
+    disable:bool,
+    block_size:int,
+  ):
+    for pair in tqdm(paths, total=total, disable=disable, desc="Moving"):
+      if isinstance(pair, str):
+        src = pair
+        dest = pair
+      else:
+        (src, dest) = pair
+
+      src = self.join(self.cloudpath, src).replace("file://", "")
+      dest = cf_dest.join(cf_dest.cloudpath, dest).replace("file://", "")
+
+      if os.path.isdir(dest):
+        dest = cf_dest.join(dest, os.path.basename(src))
+      else:
+        mkdir(os.path.dirname(dest))
+
+      src, encoding = FileInterface.get_encoded_file_path(src)
+      _, dest_ext = os.path.splitext(dest)
+      dest_ext_compress = FileInterface.get_extension(encoding)
+      if dest_ext_compress != dest_ext:
+        dest += dest_ext_compress
+      shutil.move(src, dest)
 
   def join(self, *paths:str) -> str:
     """
@@ -1439,6 +1585,13 @@ class CloudFile:
       }],
       reencode=reencode,
     )
+
+  def touch(self):
+    return self.cf.touch(self.filename)
+
+  def move(self, dest):
+    """Move (rename) this file to dest."""
+    return self.cf.move(self.filename, dest)
 
   def __len__(self):
     return self.size()

@@ -1,5 +1,5 @@
 from functools import lru_cache
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import orjson
 import os.path
 import posixpath
@@ -8,9 +8,10 @@ import sys
 import urllib.parse
 
 from typing import Tuple, Optional
+from .typing import GetPathType
 
 from .exceptions import UnsupportedProtocolError
-from .lib import yellow, toabs, jsonify, mkdir
+from .lib import yellow, toabs, jsonify, mkdir, toiter
 from .secrets import CLOUD_FILES_DIR
 
 ExtractedPath = namedtuple('ExtractedPath', 
@@ -390,3 +391,30 @@ def to_https_protocol(cloudpath):
     cloudpath = cloudpath.replace(f"{alias}://", host, 1)
 
   return cloudpath.replace("s3://", "", 1)
+
+def find_common_buckets(cloudpaths:GetPathType):
+  cloudpaths, is_multiple = toiter(cloudpaths, is_iter=True)
+  clustered = defaultdict(list)
+
+  for path in cloudpaths:
+    pth = path
+    byte_range = None
+    if isinstance(path, dict):
+      pth = path["path"]
+      byte_range = path["byte_range"]
+
+    epath = extract(pth)
+    if epath.protocol == "file":
+      path = os.sep.join(asfilepath(epath).split(os.sep)[2:])
+      bucketpath = "file://" + os.sep.join(asfilepath(epath).split(os.sep)[:2])
+    else:
+      path = epath.path
+      bucketpath = asbucketpath(epath)
+
+    clustered[bucketpath].append({ 
+      "path": path,
+      "start": (byte_range[0] if byte_range else None), # type: ignore
+      "end": (byte_range[1] if byte_range else None), # type: ignore
+    })
+
+  return clustered

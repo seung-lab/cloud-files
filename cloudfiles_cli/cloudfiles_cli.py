@@ -27,7 +27,7 @@ import cloudfiles.paths
 from cloudfiles import CloudFiles
 from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
-from cloudfiles.paths import extract, get_protocol
+from cloudfiles.paths import extract, get_protocol, find_common_buckets
 from cloudfiles.lib import (
   mkdir, toabs, sip, toiter, 
   first, red, green,
@@ -184,10 +184,6 @@ def cp(
 
   If source is "-" read newline delimited filenames from stdin.
   If destination is "-" output to stdout.
-
-  Note that for gs:// to gs:// transfers, the gsutil
-  tool is more efficient because the files never leave
-  Google's network.
   """
   use_stdout = (destination == '-')
   if len(source) > 1 and not ispathdir(destination) and not use_stdout:
@@ -329,6 +325,163 @@ def _cp_stdout(src, no_sign_request, paths):
   for res in cf.get(paths):
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
+
+@main.command()
+@click.argument("source", nargs=-1)
+@click.argument("destination", nargs=1)
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.", show_default=True)
+@click.option('-b', '--block-size', default=128, help="Number of files to download at a time.", show_default=True)
+@click.option('--part-bytes', default=int(1e8), help="Composite upload threshold in bytes. Splits a file into pieces for some cloud services like gs and s3.", show_default=True)
+@click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
+@click.pass_context
+def mv(
+  ctx, source, destination, 
+  progress, block_size, 
+  part_bytes, no_sign_request,
+):
+  """
+  Move one or more files from a source to destination.
+
+  If source is "-" read newline delimited filenames from stdin.
+  If destination is "-" output to stdout.
+  """
+  if len(source) > 1 and not ispathdir(destination):
+    print("cloudfiles: destination must be a directory for multiple source files.")
+    return
+
+  ctx.ensure_object(dict)
+  parallel = int(ctx.obj.get("parallel", 1))
+
+  for src in source:
+    _mv_single(
+      src, destination, 
+      progress, block_size, 
+      part_bytes, no_sign_request,
+      parallel
+    )
+
+def _mv_single(
+  source, destination, 
+  progress, block_size,
+  part_bytes, no_sign_request,
+  parallel
+):
+  use_stdin = (source == '-')
+
+  nsrc = normalize_path(source)
+  ndest = normalize_path(destination)
+
+  issrcdir = (ispathdir(source) or CloudFiles(nsrc).isdir()) and use_stdin == False
+  isdestdir = (ispathdir(destination) or CloudFiles(ndest).isdir())
+
+  ensrc = cloudfiles.paths.extract(nsrc)
+  endest = cloudfiles.paths.extract(ndest)
+
+  if ensrc.protocol == "file" and endest.protocol == "file" and issrcdir:
+    shutil.move(nsrc.replace("file://", ""), ndest.replace("file://", ""))
+    return
+
+  recursive = issrcdir
+
+  # For more information see:
+  # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed
+  # Try to follow cp rules. If the directory exists,
+  # copy the base source directory into the dest directory
+  # If the directory does not exist, then we copy into
+  # the dest directory.
+  # Both x* and x** should not copy the base directory
+  if recursive and nsrc[-1] != "*":
+    if isdestdir:
+      if nsrc[-1] == '/':
+        nsrc = nsrc[:-1]
+      ndest = cloudpathjoin(ndest, os.path.basename(nsrc))
+
+  # The else clause here is to handle single file transfers
+  srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
+  many, flat, prefix = get_mfp(nsrc, recursive)
+
+  if issrcdir and not many:
+    print(f"cloudfiles: {source} is a directory (not copied).")
+    return
+
+  xferpaths = os.path.basename(nsrc)
+  if use_stdin:
+    xferpaths = sys.stdin.readlines()
+    xferpaths = [ x.replace("\n", "") for x in xferpaths ]
+    prefix = os.path.commonprefix(xferpaths)
+    xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
+    srcpath = cloudpathjoin(srcpath, prefix)
+  elif many:
+    xferpaths = CloudFiles(
+      srcpath, no_sign_request=no_sign_request
+    ).list(prefix=prefix, flat=flat)
+
+  destpath = ndest
+  if isinstance(xferpaths, str):
+    destpath = ndest if isdestdir else os.path.dirname(ndest)
+  elif not isdestdir:
+    if os.path.exists(ndest.replace("file://", "")):
+      print(f"cloudfiles: {ndest} is not a directory (not copied).")
+      return
+
+  if not isinstance(xferpaths, str):
+    if parallel == 1:
+      _mv(srcpath, destpath, progress, block_size, part_bytes, no_sign_request, xferpaths)
+      return 
+
+    total = None
+    try:
+      total = len(xferpaths)
+    except TypeError:
+      pass
+
+    fn = partial(_mv, srcpath, destpath, False, block_size, part_bytes, no_sign_request)
+
+    with tqdm(desc="Moving", total=total, disable=(not progress)) as pbar:
+      with pathos.pools.ProcessPool(parallel) as executor:
+        for _ in executor.imap(fn, sip(xferpaths, block_size)):
+          pbar.update(block_size)
+  else:
+    cfsrc = CloudFiles(srcpath, progress=progress, no_sign_request=no_sign_request)
+    if not cfsrc.exists(xferpaths):
+      print(f"cloudfiles: source path not found: {cfsrc.abspath(xferpaths).replace('file://','')}")
+      return
+
+    cfdest = CloudFiles(
+      destpath, 
+      progress=progress, 
+      composite_upload_threshold=part_bytes,
+    )
+
+    cfsrc.move(xferpaths, ndest)
+
+def _mv(src, dst, progress, block_size, part_bytes, no_sign_request, paths):
+  cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes, no_sign_request=no_sign_request)
+  cfdest = CloudFiles(dst, progress=progress, composite_upload_threshold=part_bytes)
+  cfsrc.moves(
+    cfdest, paths=paths, block_size=block_size
+  )
+
+@main.command()
+@click.argument("sources", nargs=-1)
+@click.option('--progress', is_flag=True, default=False, help="Show transfer progress.", show_default=True)
+@click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
+@click.pass_context
+def touch(
+  ctx, sources,
+  progress, no_sign_request,
+):
+  sources = list(map(normalize_path, sources))
+  sources = [ src.replace("precomputed://", "") for src in sources ]
+  pbar = tqdm(total=len(sources), desc="Touch", disable=(not progress))
+
+  clustered = find_common_buckets(sources)
+
+  with pbar:
+    for bucket, items in clustered.items():
+      cf = CloudFiles(bucket, no_sign_request=no_sign_request, progress=False)
+      cf.touch(items)
+      pbar.update(len(items))
 
 @main.group("xfer")
 def xfergroup():
