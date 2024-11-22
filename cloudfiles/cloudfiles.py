@@ -1586,6 +1586,9 @@ class CloudFile:
       reencode=reencode,
     )
 
+  def join(self, *args):
+    return self.cf.join(*args)
+
   def touch(self):
     return self.cf.touch(self.filename)
 
