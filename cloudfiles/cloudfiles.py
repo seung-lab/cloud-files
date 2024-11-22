@@ -837,8 +837,10 @@ class CloudFiles:
 
   def size(
     self, paths:GetPathType, 
-    total:Optional[int] = None, progress:Optional[bool] = None
-  ) -> Union[Dict[str,int],List[Dict[str,int]]]:
+    total:Optional[int] = None, 
+    progress:Optional[bool] = None,
+    return_sum:bool = False,
+  ) -> Union[Dict[str,int],List[Dict[str,int]],int]:
     """
     Get the size in bytes of one or more files in its stored state.
     """
@@ -858,6 +860,9 @@ class CloudFiles:
       total=totalfn(paths, total),
       green=self.green,
     )
+
+    if return_sum:
+      return sum(( sz for sz in results.values() ))
 
     if return_multiple:
       return results
