@@ -159,6 +159,7 @@ for alias, host in OFFICIAL_ALIASES.items():
 
 ## Other Path Library Functions
 
+@lru_cache(maxsize=10, typed=False)
 def normalize(path):
   fmt, proto, endpoint, cloudpath, alias = extract_format_protocol(
     path, allow_defaults=False
