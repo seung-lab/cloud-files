@@ -78,14 +78,18 @@ def composite_upload(
   cache_control:Optional[str] = None,
   storage_class:Optional[str] = None,
   compress:CompressType = None,
+  skip_compress:bool = False,
 ) -> int:
   from .cloudfiles import CloudFiles, CloudFile
   
   content_encoding = compression.normalize_encoding(compress)
   if isinstance(handle, bytes):
-    handle = io.BytesIO(
-      compression.compress(handle, compress)
-    )
+    if skip_compress:
+      handle = io.BytesIO(handle)
+    else:
+      handle = io.BytesIO(
+        compression.compress(handle, compress)
+      )
     content_encoding = compression.normalize_encoding(compress)
 
   path = paths.extract(cloudpath)

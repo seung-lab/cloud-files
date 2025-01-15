@@ -590,6 +590,7 @@ class CloudFiles:
           cache_control=cache_control,
           storage_class=storage_class,
           compress=file_compress,
+          skip_compress=True,
         )
         return
 
