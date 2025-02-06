@@ -210,8 +210,8 @@ def _cp_single(
 
   nsrc = normalize_path(source)
   ndest = normalize_path(destination)
-
-  issrcdir = (ispathdir(source) or CloudFiles(nsrc).isdir()) and use_stdin == False
+  
+  issrcdir = (use_stdin == False) and (ispathdir(source) or CloudFiles(nsrc).isdir())
   isdestdir = (ispathdir(destination) or CloudFiles(ndest).isdir())
 
   recursive = recursive and issrcdir

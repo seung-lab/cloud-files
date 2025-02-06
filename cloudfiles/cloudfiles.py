@@ -743,9 +743,12 @@ class CloudFiles:
         return True
     elif prefix[-1] == "/":
       return True
-    
-    res = first(self.list(prefix=prefix))
-    return res is not None
+    try:
+      res = first(self.list(prefix=prefix))
+      return res is not None
+    except NotImplementedError as err:
+      res = CloudFile(self.cloudpath).size() 
+      return res > 0
 
   def exists(
     self, paths:GetPathType, 
@@ -1123,6 +1126,16 @@ class CloudFiles:
           pbar, block_size, allow_missing
         )
       elif (
+        cf_src.protocol != "file"
+        and self.protocol == "file"
+        and reencode is None
+      ):
+        self.__transfer_remote_to_file(
+          cf_src, self, paths, total, 
+          pbar, block_size, content_type,
+          allow_missing,
+        )
+      elif (
         cf_src.protocol == "file"
         and self.protocol != "file"
         and reencode is None
@@ -1236,6 +1249,38 @@ class CloudFiles:
           raise
 
       pbar.update(1)
+
+  def __transfer_remote_to_file(
+    self, cf_src, cf_dest, paths, 
+    total, pbar, block_size, content_type,
+    allow_missing
+  ):
+    def thunk_save(key):
+      with cf_src._get_connection() as conn:
+        if isinstance(key, dict):
+          dest_key = key.get("dest_path", key["path"])
+          src_key = key["path"]
+        else:
+          src_key = key
+          dest_key = key
+
+        dest_key = posixpath.join(cf_dest._path.path, dest_key)
+        found = conn.save_file(src_key, dest_key)
+
+      if found == False and not allow_missing:
+        raise FileNotFoundError(src_key)
+
+      return int(found)
+
+    results = schedule_jobs(
+      fns=( partial(thunk_save, path) for path in paths ),
+      progress=pbar,
+      concurrency=self.num_threads,
+      total=totalfn(paths, total),
+      green=self.green,
+      count_return=True,
+    )
+    return len(results)
 
   def __transfer_file_to_remote(
     self, cf_src, cf_dest, paths, 
