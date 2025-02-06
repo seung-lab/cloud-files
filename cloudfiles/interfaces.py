@@ -631,7 +631,6 @@ class GoogleCloudStorageInterface(StorageInterface):
     try:
       blob.download_to_filename(
         filename=dest,
-        start=start, end=end, 
         raw_download=True, 
         checksum=None
       )
