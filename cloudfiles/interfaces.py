@@ -22,7 +22,7 @@ import fasteners
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
-from .exceptions import MD5IntegrityError
+from .exceptions import MD5IntegrityError, ForbiddenError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
 from .secrets import http_credentials, CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 
@@ -81,6 +81,21 @@ retry = tenacity.retry(
   stop=tenacity.stop_after_attempt(7), 
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
+
+def retry_if_not(exception_type):
+  if type(exception_type) != list:
+    exception_type = [ exception_type ]
+
+  conditions = tenacity.retry_if_not_exception_type(exception_type[0])
+  for et in exception_type[1:]:
+    conditions = conditions | tenacity.retry_if_not_exception_type(et)
+
+  return tenacity.retry(
+    retry=conditions,
+    reraise=True, 
+    stop=tenacity.stop_after_attempt(7), 
+    wait=tenacity.wait_random_exponential(0.5, 60.0),
+  ) 
 
 class StorageInterface(object):
   exists_batch_size = 1
@@ -566,7 +581,7 @@ class GoogleCloudStorageInterface(StorageInterface):
       source_blob, dest_bucket, dest_key
     )
 
-  @retry
+  @retry_if_not(ForbiddenError)
   def get_file(self, file_path, start=None, end=None, part_size=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
@@ -580,6 +595,8 @@ class GoogleCloudStorageInterface(StorageInterface):
       content = blob.download_as_bytes(start=start, end=end, raw_download=True, checksum=None)
     except google.cloud.exceptions.NotFound as err:
       return (None, None, None, None)
+    except google.api_core.exceptions.Forbidden as err:
+      raise ForbiddenError(f"HTTP 403 Forbidden for: {key}")
 
     hash_type = "md5"
     hash_value = blob.md5_hash if blob.component_count is None else None
@@ -728,7 +745,7 @@ class HttpInterface(StorageInterface):
     resp.raise_for_status()
     return resp.headers
 
-  @retry
+  @retry_if_not(ForbiddenError)
   def get_file(self, file_path, start=None, end=None, part_size=None):
     key = self.get_path_to_file(file_path)
 
@@ -739,8 +756,10 @@ class HttpInterface(StorageInterface):
       resp = self.session.get(key, headers=headers)
     else:
       resp = self.session.get(key)
-    if resp.status_code in (404, 403):
+    if resp.status_code in (404,):
       return (None, None, None, None)
+    elif resp.status_code == 403:
+      raise ForbiddenError(f"HTTP 403 when fetching: {key}")
     resp.raise_for_status()
 
     # Don't check MD5 for http because the etag can come in many
@@ -909,7 +928,7 @@ class S3Interface(StorageInterface):
     }
     dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
 
-  @retry
+  @retry_if_not(ForbiddenError)
   def get_file(self, file_path, start=None, end=None, part_size=None):
     """
     There are many types of execptions which can get raised
@@ -924,10 +943,11 @@ class S3Interface(StorageInterface):
       end = int(end - 1) if end is not None else ''
       kwargs['Range'] = "bytes={}-{}".format(start, end)
 
+    key = self.get_path_to_file(file_path)
     try:
       resp = self._conn.get_object(
         Bucket=self._path.bucket,
-        Key=self.get_path_to_file(file_path),
+        Key=key,
         **kwargs
       )
 
@@ -957,8 +977,11 @@ class S3Interface(StorageInterface):
 
       return (content, encoding, etag, "md5")
     except botocore.exceptions.ClientError as err: 
-      if err.response['Error']['Code'] == 'NoSuchKey':
+      status_code = err.response['Error']['Code']
+      if status_code == 'NoSuchKey':
         return (None, None, None, None)
+      elif status_code == "AccessDenied":
+        raise ForbiddenError(f"AccessDenied (http 403) encountered with get: {key}")
       else:
         raise
 

@@ -1,4 +1,8 @@
 
+class ForbiddenError(Exception):
+  """Represents a 403 HTTP status code."""
+  pass
+
 class UnsupportedProtocolError(Exception):
   pass
 
