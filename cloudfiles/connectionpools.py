@@ -6,16 +6,18 @@ import threading
 import time
 from functools import partial
 
-import boto3 
+import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
+import botocore.exceptions 
 
+import google.auth.exceptions
 from google.cloud.storage import Client
 from google.oauth2 import service_account
 import tenacity
 
 from .secrets import google_credentials, aws_credentials
-from .exceptions import UnsupportedProtocolError
+from .exceptions import UnsupportedProtocolError, UnsupportedArgumentError
 
 MEMORY_DATA:Dict[str,Dict[str,bytes]] = {}
 
@@ -24,6 +26,21 @@ retry = tenacity.retry(
   stop=tenacity.stop_after_attempt(7), 
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
+
+def retry_if_not(exception_type):
+  if type(exception_type) != list:
+    exception_type = [ exception_type ]
+
+  conditions = tenacity.retry_if_not_exception_type(exception_type[0])
+  for et in exception_type[1:]:
+    conditions = conditions | tenacity.retry_if_not_exception_type(et)
+
+  return tenacity.retry(
+    retry=conditions,
+    reraise=True, 
+    stop=tenacity.stop_after_attempt(7), 
+    wait=tenacity.wait_random_exponential(0.5, 60.0),
+  ) 
 
 def clear_memory():
   MEMORY_DATA.clear()
@@ -143,7 +160,10 @@ class GCloudBucketPool(ConnectionPool):
     self.request_payer = request_payer
     super(GCloudBucketPool, self).__init__()
 
-  @retry
+  @retry_if_not([ 
+    google.auth.exceptions.DefaultCredentialsError, 
+    UnsupportedArgumentError,
+  ])
   def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False):
     if secrets is None:
       secrets = self.credentials
@@ -154,7 +174,10 @@ class GCloudBucketPool(ConnectionPool):
       secrets = service_account.Credentials.from_service_account_info(secrets)
 
     if endpoint is not None:
-      raise ValueError("The endpoint argument is not supported for Google Cloud Storage. Got: " + str(endpoint))
+      raise UnsupportedArgumentError(
+        "The endpoint argument is not supported for Google Cloud Storage. "
+        "Got: " + str(endpoint)
+      )
 
     client = Client(
       credentials=secrets,

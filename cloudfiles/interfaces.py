@@ -537,7 +537,10 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     with GCS_BUCKET_POOL_LOCK:
       pool = GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)]
-    self._bucket = pool.get_connection(secrets, None)
+    try:
+      self._bucket = pool.get_connection(secrets, None)
+    except google.auth.exceptions.DefaultCredentialsError:
+      raise ForbiddenError(f"Unable to access bucket: {self._path.bucket}")
     self._secrets = secrets
 
   def get_path_to_file(self, file_path):
@@ -978,7 +981,7 @@ class S3Interface(StorageInterface):
       return (content, encoding, etag, "md5")
     except botocore.exceptions.ClientError as err: 
       status_code = err.response['Error']['Code']
-      if status_code == 'NoSuchKey':
+      if status_code in ['NoSuchKey', 'NoSuchBucket']:
         return (None, None, None, None)
       elif status_code == "AccessDenied":
         raise ForbiddenError(f"AccessDenied (http 403) encountered with get: {key}")

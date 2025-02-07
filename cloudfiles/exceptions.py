@@ -6,6 +6,9 @@ class ForbiddenError(Exception):
 class UnsupportedProtocolError(Exception):
   pass
 
+class UnsupportedArgumentError(Exception):
+  pass
+
 class DecompressionError(Exception):
   """
   Decompression failed.
