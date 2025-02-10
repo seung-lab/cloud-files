@@ -1196,12 +1196,18 @@ class S3Interface(StorageInterface):
     resp = s3lst()
 
     def iterate(resp):
+      if 'CommonPrefixes' in resp.keys():
+        yield from [ 
+          item["Prefix"].removeprefix(layer_path) 
+          for item in resp['CommonPrefixes'] 
+        ]
+
       if 'Contents' not in resp.keys():
         resp['Contents'] = []
 
       for item in resp['Contents']:
         key = item['Key']
-        filename = key.replace(layer_path, '')
+        filename = key.removeprefix(layer_path)
         if filename == '':
           continue
         elif not flat and filename[-1] != '/':
