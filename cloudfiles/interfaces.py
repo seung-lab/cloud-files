@@ -1212,7 +1212,7 @@ class S3Interface(StorageInterface):
           continue
         elif not flat and filename[-1] != '/':
           yield filename
-        elif flat and '/' not in key.replace(path, ''):
+        elif flat and '/' not in key.removeprefix(path):
           yield filename
 
     for filename in iterate(resp):
