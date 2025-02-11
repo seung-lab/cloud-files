@@ -893,7 +893,7 @@ class HttpInterface(StorageInterface):
           for item in results["prefixes"]
         )
 
-      for res in results["items"]:
+      for res in results.get("items", []):
         yield res["name"].removeprefix(prefix)
       
       token = results.get("nextPageToken", None)
@@ -946,13 +946,15 @@ class HttpInterface(StorageInterface):
   def list_files(self, prefix, flat=False):
     if self._path.host == "https://storage.googleapis.com":
       yield from self._list_files_google(prefix, flat)
-    
+      return
+
     url = posixpath.join(self._path.host, self._path.path, prefix)
     resp = requests.head(url)
 
     server = resp.headers.get("Server", "").lower()
     if 'apache' in server:
       yield from self._list_files_apache(prefix, flat)
+      return
     else:
       raise NotImplementedError()
 
