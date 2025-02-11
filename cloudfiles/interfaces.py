@@ -21,7 +21,7 @@ import fasteners
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
-from .exceptions import MD5IntegrityError, CompressionError
+from .exceptions import MD5IntegrityError, CompressionError, AuthorizationError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
 from .secrets import (
   http_credentials,
@@ -863,7 +863,7 @@ class HttpInterface(StorageInterface):
 
     headers = self.default_headers()
 
-    @retry
+    @retry_if_not(AuthorizationError)
     def request(token):
       nonlocal headers
 
@@ -876,6 +876,9 @@ class HttpInterface(StorageInterface):
         params=params,
         headers=headers,
       )
+      if results.status_code in [401,403]:
+        raise AuthorizationError(f"http {results.status_code}")
+
       results.raise_for_status()
       results.close()
       return results.json()
