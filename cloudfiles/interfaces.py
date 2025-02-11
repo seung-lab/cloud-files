@@ -1230,7 +1230,7 @@ class S3Interface(StorageInterface):
     path = posixpath.join(layer_path, prefix)
 
     @retry
-    def s3lst(continuation_token=None):
+    def s3lst(path, continuation_token=None):
       kwargs = {
         'Bucket': self._path.bucket,
         'Prefix': path,
@@ -1244,7 +1244,12 @@ class S3Interface(StorageInterface):
 
       return self._conn.list_objects_v2(**kwargs)
 
-    resp = s3lst()
+    resp = s3lst(path)
+    # the case where the prefix is something like "build", but "build" is a subdirectory
+    # so requery with "build/" to get the proper behavior
+    if flat and path[-1] != '/' and 'Contents' not in resp and len(resp.get("CommonPrefixes", [])) == 1:
+      path += '/'
+      resp = s3lst(path)
 
     def iterate(resp):
       if 'CommonPrefixes' in resp.keys():
@@ -1270,7 +1275,7 @@ class S3Interface(StorageInterface):
       yield filename
 
     while resp['IsTruncated'] and resp['NextContinuationToken']:
-      resp = s3lst(resp['NextContinuationToken'])
+      resp = s3lst(path, resp['NextContinuationToken'])
 
       for filename in iterate(resp):
         yield filename
