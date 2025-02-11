@@ -518,12 +518,12 @@ class MemoryInterface(StorageInterface):
     if len(remove) and remove[-1] != '/':
       remove += '/'
 
-    filenames = [ f.replaceprefix(remove) for f in self._data ]
+    filenames = [ f.removeprefix(remove) for f in self._data ]
     filenames = [ f for f in filenames if f[:len(prefix)] == prefix ]
 
     if flat:
       filenames = [ 
-        f for f in filenames if '/' not in f.replaceprefix(prefix)[:-1]
+        f for f in filenames if '/' not in f.removeprefix(prefix)[:-1]
       ]
     
     def stripext(fname):
