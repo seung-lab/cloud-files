@@ -92,7 +92,8 @@ def ls(shortpath, flat, expr, cloudpath, no_auth):
   """Recursively lists the contents of a directory."""
   cloudpath = normalize_path(cloudpath)
 
-  if no_auth:
+  no_sign_request = no_auth # only affects s3
+  if no_auth and 's3://' not in cloudpath:
     cloudpath = cloudfiles.paths.to_https_protocol(cloudpath)
 
   _, flt, prefix = get_mfp(cloudpath, True)
@@ -104,7 +105,7 @@ def ls(shortpath, flat, expr, cloudpath, no_auth):
 
   flat = flat or flt
 
-  cf = CloudFiles(cloudpath)
+  cf = CloudFiles(cloudpath, no_sign_request=no_sign_request)
   iterables = []
   if expr:
     # TODO: make this a reality using a parser
