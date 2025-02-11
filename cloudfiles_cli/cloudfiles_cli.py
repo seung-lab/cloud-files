@@ -83,13 +83,17 @@ def license():
     print(f.read())
 
 @main.command()
-@click.option('--shortpath', is_flag=True, default=False, help='Don\'t print the common base path for each listed path.')
-@click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.')
-@click.option('-e','--expr',is_flag=True, default=False, help='Use a limited regexp language (e.g. [abc123]\{3\}) to generate prefixes.')
+@click.option('--shortpath', is_flag=True, default=False, help='Don\'t print the common base path for each listed path.',show_default=True)
+@click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.',show_default=True)
+@click.option('-e','--expr',is_flag=True, default=False, help='Use a limited regexp language (e.g. [abc123]\{3\}) to generate prefixes.', show_default=True)
+@click.option('--no-auth',is_flag=True, default=False, help='Uses the http API for read-only operations.', show_default=True)
 @click.argument("cloudpath")
-def ls(shortpath, flat, expr, cloudpath):
+def ls(shortpath, flat, expr, cloudpath, no_auth):
   """Recursively lists the contents of a directory."""
   cloudpath = normalize_path(cloudpath)
+
+  if no_auth:
+    cloudpath = cloudfiles.paths.to_https_protocol(cloudpath)
 
   _, flt, prefix = get_mfp(cloudpath, True)
   epath = extract(cloudpath)
