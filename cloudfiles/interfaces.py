@@ -711,13 +711,24 @@ class GoogleCloudStorageInterface(StorageInterface):
     path = posixpath.join(layer_path, prefix)
 
     delimiter = '/' if flat else None
-    for blob in self._bucket.list_blobs(prefix=path, delimiter=delimiter):
-      filename = blob.name.replace(layer_path, '')
+    blobs = self._bucket.list_blobs(
+      prefix=path, 
+      delimiter=delimiter,
+    )
+
+    if blobs.prefixes:
+      yield from (
+        item.removeprefix(path)
+        for item in blobs.prefixes
+      )
+
+    for blob in blobs:
+      filename = blob.name.removeprefix(layer_path)
       if not filename:
         continue
       elif not flat and filename[-1] != '/':
         yield filename
-      elif flat and '/' not in blob.name.replace(path, ''):
+      elif flat and '/' not in blob.name.removeprefix(path):
         yield filename
 
   def release_connection(self):
@@ -829,9 +840,14 @@ class HttpInterface(StorageInterface):
     @retry
     def request(token):
       nonlocal headers
+
+      params = { "prefix": prefix, "pageToken": token }
+      if flat:
+        params["delimiter"] = '/'
+
       results = self.session.get(
         f"https://storage.googleapis.com/storage/v1/b/{bucket}/o",
-        params={ "prefix": prefix, "pageToken": token },
+        params=params,
         headers=headers,
       )
       results.raise_for_status()
@@ -842,8 +858,14 @@ class HttpInterface(StorageInterface):
     while True:
       results = request(token)
 
+      if 'prefixes' in results:
+        yield from (
+          item.removeprefix(prefix) 
+          for item in results["prefixes"]
+        )
+
       for res in results["items"]:
-        yield res["name"].replace(prefix, "", 1)
+        yield res["name"].removeprefix(prefix)
       
       token = results.get("nextPageToken", None)
       if token is None:
