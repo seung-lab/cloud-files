@@ -1068,6 +1068,9 @@ class S3Interface(StorageInterface):
       if 'ContentEncoding' in resp:
         encoding = resp['ContentEncoding']
 
+      if encoding == "aws-chunked":
+        encoding = ''
+
       # s3 etags return hex digests but we need the base64 encoding
       # to make uniform comparisons. 
       # example s3 etag: "31ee76261d87fed8cb9d4c465c48158c"
