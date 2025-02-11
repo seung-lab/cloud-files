@@ -858,16 +858,17 @@ class HttpInterface(StorageInterface):
     )
     if prefix and prefix[0] == '/':
       prefix = prefix[1:]
-    if prefix and prefix[-1] != '/':
-      prefix += '/'
 
     headers = self.default_headers()
 
     @retry_if_not(AuthorizationError)
     def request(token):
       nonlocal headers
-
-      params = { "prefix": prefix, "pageToken": token }
+      params = {}
+      if prefix:
+        params["prefix"] = prefix
+      if token is not None:
+        params["pageToken"] = token
       if flat:
         params["delimiter"] = '/'
 
@@ -883,18 +884,22 @@ class HttpInterface(StorageInterface):
       results.close()
       return results.json()
 
+    strip = posixpath.dirname(prefix)
+    if strip and strip[-1] != '/':
+      strip += '/'
+
     token = None
     while True:
       results = request(token)
-
       if 'prefixes' in results:
         yield from (
-          item.removeprefix(prefix) 
+          item.removeprefix(strip) 
           for item in results["prefixes"]
         )
 
       for res in results.get("items", []):
-        yield res["name"].removeprefix(prefix)
+        print(res["name"])
+        yield res["name"].removeprefix(strip)
       
       token = results.get("nextPageToken", None)
       if token is None:
