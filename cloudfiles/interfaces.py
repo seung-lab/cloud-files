@@ -11,7 +11,6 @@ import re
 import boto3
 import botocore
 import gevent.monkey
-from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
 import requests
@@ -339,7 +338,7 @@ class FileInterface(StorageInterface):
     """
 
     layer_path = self.get_path_to_file("")        
-    path = os.path.join(layer_path, prefix) + '*'
+    path = os.path.join(layer_path, prefix)
 
     filenames = []
 
@@ -348,15 +347,33 @@ class FileInterface(StorageInterface):
       remove += os.path.sep
 
     if flat:
-      for file_path in glob(path):
-        filename = file_path.replace(remove, '')
-        filenames.append(filename)
+      if os.path.isdir(path):
+        list_path = path
+        list_prefix = ''
+        prepend_prefix = prefix
+        if prepend_prefix and prepend_prefix[-1] != os.path.sep:
+          prepend_prefix += os.path.sep
+      else:  
+        list_path = os.path.dirname(path)
+        list_prefix = os.path.basename(prefix)
+        prepend_prefix = os.path.dirname(prefix)
+        if prepend_prefix != '':
+          prepend_prefix += os.path.sep
+
+      for fobj in os.scandir(list_path):
+        if list_prefix != '' and not fobj.name.startswith(list_prefix):
+          continue
+
+        if fobj.is_dir():
+          filenames.append(f"{prepend_prefix}{fobj.name}{os.path.sep}")  
+        else:
+          filenames.append(f"{prepend_prefix}{fobj.name}")
     else:
       subdir = os.path.join(layer_path, os.path.dirname(prefix))
       for root, dirs, files in os.walk(subdir):
-        files = [ os.path.join(root, f) for f in files ]
-        files = [ f.replace(remove, '') for f in files ]
-        files = [ f for f in files if f[:len(prefix)] == prefix ]
+        files = ( os.path.join(root, f) for f in files )
+        files = ( f.removeprefix(remove) for f in files )
+        files = ( f for f in files if f[:len(prefix)] == prefix )
         
         for filename in files:
           filenames.append(filename)
@@ -518,13 +535,22 @@ class MemoryInterface(StorageInterface):
     if len(remove) and remove[-1] != '/':
       remove += '/'
 
-    filenames = [ f.removeprefix(remove) for f in self._data ]
-    filenames = [ f for f in filenames if f[:len(prefix)] == prefix ]
+    filenames = ( f.removeprefix(remove) for f in self._data )
+    filenames = ( f for f in filenames if f[:len(prefix)] == prefix )
 
     if flat:
-      filenames = [ 
-        f for f in filenames if '/' not in f.removeprefix(prefix)[:-1]
-      ]
+      tmp = []
+      for f in filenames:
+        elems = f.removeprefix(prefix).split('/')
+        if len(elems) > 1 and elems[0] == '':
+          elems.pop(0)
+          elems[0] = f'/{elems[0]}'
+
+        if len(elems) > 1:
+          tmp.append(f"{prefix}{elems[0]}/")
+        else:
+          tmp.append(f"{prefix}{elems[0]}")
+      filenames = tmp
     
     def stripext(fname):
       (base, ext) = os.path.splitext(fname)
