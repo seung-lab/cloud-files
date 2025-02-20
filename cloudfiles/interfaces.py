@@ -452,6 +452,32 @@ class MemoryInterface(StorageInterface):
       result = result[slice(start, end)]
     return (result, encoding, None, None)
 
+  def save_file(self, src, dest, resumable):
+    key = self.get_path_to_file(src)
+    with EXT_TEST_SEQUENCE_LOCK:
+      exts = list(EXT_TEST_SEQUENCE)
+      exts = [ x[0] for x in exts ]
+
+    path = key
+    true_ext = ''
+    for ext in exts:
+      pathext = key + ext
+      if pathext in self._data:
+        path = pathext
+        true_ext = ext
+        break
+
+    filepath = os.path.join(dest, os.path.basename(path))
+
+    mkdir(os.path.dirname(dest))
+    try:
+      with open(dest + true_ext, "wb") as f:
+        f.write(self._data[path])
+    except KeyError:
+      return False
+
+    return True
+
   def head(self, file_path):
     raise NotImplementedError()
 

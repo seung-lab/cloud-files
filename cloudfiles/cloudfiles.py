@@ -1275,7 +1275,7 @@ class CloudFiles:
           src_key = key
           dest_key = key
 
-        dest_key = posixpath.join(cf_dest._path.path, dest_key)
+        dest_key = os.path.join(cf_dest._path.path, dest_key)
         found = conn.save_file(src_key, dest_key, resumable=resumable)
 
       if found == False and not allow_missing:
