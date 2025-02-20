@@ -11,7 +11,6 @@ import re
 import boto3
 import botocore
 import gevent.monkey
-from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
 import requests
@@ -22,7 +21,7 @@ import fasteners
 
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
-from .exceptions import MD5IntegrityError, CompressionError
+from .exceptions import MD5IntegrityError, CompressionError, AuthorizationError
 from .lib import mkdir, sip, md5, validate_s3_multipart_etag
 from .secrets import (
   http_credentials,
@@ -339,7 +338,7 @@ class FileInterface(StorageInterface):
     """
 
     layer_path = self.get_path_to_file("")        
-    path = os.path.join(layer_path, prefix) + '*'
+    path = os.path.join(layer_path, prefix)
 
     filenames = []
 
@@ -348,17 +347,33 @@ class FileInterface(StorageInterface):
       remove += os.path.sep
 
     if flat:
-      for file_path in glob(path):
-        if not os.path.isfile(file_path):
+      if os.path.isdir(path):
+        list_path = path
+        list_prefix = ''
+        prepend_prefix = prefix
+        if prepend_prefix and prepend_prefix[-1] != os.path.sep:
+          prepend_prefix += os.path.sep
+      else:  
+        list_path = os.path.dirname(path)
+        list_prefix = os.path.basename(prefix)
+        prepend_prefix = os.path.dirname(prefix)
+        if prepend_prefix != '':
+          prepend_prefix += os.path.sep
+
+      for fobj in os.scandir(list_path):
+        if list_prefix != '' and not fobj.name.startswith(list_prefix):
           continue
-        filename = file_path.replace(remove, '')
-        filenames.append(filename)
+
+        if fobj.is_dir():
+          filenames.append(f"{prepend_prefix}{fobj.name}{os.path.sep}")  
+        else:
+          filenames.append(f"{prepend_prefix}{fobj.name}")
     else:
       subdir = os.path.join(layer_path, os.path.dirname(prefix))
       for root, dirs, files in os.walk(subdir):
-        files = [ os.path.join(root, f) for f in files ]
-        files = [ f.replace(remove, '') for f in files ]
-        files = [ f for f in files if f[:len(prefix)] == prefix ]
+        files = ( os.path.join(root, f) for f in files )
+        files = ( f.removeprefix(remove) for f in files )
+        files = ( f for f in files if f[:len(prefix)] == prefix )
         
         for filename in files:
           filenames.append(filename)
@@ -546,11 +561,22 @@ class MemoryInterface(StorageInterface):
     if len(remove) and remove[-1] != '/':
       remove += '/'
 
-    filenames = [ f.replace(remove, '') for f in self._data ]
-    filenames = [ f for f in filenames if f[:len(prefix)] == prefix ]
+    filenames = ( f.removeprefix(remove) for f in self._data )
+    filenames = ( f for f in filenames if f[:len(prefix)] == prefix )
 
     if flat:
-      filenames = [ f for f in filenames if '/' not in f.replace(prefix, '') ]
+      tmp = []
+      for f in filenames:
+        elems = f.removeprefix(prefix).split('/')
+        if len(elems) > 1 and elems[0] == '':
+          elems.pop(0)
+          elems[0] = f'/{elems[0]}'
+
+        if len(elems) > 1:
+          tmp.append(f"{prefix}{elems[0]}/")
+        else:
+          tmp.append(f"{prefix}{elems[0]}")
+      filenames = tmp
     
     def stripext(fname):
       (base, ext) = os.path.splitext(fname)
@@ -756,13 +782,24 @@ class GoogleCloudStorageInterface(StorageInterface):
     path = posixpath.join(layer_path, prefix)
 
     delimiter = '/' if flat else None
-    for blob in self._bucket.list_blobs(prefix=path, delimiter=delimiter):
-      filename = blob.name.replace(layer_path, '')
+    blobs = self._bucket.list_blobs(
+      prefix=path, 
+      delimiter=delimiter,
+    )
+
+    if blobs.prefixes:
+      yield from (
+        item.removeprefix(path)
+        for item in blobs.prefixes
+      )
+
+    for blob in blobs:
+      filename = blob.name.removeprefix(layer_path)
       if not filename:
         continue
       elif not flat and filename[-1] != '/':
         yield filename
-      elif flat and '/' not in blob.name.replace(path, ''):
+      elif flat and '/' not in blob.name.removeprefix(path):
         yield filename
 
   def release_connection(self):
@@ -903,33 +940,49 @@ class HttpInterface(StorageInterface):
     )
     if prefix and prefix[0] == '/':
       prefix = prefix[1:]
-    if prefix and prefix[-1] != '/':
-      prefix += '/'
 
     headers = self.default_headers()
 
-    @retry
+    @retry_if_not(AuthorizationError)
     def request(token):
       nonlocal headers
+      params = {}
+      if prefix:
+        params["prefix"] = prefix
+      if token is not None:
+        params["pageToken"] = token
+      if flat:
+        params["delimiter"] = '/'
+
       results = self.session.get(
         f"https://storage.googleapis.com/storage/v1/b/{bucket}/o",
-        params={ "prefix": prefix, "pageToken": token },
+        params=params,
         headers=headers,
       )
+      if results.status_code in [401,403]:
+        raise AuthorizationError(f"http {results.status_code}")
+
       results.raise_for_status()
       results.close()
       return results.json()
+
+    strip = posixpath.dirname(prefix)
+    if strip and strip[-1] != '/':
+      strip += '/'
 
     token = None
     while True:
       results = request(token)
 
-      if not "items" in results:
-        yield
-        break
+      if 'prefixes' in results:
+        yield from (
+          item.removeprefix(strip) 
+          for item in results["prefixes"]
+        )
 
-      for res in results["items"]:
-        yield res["name"].replace(prefix, "", 1)
+      for res in results.get("items", []):
+        print(res["name"])
+        yield res["name"].removeprefix(strip)
       
       token = results.get("nextPageToken", None)
       if token is None:
@@ -981,13 +1034,15 @@ class HttpInterface(StorageInterface):
   def list_files(self, prefix, flat=False):
     if self._path.host == "https://storage.googleapis.com":
       yield from self._list_files_google(prefix, flat)
-    
+      return
+
     url = posixpath.join(self._path.host, self._path.path, prefix)
     resp = requests.head(url)
 
     server = resp.headers.get("Server", "").lower()
     if 'apache' in server:
       yield from self._list_files_apache(prefix, flat)
+      return
     else:
       raise NotImplementedError()
 
@@ -1131,6 +1186,9 @@ class S3Interface(StorageInterface):
       encoding = ''
       if 'ContentEncoding' in resp:
         encoding = resp['ContentEncoding']
+
+      if encoding == "aws-chunked":
+        encoding = ''
 
       # s3 etags return hex digests but we need the base64 encoding
       # to make uniform comparisons. 
@@ -1296,7 +1354,7 @@ class S3Interface(StorageInterface):
     path = posixpath.join(layer_path, prefix)
 
     @retry
-    def s3lst(continuation_token=None):
+    def s3lst(path, continuation_token=None):
       kwargs = {
         'Bucket': self._path.bucket,
         'Prefix': path,
@@ -1310,27 +1368,38 @@ class S3Interface(StorageInterface):
 
       return self._conn.list_objects_v2(**kwargs)
 
-    resp = s3lst()
+    resp = s3lst(path)
+    # the case where the prefix is something like "build", but "build" is a subdirectory
+    # so requery with "build/" to get the proper behavior
+    if flat and path[-1] != '/' and 'Contents' not in resp and len(resp.get("CommonPrefixes", [])) == 1:
+      path += '/'
+      resp = s3lst(path)
 
     def iterate(resp):
+      if 'CommonPrefixes' in resp.keys():
+        yield from [ 
+          item["Prefix"].removeprefix(layer_path) 
+          for item in resp['CommonPrefixes'] 
+        ]
+
       if 'Contents' not in resp.keys():
         resp['Contents'] = []
 
       for item in resp['Contents']:
         key = item['Key']
-        filename = key.replace(layer_path, '')
+        filename = key.removeprefix(layer_path)
         if filename == '':
           continue
         elif not flat and filename[-1] != '/':
           yield filename
-        elif flat and '/' not in key.replace(path, ''):
+        elif flat and '/' not in key.removeprefix(path):
           yield filename
 
     for filename in iterate(resp):
       yield filename
 
     while resp['IsTruncated'] and resp['NextContinuationToken']:
-      resp = s3lst(resp['NextContinuationToken'])
+      resp = s3lst(path, resp['NextContinuationToken'])
 
       for filename in iterate(resp):
         yield filename

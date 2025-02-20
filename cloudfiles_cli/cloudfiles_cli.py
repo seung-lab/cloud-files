@@ -83,13 +83,18 @@ def license():
     print(f.read())
 
 @main.command()
-@click.option('--shortpath', is_flag=True, default=False, help='Don\'t print the common base path for each listed path.')
-@click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.')
-@click.option('-e','--expr',is_flag=True, default=False, help='Use a limited regexp language (e.g. [abc123]\{3\}) to generate prefixes.')
+@click.option('--shortpath', is_flag=True, default=False, help='Don\'t print the common base path for each listed path.',show_default=True)
+@click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.',show_default=True)
+@click.option('-e','--expr',is_flag=True, default=False, help='Use a limited regexp language (e.g. [abc123]\{3\}) to generate prefixes.', show_default=True)
+@click.option('--no-auth',is_flag=True, default=False, help='Uses the http API for read-only operations.', show_default=True)
 @click.argument("cloudpath")
-def ls(shortpath, flat, expr, cloudpath):
+def ls(shortpath, flat, expr, cloudpath, no_auth):
   """Recursively lists the contents of a directory."""
   cloudpath = normalize_path(cloudpath)
+
+  no_sign_request = no_auth # only affects s3
+  if no_auth and 's3://' not in cloudpath:
+    cloudpath = cloudfiles.paths.to_https_protocol(cloudpath)
 
   _, flt, prefix = get_mfp(cloudpath, True)
   epath = extract(cloudpath)
@@ -100,7 +105,7 @@ def ls(shortpath, flat, expr, cloudpath):
 
   flat = flat or flt
 
-  cf = CloudFiles(cloudpath)
+  cf = CloudFiles(cloudpath, no_sign_request=no_sign_request)
   iterables = []
   if expr:
     # TODO: make this a reality using a parser

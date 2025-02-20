@@ -14,6 +14,10 @@ class CompressionError(Exception):
   """
   pass
 
+class AuthorizationError(Exception):
+  """Authorization Error"""
+  pass
+
 class UnsupportedCompressionType(Exception):
   """
   Raised when attempting to use a compression type which is unsupported
