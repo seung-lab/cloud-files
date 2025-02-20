@@ -1164,22 +1164,29 @@ class S3Interface(StorageInterface):
     key = self.get_path_to_file(src)
     kwargs = self._additional_attrs.copy()
 
+    resp = self.head(src)
+
+    if resp is None:
+      return False
+
+    mkdir(os.path.dirname(dest))
+    ext = FileInterface.get_extension(resp["Content-Encoding"])
+
+    if not dest.endswith(ext):
+      dest += ext
+
     try:
-      resp = self._conn.download_file(
+      self._conn.download_file(
         Bucket=self._path.bucket,
-        Key=self.get_path_to_file(key),
+        Key=key,
         Filename=dest,
         **kwargs
       )
     except botocore.exceptions.ClientError as err: 
-      if err.response['Error']['Code'] == 'NoSuchKey':
+      if err.response['Error']['Code'] in ('NoSuchKey', '404'):
         return False
       else:
         raise
-
-    ext = FileInterface.get_extension(blob.content_encoding)
-    if not dest.endswith(ext):
-      os.rename(dest, dest + ext)
 
     return True
 
