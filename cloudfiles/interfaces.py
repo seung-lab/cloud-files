@@ -1167,7 +1167,7 @@ class S3Interface(StorageInterface):
     try:
       resp = self._conn.download_file(
         Bucket=self._path.bucket,
-        Key=self.get_path_to_file(file_path),
+        Key=self.get_path_to_file(key),
         Filename=dest,
         **kwargs
       )
