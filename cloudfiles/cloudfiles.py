@@ -1004,6 +1004,7 @@ class CloudFiles:
     content_type:Optional[str] = None,
     allow_missing:bool = False,
     progress:Optional[bool] = None,
+    resumable:bool = False,
   ) -> None:
     """
     Transfer all files from this CloudFiles storage 
@@ -1038,6 +1039,11 @@ class CloudFiles:
       as '' (None), 'gzip', 'br', 'zstd'
     content_type: if provided, set the Content-Type header
       on the upload. This is necessary for e.g. file->cloud
+
+    resumable: for remote->file downloads, download to a .part
+      file and rename it when the download completes. If the 
+      download does not complete, it can be resumed. Only 
+      supported for https->file currently. 
     """
     if isinstance(cf_dest, str):
       cf_dest = CloudFiles(
@@ -1049,7 +1055,7 @@ class CloudFiles:
       self, paths, block_size, 
       reencode, content_type,
       allow_missing, 
-      progress,
+      progress, resumable,
     )
 
   def transfer_from(
@@ -1061,6 +1067,7 @@ class CloudFiles:
     content_type:Optional[str] = None,
     allow_missing:bool = False,
     progress:Optional[bool] = None,
+    resumable:bool = False,
   ) -> None:
     """
     Transfer all files from the source CloudFiles storage 
@@ -1095,6 +1102,10 @@ class CloudFiles:
       as '' (None), 'gzip', 'br', 'zstd'
     content_type: if provided, set the Content-Type header
       on the upload. This is necessary for e.g. file->cloud
+    resumable: for remote->file downloads, download to a .part
+      file and rename it when the download completes. If the 
+      download does not complete, it can be resumed. Only 
+      supported for https->file currently. 
     """
     if isinstance(cf_src, str):
       cf_src = CloudFiles(
@@ -1133,7 +1144,7 @@ class CloudFiles:
         self.__transfer_remote_to_file(
           cf_src, self, paths, total, 
           pbar, block_size, content_type,
-          allow_missing,
+          allow_missing, resumable,
         )
       elif (
         cf_src.protocol == "file"
@@ -1253,7 +1264,7 @@ class CloudFiles:
   def __transfer_remote_to_file(
     self, cf_src, cf_dest, paths, 
     total, pbar, block_size, content_type,
-    allow_missing
+    allow_missing, resumable,
   ):
     def thunk_save(key):
       with cf_src._get_connection() as conn:
@@ -1265,7 +1276,7 @@ class CloudFiles:
           dest_key = key
 
         dest_key = posixpath.join(cf_dest._path.path, dest_key)
-        found = conn.save_file(src_key, dest_key)
+        found = conn.save_file(src_key, dest_key, resumable=resumable)
 
       if found == False and not allow_missing:
         raise FileNotFoundError(src_key)

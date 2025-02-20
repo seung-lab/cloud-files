@@ -625,7 +625,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     return (content, blob.content_encoding, hash_value, hash_type)
 
   @retry
-  def save_file(self, src, dest):
+  def save_file(self, src, dest, resumable):
     key = self.get_path_to_file(src)
     blob = self._bucket.blob(key)
     try:
@@ -823,7 +823,7 @@ class HttpInterface(StorageInterface):
     return (resp.content, content_encoding, None, None)
 
   @retry
-  def save_file(self, src, dest):
+  def save_file(self, src, dest, resumable):
     key = self.get_path_to_file(src)
 
     headers = self.head(src)
@@ -835,11 +835,14 @@ class HttpInterface(StorageInterface):
       ext = ""
 
     fulldest = dest + ext
-    partname = fulldest + ".part"
+
+    partname = fulldest
+    if resumable:
+      partname += ".part"
 
     downloaded_size = 0
-    if os.path.exists(partname):
-        downloaded_size = os.path.getsize(partname)        
+    if resumable and os.path.exists(partname):
+      downloaded_size = os.path.getsize(partname)        
 
     range_headers = { "Range": f"bytes={downloaded_size}-" }
     with self.session.get(key, headers=range_headers, stream=True) as resp:
@@ -848,10 +851,11 @@ class HttpInterface(StorageInterface):
         return False
 
       with open(partname, 'ab') as f:
-          for chunk in resp.iter_content(chunk_size=int(10e6)):
-              f.write(chunk)
+        for chunk in resp.iter_content(chunk_size=int(10e6)):
+          f.write(chunk)
 
-    os.rename(partname, fulldest)
+    if resumable:
+      os.rename(partname, fulldest)
 
     return True
 
@@ -1130,7 +1134,7 @@ class S3Interface(StorageInterface):
         raise
 
   @retry
-  def save_file(self, src, dest):
+  def save_file(self, src, dest, resumable):
     key = self.get_path_to_file(src)
     kwargs = self._additional_attrs.copy()
 
