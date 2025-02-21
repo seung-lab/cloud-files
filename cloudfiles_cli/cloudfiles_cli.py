@@ -276,7 +276,7 @@ def _cp_single(
 
   if not isinstance(xferpaths, str):
     if parallel == 1:
-      _cp(srcpath, destpath, compression, progress, block_size, part_bytes, no_sign_request, xferpaths)
+      _cp(srcpath, destpath, compression, progress, block_size, part_bytes, no_sign_request, resumable, xferpaths)
       return 
 
     total = None
