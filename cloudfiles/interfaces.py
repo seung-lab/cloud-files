@@ -467,6 +467,32 @@ class MemoryInterface(StorageInterface):
       result = result[slice(start, end)]
     return (result, encoding, None, None)
 
+  def save_file(self, src, dest, resumable):
+    key = self.get_path_to_file(src)
+    with EXT_TEST_SEQUENCE_LOCK:
+      exts = list(EXT_TEST_SEQUENCE)
+      exts = [ x[0] for x in exts ]
+
+    path = key
+    true_ext = ''
+    for ext in exts:
+      pathext = key + ext
+      if pathext in self._data:
+        path = pathext
+        true_ext = ext
+        break
+
+    filepath = os.path.join(dest, os.path.basename(path))
+
+    mkdir(os.path.dirname(dest))
+    try:
+      with open(dest + true_ext, "wb") as f:
+        f.write(self._data[path])
+    except KeyError:
+      return False
+
+    return True
+
   def head(self, file_path):
     raise NotImplementedError()
 
@@ -649,6 +675,25 @@ class GoogleCloudStorageInterface(StorageInterface):
       hash_value = blob.crc32c
 
     return (content, blob.content_encoding, hash_value, hash_type)
+
+  @retry
+  def save_file(self, src, dest, resumable):
+    key = self.get_path_to_file(src)
+    blob = self._bucket.blob(key)
+    try:
+      blob.download_to_filename(
+        filename=dest,
+        raw_download=True, 
+        checksum=None
+      )
+    except google.cloud.exceptions.NotFound:
+      return False
+
+    ext = FileInterface.get_extension(blob.content_encoding)
+    if not dest.endswith(ext):
+      os.rename(dest, dest + ext)
+
+    return True
 
   @retry_if_not(google.cloud.exceptions.NotFound)
   def head(self, file_path):
@@ -841,6 +886,43 @@ class HttpInterface(StorageInterface):
     return (resp.content, content_encoding, None, None)
 
   @retry
+  def save_file(self, src, dest, resumable):
+    key = self.get_path_to_file(src)
+
+    headers = self.head(src)
+    content_encoding = headers.get('Content-Encoding', None)
+
+    try:
+      ext = FileInterface.get_extension(content_encoding)
+    except ValueError:
+      ext = ""
+
+    fulldest = dest + ext
+
+    partname = fulldest
+    if resumable:
+      partname += ".part"
+
+    downloaded_size = 0
+    if resumable and os.path.exists(partname):
+      downloaded_size = os.path.getsize(partname)        
+
+    range_headers = { "Range": f"bytes={downloaded_size}-" }
+    with self.session.get(key, headers=range_headers, stream=True) as resp:
+      if resp.status_code not in [200, 206]:
+        resp.raise_for_status()
+        return False
+
+      with open(partname, 'ab') as f:
+        for chunk in resp.iter_content(chunk_size=int(10e6)):
+          f.write(chunk)
+
+    if resumable:
+      os.rename(partname, fulldest)
+
+    return True
+
+  @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
     headers = self.default_headers()
@@ -891,6 +973,7 @@ class HttpInterface(StorageInterface):
     token = None
     while True:
       results = request(token)
+
       if 'prefixes' in results:
         yield from (
           item.removeprefix(strip) 
@@ -1137,6 +1220,42 @@ class S3Interface(StorageInterface):
         raise
 
   @retry
+  def save_file(self, src, dest, resumable):
+    key = self.get_path_to_file(src)
+    kwargs = self._additional_attrs.copy()
+
+    resp = self.head(src)
+
+    if resp is None:
+      return False
+
+    mkdir(os.path.dirname(dest))
+
+    encoding = ",".join([ 
+      enc for enc in resp.get("Content-Encoding", "").split(",")
+      if enc != "aws-chunked"
+    ])
+    ext = FileInterface.get_extension(encoding)
+
+    if not dest.endswith(ext):
+      dest += ext
+
+    try:
+      self._conn.download_file(
+        Bucket=self._path.bucket,
+        Key=key,
+        Filename=dest,
+        **kwargs
+      )
+    except botocore.exceptions.ClientError as err: 
+      if err.response['Error']['Code'] in ('NoSuchKey', '404'):
+        return False
+      else:
+        raise
+
+    return True
+
+  @retry
   def head(self, file_path):
     try:
       response = self._conn.head_object(
@@ -1259,7 +1378,13 @@ class S3Interface(StorageInterface):
     resp = s3lst(path)
     # the case where the prefix is something like "build", but "build" is a subdirectory
     # so requery with "build/" to get the proper behavior
-    if flat and path[-1] != '/' and 'Contents' not in resp and len(resp.get("CommonPrefixes", [])) == 1:
+    if (
+      flat 
+      and path 
+      and path[-1] != '/' 
+      and 'Contents' not in resp 
+      and len(resp.get("CommonPrefixes", [])) == 1
+    ):
       path += '/'
       resp = s3lst(path)
 
