@@ -1230,7 +1230,12 @@ class S3Interface(StorageInterface):
       return False
 
     mkdir(os.path.dirname(dest))
-    ext = FileInterface.get_extension(resp["Content-Encoding"])
+
+    encoding = ",".join([ 
+      enc for enc in resp.get("Content-Encoding", "").split(",")
+      if enc != "aws-chunked"
+    ])
+    ext = FileInterface.get_extension(encoding)
 
     if not dest.endswith(ext):
       dest += ext
