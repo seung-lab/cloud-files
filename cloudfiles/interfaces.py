@@ -1378,7 +1378,13 @@ class S3Interface(StorageInterface):
     resp = s3lst(path)
     # the case where the prefix is something like "build", but "build" is a subdirectory
     # so requery with "build/" to get the proper behavior
-    if flat and path[-1] != '/' and 'Contents' not in resp and len(resp.get("CommonPrefixes", [])) == 1:
+    if (
+      flat 
+      and path 
+      and path[-1] != '/' 
+      and 'Contents' not in resp 
+      and len(resp.get("CommonPrefixes", [])) == 1
+    ):
       path += '/'
       resp = s3lst(path)
 
