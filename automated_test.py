@@ -670,11 +670,13 @@ def test_transfer_semantics(s3, compression, src_protocol, dest_protocol, allow_
   cff.transfer_to(cfm.cloudpath, allow_missing=allow_missing)
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N  
+  assert cfm.head("1")["Content-Encoding"] == cff.head("1")["Content-Encoding"]
   cfm.delete(list(cfm))
 
   cff.transfer_to(cfm.cloudpath, reencode='br', allow_missing=allow_missing)
   assert sorted(list(cfm)) == sorted([ str(i) for i in range(N) ])
   assert [ f['content'] for f in cfm[:] ] == [ content ] * N  
+  assert 'br' in cfm.head("1")["Content-Encoding"]
 
   if dest_protocol == "mem":
     data = cfm._get_connection()._data

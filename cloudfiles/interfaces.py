@@ -1146,13 +1146,18 @@ class S3Interface(StorageInterface):
   @retry
   def copy_file(self, src_path, dest_bucket_name, dest_key):
     key = self.get_path_to_file(src_path)
-    dest_bucket = self._get_bucket(dest_bucket_name)
+    s3client = self._get_bucket(dest_bucket_name)
     copy_source = {
       'Bucket': self._path.bucket,
       'Key': key,
     }
     try:
-      dest_bucket.copy(CopySource=copy_source, Bucket=dest_bucket_name, Key=dest_key)
+      s3client.copy_object(
+          CopySource=copy_source,
+          Bucket=dest_bucket_name,
+          Key=dest_key,
+          MetadataDirective='COPY'  # Ensure metadata like Content-Encoding is copied
+      )
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] in ('NoSuchKey', '404'):
         return False
