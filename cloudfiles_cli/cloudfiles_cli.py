@@ -276,7 +276,11 @@ def _cp_single(
 
   if not isinstance(xferpaths, str):
     if parallel == 1:
-      _cp(srcpath, destpath, compression, progress, block_size, part_bytes, no_sign_request, resumable, xferpaths)
+      _cp(
+        srcpath, destpath, compression,
+        progress, block_size, part_bytes,
+        no_sign_request, resumable, xferpaths
+      )
       return 
 
     total = None
@@ -323,7 +327,12 @@ def _cp_single(
       "dest_path": new_path,
     }], reencode=compression, resumable=resumable)
 
-def _cp(src, dst, compression, progress, block_size, part_bytes, no_sign_request, resumable, paths):
+def _cp(
+  src, dst, compression, progress, 
+  block_size, part_bytes, 
+  no_sign_request, resumable, 
+  paths
+):
   cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes, no_sign_request=no_sign_request)
   cfdest = CloudFiles(dst, progress=progress, composite_upload_threshold=part_bytes)
   cfsrc.transfer_to(
