@@ -22,7 +22,7 @@ import fasteners
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .exceptions import MD5IntegrityError, CompressionError, AuthorizationError
-from .lib import mkdir, sip, md5, validate_s3_multipart_etag
+from .lib import mkdir, sip, md5, encode_crc32c_b64, validate_s3_multipart_etag
 from .secrets import (
   http_credentials,
   cave_credentials,
@@ -1138,7 +1138,7 @@ class S3Interface(StorageInterface):
     elif compress in ("xz", "lzma"):
       attrs['ContentEncoding'] = 'xz'
     elif compress in ("bzip2", "bz2"):
-      attrs['ContentEncoding'] = 'bz2'
+      attrs['ContentEncoding'] = 'bzip2'
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
@@ -1162,11 +1162,22 @@ class S3Interface(StorageInterface):
 
     if multipart:
       self._conn.upload_fileobj(content, self._path.bucket, key, ExtraArgs=attrs)
+      # upload_fileobj will add 'aws-chunked' to the ContentEncoding,
+      # which after it finishes uploading is useless and messes up our
+      # software. Therefore, edit the metadata and replace it (but this incurs
+      # 2x class-A...)
+      self._conn.copy_object(
+        Bucket=self._path.bucket,
+        Key=key,
+        CopySource={'Bucket': self._path.bucket, 'Key': key},
+        MetadataDirective="REPLACE",
+        **attrs
+      )
     else:
       attrs['Bucket'] = self._path.bucket
       attrs['Body'] = content
       attrs['Key'] = key
-      attrs['ContentMD5'] = md5(content)
+      attrs["ChecksumCRC32C"] = str(encode_crc32c_b64(content))
       self._conn.put_object(**attrs)
 
   @retry
@@ -1262,8 +1273,9 @@ class S3Interface(StorageInterface):
 
     mkdir(os.path.dirname(dest))
 
+    encoding = resp.get("Content-Encoding", "") or ""
     encoding = ",".join([ 
-      enc for enc in resp.get("Content-Encoding", "").split(",")
+      enc for enc in encoding.split(",")
       if enc != "aws-chunked"
     ])
     ext = FileInterface.get_extension(encoding)
@@ -1294,6 +1306,11 @@ class S3Interface(StorageInterface):
         Key=self.get_path_to_file(file_path),
         **self._additional_attrs,
       )
+
+      encoding = response.get("ContentEncoding", None)
+      if encoding == '':
+        encoding = None
+
       return {
         "Cache-Control": response.get("CacheControl", None),
         "Content-Length": response.get("ContentLength", None),
@@ -1301,7 +1318,7 @@ class S3Interface(StorageInterface):
         "ETag": response.get("ETag", None),
         "Last-Modified": response.get("LastModified", None),
         "Content-Md5": response["ResponseMetadata"]["HTTPHeaders"].get("content-md5", None),
-        "Content-Encoding": response.get("ContentEncoding", None),
+        "Content-Encoding": encoding,
         "Content-Disposition": response.get("ContentDisposition", None),
         "Content-Language": response.get("ContentLanguage", None),
         "Storage-Class": response.get("StorageClass", None),

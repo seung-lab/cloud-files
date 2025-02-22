@@ -153,6 +153,11 @@ def decode_crc32c_b64(b64digest):
   # !I means network order (big endian) and unsigned int
   return struct.unpack("!I", base64.b64decode(b64digest))[0]
 
+def encode_crc32c_b64(binary):
+  val = crc32c(binary)
+  val = val.to_bytes(4, 'big')
+  return base64.b64encode(val)
+
 def crc32c(binary):
   """
   Computes the crc32c of a binary string 
