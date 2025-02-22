@@ -22,7 +22,7 @@ import fasteners
 from .compression import COMPRESSION_TYPES
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, MemoryPool, MEMORY_DATA
 from .exceptions import MD5IntegrityError, CompressionError, AuthorizationError
-from .lib import mkdir, sip, md5, validate_s3_multipart_etag
+from .lib import mkdir, sip, md5, encode_crc32c_b64, validate_s3_multipart_etag
 from .secrets import (
   http_credentials,
   cave_credentials,
@@ -1166,7 +1166,7 @@ class S3Interface(StorageInterface):
       attrs['Bucket'] = self._path.bucket
       attrs['Body'] = content
       attrs['Key'] = key
-      attrs['ContentMD5'] = md5(content)
+      attrs["ChecksumCRC32C"] = str(encode_crc32c_b64(content))
       self._conn.put_object(**attrs)
 
   @retry
