@@ -1171,7 +1171,7 @@ class S3Interface(StorageInterface):
         Key=key,
         CopySource={'Bucket': self._path.bucket, 'Key': key},
         MetadataDirective="REPLACE",
-        ContentEncoding=attrs.get("ContentEncoding", ""),  # Set the new Content-Encoding
+        **attrs
       )
     else:
       attrs['Bucket'] = self._path.bucket
