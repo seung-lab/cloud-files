@@ -494,7 +494,33 @@ class MemoryInterface(StorageInterface):
     return True
 
   def head(self, file_path):
-    raise NotImplementedError()
+    path = self.get_path_to_file(file_path)
+
+    data = None
+    encoding = ''
+
+    with EXT_TEST_SEQUENCE_LOCK:
+      for ext, enc in EXT_TEST_SEQUENCE:
+        pathext = path + ext
+        if pathext in self._data:
+          data = self._data[pathext]
+          encoding = enc
+          break
+
+    return {
+      "Cache-Control": None,
+      "Content-Length": len(data),
+      "Content-Type": None,
+      "ETag": None,
+      "Last-Modified": None,
+      "Content-Md5": None,
+      "Content-Encoding": encoding,
+      "Content-Disposition": None,
+      "Content-Language": None,
+      "Storage-Class": None,
+      "Request-Charged": None,
+      "Parts-Count": None,
+    }
 
   def size(self, file_path):
     path = self.get_path_to_file(file_path)
