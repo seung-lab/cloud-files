@@ -1138,7 +1138,7 @@ class S3Interface(StorageInterface):
     elif compress in ("xz", "lzma"):
       attrs['ContentEncoding'] = 'xz'
     elif compress in ("bzip2", "bz2"):
-      attrs['ContentEncoding'] = 'bz2'
+      attrs['ContentEncoding'] = 'bzip2'
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
