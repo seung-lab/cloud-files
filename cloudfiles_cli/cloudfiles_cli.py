@@ -256,6 +256,9 @@ def _cp_single(
     prefix = os.path.commonprefix(xferpaths)
     xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
     srcpath = prefix
+    if srcpath == "":
+      print(f"cloudfiles: No common prefix found. Currently only one bucket at a time is supported for STDIN.")
+      return
   elif many:
     xferpaths = CloudFiles(
       srcpath, no_sign_request=no_sign_request
@@ -433,6 +436,9 @@ def _mv_single(
     prefix = os.path.commonprefix(xferpaths)
     xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
     srcpath = prefix
+    if srcpath == "":
+      print(f"cloudfiles: No common prefix found. Currently only one bucket at a time is supported for STDIN.")
+      return
   elif many:
     xferpaths = CloudFiles(
       srcpath, no_sign_request=no_sign_request
