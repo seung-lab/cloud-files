@@ -1,11 +1,68 @@
 CHANGES
 =======
 
+5.0.1
+-----
+
+* fix: prevent aws-chunked from populating in Content-Encoding (#109)
+* fix: add head implementation for MemoryInterface
+* fix+test: check that content encoding is transferred correctly
+
+5.0.0
+-----
+
+* feat: efficient saving to disk (#108)
+* install: set minimum version to py39
+* ci: drop py38, add py313
+* fix: strip 'aws-chunked' from s3 encodings
+* fix: add no\_sign\_request for s3 listing
+* fix: prefix logic for no-auth gcs
+* fix: list files google http
+* feat(cli): add no-auth flag to ls
+* fix: abort auth error in list files (http, google)
+* fix: make s3 listing consistent with file and mem
+* fix(list): memory and files interface list flat more consistently
+* test: make flat more consistent in list\_files
+* fix: replaceprefix -> removeprefix
+* fix: aws-chunked does not affect byte encoding
+* fix: harmonizing definition of flat across interfaces
+* feat: adding (broken) support for listing common prefixes
+* refactor: use same pattern for removeprefix
+* fix: make "flat" listing work for s3
+
+4.30.1
+------
+
+* fix(gcs): don't double compress when uploading to gcs w/ composite
+
+4.30.0
+------
+
+* redesign: normalize cloudpaths so file:// isn't required
+
+4.29.0
+------
+
+* feat(size): add return\_sum argument
+
+4.28.1
+------
+
+* fix(CloudFile.join): add definition of join to CloudFile
+
+4.28.0
+------
+
+* feat: add cf.move(s), cf.touch methods and cli mv, touch commands (#107)
 * fix: add drop table stats
 * perf: add in stats table for faster xfer performance
 * feat: import improvements to ResumableFileSet from transcoder
 * fix: release in xfer
 * fix: leasing was broken
+
+4.27.0
+------
+
 * feat: add middleauth+https paths indicate CAVE interface (#106)
 
 4.26.0
