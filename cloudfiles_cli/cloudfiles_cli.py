@@ -255,7 +255,7 @@ def _cp_single(
     xferpaths = [ x.replace("\n", "") for x in xferpaths ]
     prefix = os.path.commonprefix(xferpaths)
     xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
-    srcpath = cloudpathjoin(srcpath, prefix)
+    srcpath = prefix
   elif many:
     xferpaths = CloudFiles(
       srcpath, no_sign_request=no_sign_request
@@ -432,7 +432,7 @@ def _mv_single(
     xferpaths = [ x.replace("\n", "") for x in xferpaths ]
     prefix = os.path.commonprefix(xferpaths)
     xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
-    srcpath = cloudpathjoin(srcpath, prefix)
+    srcpath = prefix
   elif many:
     xferpaths = CloudFiles(
       srcpath, no_sign_request=no_sign_request
