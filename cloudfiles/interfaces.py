@@ -816,6 +816,9 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     first = True
     for blob in blobs:
+      # This awkward construction is necessary
+      # because the request that populates prefixes 
+      # isn't made until the iterator is activated.
       if first and blobs.prefixes:
         yield from (
           item.removeprefix(path)
