@@ -808,18 +808,21 @@ class GoogleCloudStorageInterface(StorageInterface):
     path = posixpath.join(layer_path, prefix)
 
     delimiter = '/' if flat else None
+
     blobs = self._bucket.list_blobs(
       prefix=path, 
       delimiter=delimiter,
     )
 
-    if blobs.prefixes:
-      yield from (
-        item.removeprefix(path)
-        for item in blobs.prefixes
-      )
-
+    first = True
     for blob in blobs:
+      if first and blobs.prefixes:
+        yield from (
+          item.removeprefix(path)
+          for item in blobs.prefixes
+        )
+        first = False
+
       filename = blob.name.removeprefix(layer_path)
       if not filename:
         continue
