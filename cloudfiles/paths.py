@@ -18,6 +18,8 @@ ExtractedPath = namedtuple('ExtractedPath',
   ('format', 'protocol', 'bucket', 'path', 'host', 'alias')
 )
 
+PRECOMPUTED_SUFFIX = '|neuroglancer-precomputed:'
+
 ALIAS_FILE = os.path.join(CLOUD_FILES_DIR, "aliases.json")
 OFFICIAL_ALIASES = {
   "matrix": "s3://https://s3-hpcrc.rc.princeton.edu/",
@@ -161,6 +163,9 @@ for alias, host in OFFICIAL_ALIASES.items():
 
 @lru_cache(maxsize=10, typed=False)
 def normalize(path):
+
+  path = path.removesuffix(PRECOMPUTED_SUFFIX)
+
   fmt, proto, endpoint, cloudpath, alias = extract_format_protocol(
     path, allow_defaults=False
   )
@@ -294,7 +299,7 @@ def extract_format_protocol(cloudpath:str, allow_defaults=True) -> tuple:
 
   groups = m.groups()
   cloudpath = re.sub(CLOUDPATH_REGEXP, '', cloudpath, count=1)
-  cloudpath = cloudpath.removesuffix('|neuroglancer-precomputed:')
+  cloudpath = cloudpath.removesuffix(PRECOMPUTED_SUFFIX)
 
   fmt = m.group('fmt')
   if not fmt and allow_defaults:

@@ -243,7 +243,7 @@ class CloudFiles:
       cloudpath = paths.to_https_protocol(cloudpath)
 
     cloudpath = paths.normalize(cloudpath)
-
+    
     self.cloudpath = cloudpath
     self.progress = progress
     self.secrets = secrets
