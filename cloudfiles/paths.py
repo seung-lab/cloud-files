@@ -294,6 +294,7 @@ def extract_format_protocol(cloudpath:str, allow_defaults=True) -> tuple:
 
   groups = m.groups()
   cloudpath = re.sub(CLOUDPATH_REGEXP, '', cloudpath, count=1)
+  cloudpath = cloudpath.removesuffix('|neuroglancer-precomputed:')
 
   fmt = m.group('fmt')
   if not fmt and allow_defaults:

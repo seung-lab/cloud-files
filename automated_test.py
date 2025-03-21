@@ -531,6 +531,13 @@ def test_path_extraction():
 
   shoulderror('ou3bouqjsa fkj aojsf oaojf ojsaf')
 
+  assert (
+    paths.extract('gs://bucket/dataset/layer|neuroglancer-precomputed:') 
+      == ExtractedPath(
+        'precomputed', 'gs', 'bucket', 
+        'dataset/layer', None, None
+      ))
+
   okgoogle('gs://bucket/dataset/layer/')
   # shoulderror('gs://bucket/dataset/layer/info')
 
