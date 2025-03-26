@@ -834,6 +834,8 @@ class GoogleCloudStorageInterface(StorageInterface):
       elif flat and '/' not in blob.name.removeprefix(path):
         yield filename
 
+    # When there are no regular items at this level
+    # we need to still print the directories.
     if first and blobs.prefixes:
       yield from (
         item.removeprefix(path)
