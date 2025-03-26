@@ -834,6 +834,12 @@ class GoogleCloudStorageInterface(StorageInterface):
       elif flat and '/' not in blob.name.removeprefix(path):
         yield filename
 
+    if first and blobs.prefixes:
+      yield from (
+        item.removeprefix(path)
+        for item in blobs.prefixes
+      )
+
   def release_connection(self):
     global GC_POOL
     with GCS_BUCKET_POOL_LOCK:
