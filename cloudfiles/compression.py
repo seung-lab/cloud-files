@@ -171,7 +171,7 @@ def gzip_compress(content, compresslevel=None):
     compresslevel = 9
 
   if deflate:
-    return deflate.gzip_compress(content, compresslevel)
+    return bytes(deflate.gzip_compress(content, compresslevel))
 
   stringio = BytesIO()
   gzip_obj = gzip.GzipFile(mode='wb', fileobj=stringio, compresslevel=compresslevel)
@@ -190,7 +190,12 @@ def gunzip(content):
     raise DecompressionError('File contains zero bytes.')
 
   gzip_magic_numbers = [ 0x1f, 0x8b ]
-  first_two_bytes = [ byte for byte in bytearray(content)[:2] ]
+
+  if isinstance(content, (bytes, bytearray)):
+    first_two_bytes = list(content[:2])
+  else:
+    first_two_bytes = [ byte for byte in bytearray(content)[:2] ]
+
   if first_two_bytes != gzip_magic_numbers:
     raise DecompressionError('File is not in gzip format. Magic numbers {}, {} did not match {}, {}.'.format(
       hex(first_two_bytes[0]), hex(first_two_bytes[1]), hex(gzip_magic_numbers[0]), hex(gzip_magic_numbers[1])
