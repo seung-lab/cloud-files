@@ -707,6 +707,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     key = self.get_path_to_file(src)
     blob = self._bucket.blob(key)
     try:
+      mkdir(os.path.dirname(dest))
       blob.download_to_filename(
         filename=dest,
         raw_download=True, 
