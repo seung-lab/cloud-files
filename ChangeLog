@@ -1,6 +1,42 @@
 CHANGES
 =======
 
+5.1.3
+-----
+
+* fix: deflate returning bytearray from gunzip as well
+
+5.1.2
+-----
+
+* fix: deflate 0.8 started returning a bytearray
+
+5.1.1
+-----
+
+* fix: ensure directory exists for download\_to\_file
+* docs: add why there is this extra bit of code
+* fix(gs/list): show flat directories even if there are no regular entries
+
+5.1.0
+-----
+
+* fix: remove precomputed suffix from cloudfiles during normalization
+* feat: accept the new |neuroglancer-precomputed: suffix
+
+5.0.3
+-----
+
+* docs: describe why this works
+* fix(gcs): flat listing works
+
+5.0.2
+-----
+
+* chore: update changelog
+* feat: add error messages if multiple buckets found
+* fix: stdin wasn't working for cp, mv bc of incorrect source path
+
 5.0.1
 -----
 
