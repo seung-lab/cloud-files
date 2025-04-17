@@ -202,7 +202,7 @@ def gunzip(content):
     ))
 
   if deflate:
-    return deflate.gzip_decompress(content)
+    return bytes(deflate.gzip_decompress(content))
 
   stringio = BytesIO(content)
   with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
