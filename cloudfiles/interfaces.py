@@ -1189,10 +1189,13 @@ class S3Interface(StorageInterface):
         **attrs
       )
     else:
+      if isinstance(content, str):
+        content = content.encode('utf8')
+
       attrs['Bucket'] = self._path.bucket
       attrs['Body'] = content
       attrs['Key'] = key
-      attrs["ChecksumCRC32C"] = str(encode_crc32c_b64(content))
+      attrs["ChecksumCRC32C"] = encode_crc32c_b64(content).decode('utf8')
       self._conn.put_object(**attrs)
 
   @retry
