@@ -58,11 +58,14 @@ def update_aliases_from_file():
 
 def cloudpath_error(cloudpath):
   return yellow(f"""
-    Cloud Path must conform to [FORMAT://]PROTOCOL://PATH
+    Cloud Path must conform to one of:
+      (a) [FORMAT://]PROTOCOL://PATH
+      (b) PROTOCOL://PATH|FORMAT:
     Examples: 
       precomputed://gs://test_bucket/em
       gs://test_bucket/em
       graphene://https://example.com/image/em
+      gs://text_bucket/em/|zarr2:
 
     Supported Formats: None (precomputed), {", ".join(ALLOWED_FORMATS)}
     Supported Protocols: {", ".join(ALLOWED_PROTOCOLS)}
@@ -86,6 +89,9 @@ def mkregexp():
 
 CLOUDPATH_REGEXP = re.compile(mkregexp())
 BUCKET_RE = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)(?:/|$)') # posix /what/a/great/path  
+
+# |neuroglancer-precomputed: or |zarr2: suffixes etc
+TAIL_FORMAT_REGEXP = re.compile('\\|(?P<fmt>[\\w\\d-]+):$') 
 
 def add_alias(alias:str, host:str):
   global ALIASES
@@ -291,6 +297,13 @@ def pop_protocol(cloudpath):
 def extract_format_protocol(cloudpath:str, allow_defaults=True) -> tuple:
   error = UnsupportedProtocolError(cloudpath_error(cloudpath))
 
+  cloudpath = cloudpath.removesuffix(PRECOMPUTED_SUFFIX)
+
+  m = re.search(TAIL_FORMAT_REGEXP, cloudpath)
+  if m is not None:
+    cloudpath = re.sub(TAIL_FORMAT_REGEXP, "", cloudpath)
+    cloudpath = f"{m.group('fmt')}://{cloudpath}"
+
   alias, cloudpath = resolve_alias(cloudpath)
 
   m = re.match(CLOUDPATH_REGEXP, cloudpath)
@@ -299,7 +312,6 @@ def extract_format_protocol(cloudpath:str, allow_defaults=True) -> tuple:
 
   groups = m.groups()
   cloudpath = re.sub(CLOUDPATH_REGEXP, '', cloudpath, count=1)
-  cloudpath = cloudpath.removesuffix(PRECOMPUTED_SUFFIX)
 
   fmt = m.group('fmt')
   if not fmt and allow_defaults:
