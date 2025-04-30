@@ -538,6 +538,13 @@ def test_path_extraction():
         'dataset/layer', None, None
       ))
 
+  assert (
+    paths.extract('gs://bucket/dataset/layer|zarr2:') 
+      == ExtractedPath(
+        'zarr2', 'gs', 'bucket', 
+        'dataset/layer', None, None
+      ))
+
   okgoogle('gs://bucket/dataset/layer/')
   # shoulderror('gs://bucket/dataset/layer/info')
 
