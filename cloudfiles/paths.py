@@ -171,6 +171,10 @@ for alias, host in OFFICIAL_ALIASES.items():
 def normalize(path):
 
   path = path.removesuffix(PRECOMPUTED_SUFFIX)
+  m = re.search(TAIL_FORMAT_REGEXP, path)
+  if m is not None:
+    path = re.sub(TAIL_FORMAT_REGEXP, "", path)
+    path = f"{m.group('fmt')}://{path}"
 
   fmt, proto, endpoint, cloudpath, alias = extract_format_protocol(
     path, allow_defaults=False
