@@ -16,8 +16,7 @@ import sys
 # High Sierra and above when we are using
 # a thread before forking. Instead, don't fork,
 # spawn entirely new processes.
-import multiprocess.context as ctx
-ctx._force_start_method('spawn')
+mp.set_start_method("spawn", force=True)
 
 import click
 import pathos.pools
