@@ -149,6 +149,10 @@ def parallel_execute(
   if platform.system().lower() == "darwin":
     os.environ["no_proxy"] = "*"
 
+  # Don't fork, spawn entirely new processes. This
+  # avoids accidental deadlocks.
+  multiprocessing.set_start_method("spawn", force=True)
+
   results = []
   try: 
     with pathos.pools.ProcessPool(parallel) as executor:
