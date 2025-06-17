@@ -41,6 +41,10 @@ ALLOWED_FORMATS = [
   'render', 'vtk', 'nifti', 'dvid',
 ] 
 
+CLOUD_PROTOCOLS = [
+  "gs", "s3"
+] + list(OFFICIAL_ALIASES.keys())
+
 def update_aliases_from_file():
   global ALIASES_FROM_FILE
   global ALIAS_FILE
@@ -375,7 +379,7 @@ def extract(cloudpath:str, windows=None) -> ExtractedPath:
     cloudpath = toabs(cloudpath)
 
   bucket = None
-  if protocol in ('gs', 's3', 'matrix', 'mem'):
+  if protocol in CLOUD_PROTOCOLS + ['mem']:
     match = re.match(BUCKET_RE, cloudpath)
     if not match:
       raise error
@@ -399,7 +403,7 @@ def extract(cloudpath:str, windows=None) -> ExtractedPath:
 
 def to_https_protocol(cloudpath):
   if isinstance(cloudpath, ExtractedPath):
-    if cloudpath.protocol in ('gs', 's3', 'matrix'):
+    if cloudpath.protocol in CLOUD_PROTOCOLS:
       return extract(to_https_protocol(ascloudpath(cloudpath)))
     return cloudpath
 
