@@ -1061,6 +1061,7 @@ class CloudFiles:
       reencode, content_type,
       allow_missing, 
       progress, resumable,
+      allow_streaming,
     )
 
   def transfer_from(
