@@ -1009,6 +1009,7 @@ class CloudFiles:
     allow_missing:bool = False,
     progress:Optional[bool] = None,
     resumable:bool = False,
+    allow_streaming:bool = True,
   ) -> None:
     """
     Transfer all files from this CloudFiles storage 
@@ -1072,6 +1073,7 @@ class CloudFiles:
     allow_missing:bool = False,
     progress:Optional[bool] = None,
     resumable:bool = False,
+    allow_streaming:bool = True,
   ) -> None:
     """
     Transfer all files from the source CloudFiles storage 
@@ -1154,6 +1156,7 @@ class CloudFiles:
         cf_src.protocol == "file"
         and self.protocol != "file"
         and reencode is None
+        and allow_streaming
       ):
         self.__transfer_file_to_remote(
           cf_src, self, paths, total, 
@@ -1628,7 +1631,8 @@ class CloudFile:
 
   def transfer_to(    
     self, cloudpath:str, 
-    reencode:Optional[str] = None
+    reencode:Optional[str] = None,
+    allow_streaming:bool = True,
   ):
     epath = paths.extract(cloudpath)
     self.cf.transfer_to(
@@ -1638,11 +1642,13 @@ class CloudFile:
         "dest_path": epath.path,
       }],
       reencode=reencode,
+      allow_streaming=allow_streaming,
     )
 
   def transfer_from(
     self, cloudpath:str, 
-    reencode:Optional[str] = None
+    reencode:Optional[str] = None,
+    allow_streaming:bool = True,
   ):
     epath = paths.extract(cloudpath)
     self.cf.transfer_from(
@@ -1652,6 +1658,7 @@ class CloudFile:
         "dest_path": self.filename,
       }],
       reencode=reencode,
+      allow_streaming=allow_streaming,
     )
 
   def join(self, *args):

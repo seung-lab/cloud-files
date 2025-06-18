@@ -178,12 +178,13 @@ def get_mfp(path, recursive):
 @click.option('--part-bytes', default=int(1e8), help="Composite upload threshold in bytes. Splits a file into pieces for some cloud services like gs and s3.", show_default=True)
 @click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
 @click.option('--resumable', is_flag=True, default=False, help="http->file transfers will dowload to .part files while they are in progress.", show_default=True)
+@click.option('--no-streaming', is_flag=True, default=False, help="Disable streaming from files (some remote sources don't agree with CRC calculation).", show_default=True)
 @click.pass_context
 def cp(
   ctx, source, destination, 
   recursive, compression, progress, 
   block_size, part_bytes, no_sign_request,
-  resumable,
+  resumable, no_streaming,
 ):
   """
   Copy one or more files from a source to destination.
@@ -201,14 +202,14 @@ def cp(
       ctx, src, destination, recursive, 
       compression, progress, block_size, 
       part_bytes, no_sign_request,
-      resumable,
+      resumable, no_streaming,
     )
 
 def _cp_single(
   ctx, source, destination, recursive, 
   compression, progress, block_size,
   part_bytes, no_sign_request,
-  resumable,
+  resumable, no_streaming,
 ):
   use_stdin = (source == '-')
   use_stdout = (destination == '-')
@@ -281,7 +282,8 @@ def _cp_single(
       _cp(
         srcpath, destpath, compression,
         progress, block_size, part_bytes,
-        no_sign_request, resumable, xferpaths
+        no_sign_request, resumable, no_streaming,
+        xferpaths
       )
       return 
 
@@ -296,7 +298,8 @@ def _cp_single(
     else:
       fn = partial(
         _cp, srcpath, destpath, compression, False, 
-        block_size, part_bytes, no_sign_request, resumable
+        block_size, part_bytes, no_sign_request, resumable,
+        no_streaming
       )
 
     with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
@@ -325,22 +328,29 @@ def _cp_single(
       new_path = os.path.basename(ndest)
 
     cfsrc.transfer_to(cfdest, paths=[{
-      "path": xferpaths,
-      "dest_path": new_path,
-    }], reencode=compression, resumable=resumable)
+        "path": xferpaths,
+        "dest_path": new_path,
+      }],
+      reencode=compression, 
+      resumable=resumable,
+      allow_streaming=(not no_streaming),
+    )
 
 def _cp(
   src, dst, compression, progress, 
   block_size, part_bytes, 
-  no_sign_request, resumable, 
+  no_sign_request, resumable, no_streaming,
   paths
 ):
   cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes, no_sign_request=no_sign_request)
   cfdest = CloudFiles(dst, progress=progress, composite_upload_threshold=part_bytes)
   cfsrc.transfer_to(
-    cfdest, paths=paths, 
-    reencode=compression, block_size=block_size,
+    cfdest, 
+    paths=paths, 
+    reencode=compression,
+    block_size=block_size,
     resumable=resumable,
+    allow_streaming=(not no_streaming)
   )
 
 def _cp_stdout(src, no_sign_request, paths):
