@@ -84,7 +84,7 @@ def license():
 @main.command()
 @click.option('--shortpath', is_flag=True, default=False, help='Don\'t print the common base path for each listed path.',show_default=True)
 @click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.',show_default=True)
-@click.option('-e','--expr',is_flag=True, default=False, help='Use a limited regexp language (e.g. [abc123]\{3\}) to generate prefixes.', show_default=True)
+@click.option('-e','--expr',is_flag=True, default=False, help=r'Use a limited regexp language (e.g. [abc123]{3}) to generate prefixes.', show_default=True)
 @click.option('--no-auth',is_flag=True, default=False, help='Uses the http API for read-only operations.', show_default=True)
 @click.argument("cloudpath")
 def ls(shortpath, flat, expr, cloudpath, no_auth):
