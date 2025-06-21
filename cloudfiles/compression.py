@@ -1,3 +1,5 @@
+from typing import Union, Optional, Iterable
+
 from io import BytesIO
 
 import bz2
@@ -25,10 +27,36 @@ COMPRESSION_TYPES = [
   'xz', 'lzma'
 ]
 
+def normalize_encoding(
+  encoding:Union[bool,str,list[str]]
+) -> list[str]:
+  encodings = encoding
+  if isinstance(encoding, str):
+    encoding = encoding.lower()
+    encodings = encoding.split(',')
+  elif encoding in (None, False, '', 0):
+    return []
+  elif isinstance(encoding, bool):
+    encodings = [ encoding ]
+  
+  for i in range(len(encodings)):
+    enc = encodings[i]
+    if enc in (True, 'gzip', 1):
+      enc = 'gzip'
+    encodings[i] = enc.lower()
+
+  return encodings
+
 def transcode(
-  files, encoding, level=None, 
-  progress=False, in_place=False
-):
+  files:Union[
+    bytes, Iterable[bytes], 
+    dict, Iterable[dict],
+  ], 
+  encoding:Union[str,list[str]], 
+  level:Optional[int] = None, 
+  progress:bool = False, 
+  in_place:bool = False,
+) -> Iterable[dict]:
   """
   Given the output of get, which may include raw files, 
   transcode the compresson scheme into the one specified by 
@@ -48,6 +76,7 @@ def transcode(
   """
   files = toiter(files)
   encoding = normalize_encoding(encoding)
+  encoding_str = ','.join(encoding)
   for f in tqdm(files, disable=(not progress), desc="Transcoding"):
     # Accomodate (filename, content) inputs
     if isinstance(f, tuple):
@@ -78,22 +107,15 @@ def transcode(
     content = compress(content, encoding, level)
 
     f['raw'] = True
-    f['compress'] = encoding
+    f['compress'] = encoding_str
     f['content'] = content
     yield f
-    
-def normalize_encoding(encoding):
-  if isinstance(encoding, str):
-    encoding = encoding.lower()
 
-  if encoding in (None, False, '', 0):
-    return None
-  elif encoding in (True, 'gzip', 1):
-    return 'gzip'
-  
-  return encoding
-
-def decompress(content, encoding, filename='N/A'):
+def decompress(
+  content:bytes, 
+  encoding:Optional[Union[str,bool,int,list[str]]], 
+  filename:str = 'N/A',
+) -> bytes:
   """
   Decompress file content. 
 
@@ -108,31 +130,41 @@ def decompress(content, encoding, filename='N/A'):
 
   Return: decompressed content
   """
-  try:
-    encoding = (encoding or '').lower()
-    if encoding == '':
-      return content
-    elif len(content) == 0:
-      raise DecompressionError('File contains zero bytes: ' + str(filename))
-    elif encoding == 'gzip':
-      return gunzip(content)
-    elif encoding == 'br':
-      return brotli_decompress(content)
-    elif encoding == 'zstd':
-      return zstd_decompress(content)
-    elif encoding in ('bz2', 'bzip2'):
-      return bz2.decompress(content)
-    elif encoding in ('xz', 'lzma'):
-      return lzma.decompress(content)
-  except DecompressionError as err:
-    print("Filename: " + str(filename))
-    raise
-  
-  raise ValueError(
-    f'{encoding} is not currently supported. Supported Options: None, {", ".join(COMPRESSION_TYPES[4:])}'
-  )
+  encodings = normalize_encoding(encoding)  
 
-def compress(content, method='gzip', compress_level=None):
+  for enc in encodings:
+    try:
+      if enc == '':
+        continue
+      elif len(content) == 0:
+        raise DecompressionError(f'File contains zero bytes: {str(filename)}')
+      elif enc == 'gzip':
+        content = gunzip(content)
+      elif enc == 'br':
+        content = brotli_decompress(content)
+      elif enc == 'zstd':
+        content = zstd_decompress(content)
+      elif enc in ('bz2', 'bzip2'):
+        content = bz2.decompress(content)
+      elif enc in ('xz', 'lzma'):
+        content = lzma.decompress(content)
+      elif enc == "aws-chunked":
+        continue
+      else:
+        raise ValueError(
+          f'{enc} is not currently supported. Supported Options: None, {", ".join(COMPRESSION_TYPES[4:])}'
+        )
+    except DecompressionError as err:
+      print(f"Filename: {filename}")
+      raise
+
+  return content
+
+def compress(
+  content:bytes,
+  method:Union[str,bool] = 'gzip', 
+  compress_level:Optional[int] = None,
+) -> bytes:
   """
   Compresses file content.
 
@@ -145,26 +177,31 @@ def compress(content, method='gzip', compress_level=None):
 
   Return: compressed content
   """
-  if method == True:
-    method = 'gzip' # backwards compatibility
+  method = normalize_encoding(method)
 
-  method = (method or '').lower()
+  for enc in method:
+    if enc == '':
+      continue
+    elif enc == 'gzip': 
+      content = gzip_compress(content, compresslevel=compress_level)
+    elif enc == 'br':
+      content = brotli_compress(content, quality=compress_level)
+    elif enc == 'zstd':
+      content = zstd_compress(content, compress_level)
+    elif enc in ("bz2", "bzip2"):
+      compress_level = 9 if compress_level is None else compress_level
+      content = bz2.compress(content, compresslevel=compress_level)
+    elif enc in ('xz', 'lzma'):
+      content = lzma.compress(content, preset=compress_level)
+    elif enc == "aws-chunked":
+      continue
+    else:
+      raise ValueError(
+        f'{enc} is not currently supported. '
+        f'Supported Options: None, {", ".join(COMPRESSION_TYPES[4:])}'
+      )
 
-  if method == '':
-    return content
-  elif method == 'gzip': 
-    return gzip_compress(content, compresslevel=compress_level)
-  elif method == 'br':
-    return brotli_compress(content, quality=compress_level)
-  elif method == 'zstd':
-    return zstd_compress(content, compress_level)
-  elif method in ("bz2", "bzip2"):
-    compress_level = 9 if compress_level is None else compress_level
-    return bz2.compress(content, compresslevel=compress_level)
-  elif method in ('xz', 'lzma'):
-    return lzma.compress(content, preset=compress_level)
-  
-  raise ValueError(str(method) + ' is not currently supported. Supported Options: None, gzip, br')
+  return content
 
 def gzip_compress(content, compresslevel=None):
   if compresslevel is None:
