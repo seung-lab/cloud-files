@@ -203,7 +203,7 @@ def compress(
 
   return content
 
-def gzip_compress(content, compresslevel=None):
+def gzip_compress(content:bytes, compresslevel:Optional[int] = None) -> bytes:
   if compresslevel is None:
     compresslevel = 9
 
@@ -216,7 +216,7 @@ def gzip_compress(content, compresslevel=None):
   gzip_obj.close()
   return stringio.getvalue()  
 
-def gunzip(content):
+def gunzip(content:bytes) -> bytes:
   """ 
   Decompression is applied if the first to bytes matches with
   the gzip magic numbers. 
@@ -245,19 +245,19 @@ def gunzip(content):
   with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
     return gfile.read()
 
-def brotli_compress(content, quality=None):
+def brotli_compress(content:bytes, quality:Optional[int] = None) -> bytes:
   if quality is None:
     # 5/6 are good balance between compression speed and compression rate
     quality = 5
   return brotli.compress(content, quality=quality)
 
-def brotli_decompress(content):
+def brotli_decompress(content:bytes) -> bytes:
   if len(content) == 0:
     raise DecompressionError('File contains zero bytes.')
 
   return brotli.decompress(content)
 
-def zstd_compress(content, level=None):
+def zstd_compress(content:bytes, level:Optional[int] = None) -> bytes:
   kwargs = {}
   if level is not None:
     kwargs['level'] = int(level)
@@ -265,7 +265,7 @@ def zstd_compress(content, level=None):
   ctx = zstd.ZstdCompressor(**kwargs)
   return ctx.compress(content)
 
-def zstd_decompress(content):
+def zstd_decompress(content:bytes) -> bytes:
   ctx = zstd.ZstdDecompressor()
   return ctx.decompress(content)
 
