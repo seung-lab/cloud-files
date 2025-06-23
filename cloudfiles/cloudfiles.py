@@ -751,8 +751,7 @@ class CloudFiles:
       res = first(self.list(prefix=prefix))
       return res is not None
     except NotImplementedError as err:
-      res = CloudFile(self.cloudpath).size() 
-      return res > 0
+      return not CloudFile(self.cloudpath).exists()
 
   def exists(
     self, paths:GetPathType, 
