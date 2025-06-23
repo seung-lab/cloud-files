@@ -1186,17 +1186,6 @@ class S3Interface(StorageInterface):
 
     if multipart:
       self._conn.upload_fileobj(content, self._path.bucket, key, ExtraArgs=attrs)
-      # upload_fileobj will add 'aws-chunked' to the ContentEncoding,
-      # which after it finishes uploading is useless and messes up our
-      # software. Therefore, edit the metadata and replace it (but this incurs
-      # 2x class-A...)
-      self._conn.copy_object(
-        Bucket=self._path.bucket,
-        Key=key,
-        CopySource={'Bucket': self._path.bucket, 'Key': key},
-        MetadataDirective="REPLACE",
-        **attrs
-      )
     else:
       if isinstance(content, str):
         content = content.encode('utf8')
