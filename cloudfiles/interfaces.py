@@ -1245,11 +1245,6 @@ class S3Interface(StorageInterface):
       if 'ContentEncoding' in resp:
         encoding = resp['ContentEncoding']
 
-      encoding = ",".join([ 
-        enc for enc in encoding.split(",")
-        if enc != "aws-chunked"
-      ])
-
       # s3 etags return hex digests but we need the base64 encoding
       # to make uniform comparisons. 
       # example s3 etag: "31ee76261d87fed8cb9d4c465c48158c"
@@ -1290,10 +1285,6 @@ class S3Interface(StorageInterface):
     mkdir(os.path.dirname(dest))
 
     encoding = resp.get("Content-Encoding", "") or ""
-    encoding = ",".join([ 
-      enc for enc in encoding.split(",")
-      if enc != "aws-chunked"
-    ])
     ext = FileInterface.get_extension(encoding)
 
     if not dest.endswith(ext):
