@@ -1321,6 +1321,12 @@ class CloudFiles:
         handle_path, encoding = FileInterface.get_encoded_file_path(
           os.path.join(srcdir, src_path)
         )
+
+        dest_sans_ext, dest_ext = posixpath.splitext(dest_path)
+        dest_ext_compress = FileInterface.get_extension(encoding)
+        if dest_ext_compress == dest_ext:
+          dest_path = dest_sans_ext
+
         try: 
           handle = open(handle_path, "rb")
         except FileNotFoundError:
