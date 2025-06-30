@@ -1497,8 +1497,18 @@ class CaveInterface(HttpInterface):
   is, don't worry about it.
   see: https://github.com/CAVEconnectome
   """
-  def default_headers(self):
-    cred = cave_credentials()
+  def __init__(self, *args, **kwargs):
+    super(*args, *kwargs)
+
+    secrets = kwargs.get('secrets', {})
+    self._token = secrets.get('token', None)
+    if self._token is None:
+      self._token = cave_credentials()['token']    
+
+  def default_headers(self) -> dict:
+    if self._token is None:
+      return {}
+    
     return {
-      "Authorization": f"Bearer {cred['token']}",
+      "Authorization": f"Bearer {self._token}",
     }
