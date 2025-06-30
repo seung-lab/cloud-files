@@ -120,6 +120,10 @@ EXT_TEST_SEQUENCE = [
   ('.bz2', 'bzip2')
 ]
 EXT_TEST_SEQUENCE_LOCK = threading.Lock()
+SUPPORTED_EXT = {
+  x[0]: x[1] 
+  for x in EXT_TEST_SEQUENCE if x[0] != '' 
+}
 
 def read_file(path, encoding, start, end):
   with open(path, 'rb') as f:
@@ -166,7 +170,12 @@ class FileInterface(StorageInterface):
   @classmethod
   def get_encoded_file_path(kls, path):
     global EXT_TEST_SEQUENCE
-    
+        
+    _, ext = os.path.splitext(path)
+    encoding = SUPPORTED_EXT.get(ext, None)
+    if encoding is not None:
+      return path, encoding
+
     with EXT_TEST_SEQUENCE_LOCK:
       seq = list(EXT_TEST_SEQUENCE)
 
@@ -1177,17 +1186,6 @@ class S3Interface(StorageInterface):
 
     if multipart:
       self._conn.upload_fileobj(content, self._path.bucket, key, ExtraArgs=attrs)
-      # upload_fileobj will add 'aws-chunked' to the ContentEncoding,
-      # which after it finishes uploading is useless and messes up our
-      # software. Therefore, edit the metadata and replace it (but this incurs
-      # 2x class-A...)
-      self._conn.copy_object(
-        Bucket=self._path.bucket,
-        Key=key,
-        CopySource={'Bucket': self._path.bucket, 'Key': key},
-        MetadataDirective="REPLACE",
-        **attrs
-      )
     else:
       if isinstance(content, str):
         content = content.encode('utf8')
@@ -1247,11 +1245,6 @@ class S3Interface(StorageInterface):
       if 'ContentEncoding' in resp:
         encoding = resp['ContentEncoding']
 
-      encoding = ",".join([ 
-        enc for enc in encoding.split(",")
-        if enc != "aws-chunked"
-      ])
-
       # s3 etags return hex digests but we need the base64 encoding
       # to make uniform comparisons. 
       # example s3 etag: "31ee76261d87fed8cb9d4c465c48158c"
@@ -1292,10 +1285,6 @@ class S3Interface(StorageInterface):
     mkdir(os.path.dirname(dest))
 
     encoding = resp.get("Content-Encoding", "") or ""
-    encoding = ",".join([ 
-      enc for enc in encoding.split(",")
-      if enc != "aws-chunked"
-    ])
     ext = FileInterface.get_extension(encoding)
 
     if not dest.endswith(ext):
