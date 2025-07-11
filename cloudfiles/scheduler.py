@@ -137,7 +137,12 @@ def schedule_jobs(
     or (hasattr(fns, "__len__") and len(fns) <= 1)
   ):
     return schedule_single_threaded_jobs(fns, progress, total, count_return)
-    
+  
+  if isinstance(total, int):
+    concurrency = min(concurrency, max(total, 1))
+  elif hasattr(fns, "__len__"):
+    concurrency = min(concurrency, max(len(fns), 1))
+
   if green == True or (green is None and gevent.monkey.saved):
     return schedule_green_jobs(fns, concurrency, progress, total, count_return)
 
