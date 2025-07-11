@@ -48,6 +48,7 @@ MEM_POOL = None
 
 S3_ACLS = {
   "tigerdata": "private",
+  "nokura": "public-read",
 }
 
 S3ConnectionPoolParams = namedtuple('S3ConnectionPoolParams', 'service bucket_name request_payer')
