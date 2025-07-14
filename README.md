@@ -48,8 +48,20 @@ cf.touch([ "example", "example2" ])
 cf = CloudFile("gs://bucket/file1")
 info = cf.head()
 binary = cf.get()
+obj = cf.get_json()
 cf.put(binary)
+cf.put_json()
 cf[:30] # get first 30 bytes of file
+
+num_bytes = cf.size() # get size in bytes (also in head)
+exists = cf.exists() # true or false
+cf.delete() # deletes the file
+cf.touch() # create the file if it doesn't exist
+cf.move("gs://example/destination/directory") # copy then delete source
+cf.transfer_from("gs://example/source/file.txt") # copies file efficiently
+cf.transfer_to("gs://example/dest/file.txt") # copies file efficiently
+
+path = cf.join([ path1, path2, path3 ]) # use the appropriate path separator
 ```
 
 CloudFiles was developed to access files from object storage without ever touching disk. The goal was to reliably and rapidly access a petabyte of image data broken down into tens to hundreds of millions of files being accessed in parallel across thousands of cores. CloudFiles has been used to processes dozens of images, many of which were in the hundreds of terabyte range. It has reliably read and written tens of billions of files to date.
@@ -127,7 +139,9 @@ You can create the `google-secret.json` file [here](https://console.cloud.google
 
 ## API Documentation  
 
-Note that the "Cloud Costs" mentioned below are current as of June 2020 and are subject to change. As of this writing, S3 and Google use identical cost structures for these operations.  
+Note that the "Cloud Costs" mentioned below are current as of June 2020 and are subject to change. As of this writing, S3 and Google use identical cost structures for these operations. 
+
+`CloudFile` is a more intuitive version of `CloudFiles` designed for managing single files instead of groups of files. See examples above. There is an analogus method for each `CloudFiles` method (where it makes sense).
 
 ### Constructor
 ```python
