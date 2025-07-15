@@ -4,7 +4,7 @@ from collections import defaultdict, namedtuple
 from datetime import datetime
 from io import BytesIO
 import json
-import os.path
+import os
 import posixpath
 import re
 
@@ -1162,10 +1162,20 @@ class S3Interface(StorageInterface):
     if storage_class:
       attrs['StorageClass'] = storage_class
 
-    multipart = hasattr(content, "read") and hasattr(content, "seek")
+    multipart = False
+    is_file_handle = hasattr(content, "read") and hasattr(content, "seek")
 
-    if not multipart and len(content) > int(self.composite_upload_threshold):
-      content = BytesIO(content)
+    if is_file_handle:
+      file_bytes_offset = content.tell()
+      content.seek(0, os.SEEK_END)
+      content_length = content.tell() - file_bytes_offset
+      content.seek(file_bytes_offset)
+    else:
+      content_length = len(content)
+
+    if not multipart and content_length > int(self.composite_upload_threshold):
+      if not is_file_handle:
+        content = BytesIO(content)
       multipart = True
 
     # gevent monkey patching has a bad interaction with s3's use
@@ -1173,6 +1183,16 @@ class S3Interface(StorageInterface):
     # upload when monkeypatching is in effect.
     if multipart and (len(gevent.monkey.saved) > 0):
       multipart = False
+      content = content.read()
+
+    # WMS 2025-07-05: 
+    # Currently, boto3 does not properly support streaming smaller files.
+    # It uses an S3 API that requires a checksum up-front, but streaming 
+    # checksums can only be provided at the end.
+    # https://github.com/boto/boto3/issues/3738
+    # https://github.com/boto/boto3/issues/4392
+    # https://docs.aws.amazon.com/sdkref/latest/guide/feature-dataintegrity.html
+    if not multipart and is_file_handle and content_length < int(self.composite_upload_threshold):
       content = content.read()
 
     if multipart:
