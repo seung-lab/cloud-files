@@ -638,6 +638,10 @@ class CloudFiles:
       return file
 
     def uploadfn(file):
+      if self.max_bps_up >= 0:
+        while tm.current_bps() > self.max_bps_up:
+          time.sleep(0.1)
+
       start_time = time.time()
       file = todict(file)
 
