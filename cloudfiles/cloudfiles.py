@@ -18,7 +18,9 @@ import posixpath
 import re
 import shutil
 import types
+import time
 
+import intervaltree
 import orjson
 import pathos.pools
 from tqdm import tqdm
@@ -32,6 +34,7 @@ from .lib import (
   duplicates, first, sip, touch,
   md5, crc32c, decode_crc32c_b64
 )
+from .monitoring import TransmissionMonitor
 from .paths import ALIASES, find_common_buckets
 from .secrets import CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
@@ -269,6 +272,12 @@ class CloudFiles:
   composite_upload_threshold: GCS and S3 both support multi-part uploads. 
     For files larger than this threshold, use that facility.
   no_sign_request: (s3 only) don't sign the request with credentials
+  max_bps_up: Rate limiter. Specify the maximum upload rate in bits per a second.
+    NB. This mechanism only counts files that have finished uploading, so it
+    can only work when the files uploaded are "small" compared to available bandwidth.
+  max_bps_down: Rate limiter. Specify the maximum download rate in bits per a second.
+    NB. This mechanism only counts files that have finished uploading, so it
+    can only work when the files uploaded are "small" compared to available bandwidth.
   """
   def __init__(
     self,
@@ -285,6 +294,8 @@ class CloudFiles:
     lock_dir:Optional[str] = None,
     composite_upload_threshold:int = int(1e8),
     no_sign_request:bool = False,
+    max_bps_up:int = -1,
+    max_bps_down:int = -1,
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -301,6 +312,9 @@ class CloudFiles:
     self.locking = locking
     self.composite_upload_threshold = composite_upload_threshold
     self.no_sign_request = bool(no_sign_request)
+
+    self.max_bps_down = int(max_bps_down)
+    self.max_bps_up = int(max_bps_up)
 
     self._lock_dir = lock_dir
     self._path = paths.extract(cloudpath)
@@ -366,10 +380,14 @@ class CloudFiles:
 
   @parallelize(desc="Download", returns_list=True)
   def get(
-    self, paths:GetPathType, total:Optional[int] = None, 
-    raw:bool = False, progress:Optional[bool] = None, 
+    self, 
+    paths:GetPathType, 
+    total:Optional[int] = None, 
+    raw:bool = False, 
+    progress:Optional[bool] = None, 
     parallel:Optional[ParallelType] = None,
-    return_dict:bool = False, raise_errors:bool = True,
+    return_dict:bool = False, 
+    raise_errors:bool = True,
     part_size:Optional[int] = None
   ) -> Union[dict,bytes,List[dict]]:
     """
@@ -419,6 +437,7 @@ class CloudFiles:
     # return_dict prevents the user from having a chance
     # to inspect errors, so we must raise here.
     raise_errors = raise_errors or return_dict or (not multiple_return)
+    tm = TransmissionMonitor()
 
     def check_md5(path, content, server_hash):
       if server_hash is None:
@@ -442,6 +461,11 @@ class CloudFiles:
         raise CRC32CIntegrityError("crc32c mismatch for {}: server {} ; client {}".format(path, server_hash, crc))
 
     def download(path):
+      if self.max_bps_down >= 0:
+        while tm.current_bps() > self.max_bps_down:
+          time.sleep(0.1)
+
+      start_time = time.time()
       path, start, end, tags = path_to_byte_range_tags(path)
       error = None
       content = None
@@ -454,6 +478,8 @@ class CloudFiles:
             path, start=start, end=end, part_size=part_size
           )
         
+        num_bytes_rx = len(content) if content is not None else 0
+
         # md5s don't match for partial reads
         if start is None and end is None:
           if server_hash_type == "md5":
@@ -469,6 +495,9 @@ class CloudFiles:
       if raise_errors and error:
         raise error
 
+      finish_time = time.time()
+      tm.add(start_time, finish_time, num_bytes_rx)
+
       return { 
         'path': path, 
         'content': content, 
@@ -477,6 +506,7 @@ class CloudFiles:
         'compress': encoding,
         'raw': raw,
         'tags': tags,
+        'timing': (start_time, finish_time),
       }
     
     total = totalfn(paths, total)
@@ -1379,7 +1409,12 @@ class CloudFiles:
           "content": handle,
           "compress": encoding,
         })
-      cf_dest.puts(to_upload, raw=True, progress=False, content_type=content_type)
+      cf_dest.puts(
+        to_upload,
+        raw=True, 
+        progress=False, 
+        content_type=content_type
+      )
       for item in to_upload:
         handle = item["content"]
         if hasattr(handle, "close"):
