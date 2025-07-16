@@ -9,6 +9,7 @@ from queue import Queue
 from collections import defaultdict
 from functools import partial, wraps
 import inspect
+import io
 import math
 import multiprocessing
 import itertools
@@ -629,6 +630,7 @@ class CloudFiles:
     """
     files = toiter(files)
     progress = nvl(progress, self.progress)
+    tm = TransmissionMonitor()
 
     def todict(file):
       if isinstance(file, tuple):
@@ -636,6 +638,7 @@ class CloudFiles:
       return file
 
     def uploadfn(file):
+      start_time = time.time()
       file = todict(file)
 
       file_compress = file.get('compress', compress)
@@ -650,11 +653,17 @@ class CloudFiles:
           compress_level=file.get('compression_level', compression_level),
         )
 
+      num_bytes_tx = 0
+      if hasattr(content, "__len__"):
+        num_bytes_tx = len(content)
+      elif isinstance(content, io.IOBase):
+        num_bytes_tx = os.fstat(content.fileno()).st_size
+
       if (
         self.protocol == "gs" 
         and (
           (hasattr(content, "read") and hasattr(content, "seek"))
-          or (hasattr(content, "__len__") and len(content) > self.composite_upload_threshold)
+          or (num_bytes_tx > self.composite_upload_threshold)
         )
       ):
         gcs.composite_upload(
@@ -680,6 +689,10 @@ class CloudFiles:
           cache_control=file.get('cache_control', cache_control),
           storage_class=file.get('storage_class', storage_class)
         )
+
+      finish_time = time.time()
+      if self.max_bps_up >= 0:
+        tm.add(start_time, finish_time, num_bytes_tx)
 
     if not isinstance(files, (types.GeneratorType, zip)):
       dupes = duplicates([ todict(file)['path'] for file in files ])

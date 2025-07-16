@@ -1166,10 +1166,7 @@ class S3Interface(StorageInterface):
     is_file_handle = hasattr(content, "read") and hasattr(content, "seek")
 
     if is_file_handle:
-      file_bytes_offset = content.tell()
-      content.seek(0, os.SEEK_END)
-      content_length = content.tell() - file_bytes_offset
-      content.seek(file_bytes_offset)
+      content_length = os.fstat(content.fileno()).st_size
     else:
       content_length = len(content)
 
