@@ -232,12 +232,55 @@ class CloudFiles:
   currently supports local filesystem, Google Cloud Storage,
   Amazon S3 interfaces, and reading from arbitrary HTTP 
   servers.
+
+  cloudpath: a parent directory of the files you want to fetch
+    specified as:
+      e.g. gs://bucket/dir/
+           s3://bucket/dir/
+           s3://https://myendpoint.com/dir/
+           file://./dir
+           ./dir
+           https://some.host.edu/dir/
+           mem://bucket/dir
+      Key:
+       gs: Google Cloud Storage
+       s3: Amazon S3
+       file: Local Filesystem (including network mounts)
+       mem: In-Memory storage
+
+  progress: display progress bar measured in files
+  green: whether to use green threads (uses gevent library)
+  secrets: you can provide GCS, S3, CAVE, etc credentials
+    via the constructor here instead of the default secrets 
+    files
+  num_threads: number of threads to launch for remote server 
+    IO. No effect on local file fetching (always single threaded
+    for maximum performance).
+  use_https: use the public https API for GCS and S3 instead of
+    boto or google-storage-python
+  endpoint: for S3 emulators, you can provide a different endpoint
+    like https://s3-storage.university.edu. This can also be specified
+    in the secrets file.
+  parallel: number of separate processes to launch (each will use num_threads)
+  request_payer: bill your s3 usage to someone other than the bucket owner
+  locking: for local filesystems, you can use advisory file locking to avoid
+    separate cloudfiles instances from interfering with each other
+  lock_dir: you can specify your own directory for the advisory lock files
+  composite_upload_threshold: GCS and S3 both support multi-part uploads. 
+    For files larger than this threshold, use that facility.
+  no_sign_request: (s3 only) don't sign the request with credentials
   """
   def __init__(
-    self, cloudpath:str, progress:bool = False, 
-    green:Optional[bool] = None, secrets:SecretsType = None, num_threads:int = 20,
-    use_https:bool = False, endpoint:Optional[str] = None, 
-    parallel:ParallelType = 1, request_payer:Optional[str] = None,
+    self,
+    cloudpath:str, 
+    progress:bool = False, 
+    green:Optional[bool] = None, 
+    secrets:SecretsType = None,
+    num_threads:int = 20,
+    use_https:bool = False, 
+    endpoint:Optional[str] = None, 
+    parallel:ParallelType = 1,
+    request_payer:Optional[str] = None,
     locking:Optional[bool] = None,
     lock_dir:Optional[str] = None,
     composite_upload_threshold:int = int(1e8),
