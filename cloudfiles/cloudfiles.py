@@ -437,6 +437,11 @@ class CloudFiles:
             'raw': boolean,
           }
         ]
+
+      if return_recording:
+        return (ABOVE, TransmissionMonitor)
+      else:
+        return ABOVE
     """
     paths, multiple_return = toiter(paths, is_iter=True)
     progress = nvl(progress, self.progress)
@@ -598,12 +603,19 @@ class CloudFiles:
 
   @parallelize(desc="Upload")
   def puts(
-    self, files:PutType, 
-    content_type:Optional[str] = None, compress:CompressType = None, 
-    compression_level:Optional[int] = None, cache_control:Optional[str] = None,
-    total:Optional[int] = None, raw:bool = False, progress:Optional[bool] = None,
-    parallel:ParallelType = 1, storage_class:Optional[str] = None
-  ) -> int:
+    self, 
+    files:PutType, 
+    content_type:Optional[str] = None,
+    compress:CompressType = None, 
+    compression_level:Optional[int] = None,
+    cache_control:Optional[str] = None,
+    total:Optional[int] = None,
+    raw:bool = False,
+    progress:Optional[bool] = None,
+    parallel:ParallelType = 1,
+    storage_class:Optional[str] = None,
+    return_recording:bool = False,
+  ) -> Union[int, tuple[int,TransmissionMonitor]]:
     """
     Writes one or more files at a given location.
 
@@ -638,6 +650,10 @@ class CloudFiles:
       function call. If progress is a string, it sets the 
       text of the progress bar.
     parallel: number of concurrent processes (0 means all cores)
+    return_recording: Also return a TransmissionMonitor object that
+      records the start and end times and the transmitted size of 
+      each object (i.e. before decompression) stored in an interval 
+      tree. This enables post-hoc analysis of performance.
 
     Returns: number of files uploaded
     """
@@ -708,8 +724,7 @@ class CloudFiles:
         )
 
       finish_time = time.time()
-      if self.max_bps_up >= 0:
-        tm.end_io(start_time, finish_time, num_bytes_tx)
+      tm.end_io(start_time, finish_time, num_bytes_tx)
 
     if not isinstance(files, (types.GeneratorType, zip)):
       dupes = duplicates([ todict(file)['path'] for file in files ])
@@ -720,7 +735,10 @@ class CloudFiles:
 
     if total == 1:
       uploadfn(first(files))
-      return 1
+      if return_recording:
+        return (1,tm)
+      else:
+        return 1
 
     fns = ( partial(uploadfn, file) for file in files )
     desc = self._progress_description("Upload")
@@ -731,7 +749,11 @@ class CloudFiles:
       total=total,
       green=self.green,
     )
-    return len(results)
+
+    if return_recording:
+      return (len(results), tm)
+    else:
+      return len(results)
 
   def put(
     self, 
