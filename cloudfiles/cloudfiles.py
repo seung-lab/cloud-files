@@ -791,9 +791,13 @@ class CloudFiles:
     self, files:PutType,     
     compress:CompressType = None, 
     compression_level:Optional[int] = None, 
-    cache_control:Optional[str] = None, total:Optional[int] = None,
-    raw:bool = False, progress:Optional[bool] = None, parallel:ParallelType = 1,
-    storage_class:Optional[str] = None
+    cache_control:Optional[str] = None, 
+    total:Optional[int] = None,
+    raw:bool = False, 
+    progress:Optional[bool] = None, 
+    parallel:ParallelType = 1,
+    storage_class:Optional[str] = None, 
+    return_recording:bool = False,
   ) -> int:
     """
     Write one or more files as JSON.
@@ -822,7 +826,7 @@ class CloudFiles:
       compress=compress, compression_level=compression_level,
       content_type='application/json', storage_class=storage_class,
       total=total, raw=raw,
-      progress=progress, parallel=parallel
+      progress=progress, parallel=parallel, return_recording=return_recording,
     )
 
   def put_json(
@@ -1133,7 +1137,7 @@ class CloudFiles:
     allow_missing:bool = False,
     progress:Optional[bool] = None,
     resumable:bool = False,
-  ) -> None:
+  ) -> TransmissionMonitor:
     """
     Transfer all files from this CloudFiles storage 
     to the destination CloudFiles in batches sized 
@@ -1196,7 +1200,7 @@ class CloudFiles:
     allow_missing:bool = False,
     progress:Optional[bool] = None,
     resumable:bool = False,
-  ) -> None:
+  ) -> TransmissionMonitor:
     """
     Transfer all files from the source CloudFiles storage 
     to this CloudFiles in batches sized in the 
@@ -1260,7 +1264,7 @@ class CloudFiles:
         and self.protocol == "file"
         and reencode is None
       ):
-        self.__transfer_file_to_file(
+        return self.__transfer_file_to_file(
           cf_src, self, paths, total, 
           pbar, block_size, allow_missing
         )
@@ -1269,7 +1273,7 @@ class CloudFiles:
         and self.protocol == "file"
         and reencode is None
       ):
-        self.__transfer_remote_to_file(
+        return self.__transfer_remote_to_file(
           cf_src, self, paths, total, 
           pbar, block_size, content_type,
           allow_missing, resumable,
@@ -1279,7 +1283,7 @@ class CloudFiles:
         and self.protocol != "file"
         and reencode is None
       ):
-        self.__transfer_file_to_remote(
+        return self.__transfer_file_to_remote(
           cf_src, self, paths, total, 
           pbar, block_size, content_type,
           allow_missing,
@@ -1295,13 +1299,13 @@ class CloudFiles:
         )
         and reencode is None
       ):
-        self.__transfer_cloud_internal(
+        return self.__transfer_cloud_internal(
           cf_src, self, paths, 
           total, pbar, block_size, 
           allow_missing,
         )
       else:
-        self.__transfer_general(
+        return self.__transfer_general(
           cf_src, self, paths, total, 
           pbar, block_size, 
           reencode, content_type, 
@@ -1313,7 +1317,7 @@ class CloudFiles:
     total, pbar, block_size,
     reencode, content_type, 
     allow_missing
-  ):
+  ) -> TransmissionMonitor:
     """
     Downloads the file into RAM, transforms
     the data, and uploads it. This is the slowest and
@@ -1322,6 +1326,7 @@ class CloudFiles:
     pair of endpoints as well as transcoding compression
     formats.
     """
+    upload_tms = []
     for block_paths in sip(paths, block_size):
       for path in block_paths:
         if isinstance(path, dict):
@@ -1345,26 +1350,32 @@ class CloudFiles:
             item["path"] = item["tags"]["dest_path"]
             del item["tags"]["dest_path"]
           yield item
-      self.puts(
+      (ct, batch_tm) = self.puts(
         renameiter(), 
         raw=True, 
         progress=False, 
         compress=reencode,
         content_type=content_type,
+        return_recording=True,
       )
       pbar.update(len(block_paths))
+      upload_tms.append(batch_tm)
+    
+    return TransmissionMonitor.merge(upload_tms)
 
   def __transfer_file_to_file(
     self, cf_src, cf_dest, paths, 
     total, pbar, block_size, allow_missing
-  ):
+  ) -> TransmissionMonitor:
     """
     shutil.copyfile, starting in Python 3.8, uses
     special OS kernel functions to accelerate file copies
     """
+    tm = TransmissionMonitor()
     srcdir = cf_src.cloudpath.replace("file://", "")
     destdir = mkdir(cf_dest.cloudpath.replace("file://", ""))
     for path in paths:
+      start_time = time.time()
       if isinstance(path, dict):
         src = os.path.join(srcdir, path["path"])
         dest = os.path.join(destdir, path["dest_path"])
@@ -1378,6 +1389,13 @@ class CloudFiles:
       if dest_ext_compress != dest_ext:
         dest += dest_ext_compress
 
+      num_bytes_tx = 0
+      try:
+        if src:
+          num_bytes_tx = os.path.getsize(src)
+      except FileNotFoundError:
+        pass
+
       try:
         shutil.copyfile(src, dest) # avoids user space
       except FileNotFoundError:
@@ -1386,15 +1404,24 @@ class CloudFiles:
             f.write(b'')
         else:
           raise
+      finish_time = time.time()
+      tm.end_io(start_time, finish_time, num_bytes_tx)
 
       pbar.update(1)
+
+    return tm
 
   def __transfer_remote_to_file(
     self, cf_src, cf_dest, paths, 
     total, pbar, block_size, content_type,
     allow_missing, resumable,
-  ):
+  ) -> TransmissionMonitor:
+
+    tm = TransmissionMonitor()
+
     def thunk_save(key):
+      nonlocal tm
+      start_time = time.time()
       with cf_src._get_connection() as conn:
         if isinstance(key, dict):
           dest_key = key.get("dest_path", key["path"])
@@ -1404,14 +1431,17 @@ class CloudFiles:
           dest_key = key
 
         dest_key = os.path.join(cf_dest._path.path, dest_key)
-        found = conn.save_file(src_key, dest_key, resumable=resumable)
+        (found, num_bytes_rx) = conn.save_file(src_key, dest_key, resumable=resumable)
 
       if found == False and not allow_missing:
         raise FileNotFoundError(src_key)
 
+      finish_time = time.time()
+      tm.end_io(start_time, finish_time, num_bytes_rx)
+
       return int(found)
 
-    results = schedule_jobs(
+    schedule_jobs(
       fns=( partial(thunk_save, path) for path in paths ),
       progress=pbar,
       concurrency=self.num_threads,
@@ -1419,7 +1449,7 @@ class CloudFiles:
       green=self.green,
       count_return=True,
     )
-    return len(results)
+    return tm
 
   def __transfer_file_to_remote(
     self, cf_src, cf_dest, paths, 
@@ -1431,6 +1461,7 @@ class CloudFiles:
     so that GCS and S3 can do low-memory chunked multi-part 
     uploads if necessary.
     """
+    tms = []
     srcdir = cf_src.cloudpath.replace("file://", "")
     for block_paths in sip(paths, block_size):
       to_upload = []
@@ -1461,17 +1492,21 @@ class CloudFiles:
           "content": handle,
           "compress": encoding,
         })
-      cf_dest.puts(
+      (ct, batch_tm) = cf_dest.puts(
         to_upload,
         raw=True, 
         progress=False, 
-        content_type=content_type
+        content_type=content_type,
+        return_recording=True,
       )
       for item in to_upload:
         handle = item["content"]
         if hasattr(handle, "close"):
           handle.close()
+      tms.append(batch_tm)
       pbar.update(len(block_paths))
+
+    return TransmissionMonitor.merge(tms)
 
   def __transfer_cloud_internal(
     self, cf_src, cf_dest, paths, 
@@ -1485,7 +1520,11 @@ class CloudFiles:
     of the cloud, this is much slower and more expensive
     than necessary.
     """
+    tm = TransmissionMonitor()
+
     def thunk_copy(key):
+      nonlocal tm
+      start_time = time.time()
       with cf_src._get_connection() as conn:
         if isinstance(key, dict):
           dest_key = key.get("dest_path", key["path"])
@@ -1495,14 +1534,17 @@ class CloudFiles:
           dest_key = key
 
         dest_key = posixpath.join(cf_dest._path.path, dest_key)
-        found = conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
+        (found, num_bytes_tx) = conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
 
       if found == False and not allow_missing:
         raise FileNotFoundError(src_key)
 
+      finish_time = time.time()
+      tm.end_io(start_time, finish_time, num_bytes_tx)
+
       return int(found)
 
-    results = schedule_jobs(
+    schedule_jobs(
       fns=( partial(thunk_copy, path) for path in paths ),
       progress=pbar,
       concurrency=self.num_threads,
@@ -1510,7 +1552,7 @@ class CloudFiles:
       green=self.green,
       count_return=True,
     )
-    return len(results)
+    return tm
 
   def move(self, src:str, dest:str):
     """Move (rename) src to dest.

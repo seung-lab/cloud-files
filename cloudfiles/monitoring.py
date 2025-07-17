@@ -12,6 +12,18 @@ class TransmissionMonitor:
     self._in_flight_ct = 0
     self._in_flight_bytes = 0
 
+
+  @classmethod
+  def merge(klass, tms:list["TransmissionMonitor"]) -> "TransmissionMonitor":
+    tm = TransmissionMonitor()
+
+    with tm._lock:
+      for other in tms:
+        with other._lock:
+          tm._intervaltree.union(other._intervaltree)
+
+    return tm
+
   def start_io(self, num_bytes:int) -> None:
     with self._lock:
       self._in_flight_ct += 1
