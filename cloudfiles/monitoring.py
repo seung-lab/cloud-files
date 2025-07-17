@@ -149,7 +149,7 @@ class TransmissionMonitor:
       tick_step = len(bins) // 20
 
     timestamps = [ 
-      f"{i*resolution_sec:.2f}" for i in range(0, len(bins), tick_step)
+      f"{i*resolution:.2f}" for i in range(0, len(bins), tick_step)
     ]
     plt.xticks(
       range(0, len(bins), tick_step), 
@@ -158,7 +158,12 @@ class TransmissionMonitor:
       ha='right'
     )
 
-    plt.title('Bytes Transmitted per Second')
+    if resolution == 1.0:
+      text = "Second"
+    else:
+      text = f"{resolution:.2f} Seconds"
+
+    plt.title(f'Bytes Transmitted per {text}')
     plt.xlabel('Time (seconds)')
     plt.ylabel('Bytes Transmitted')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
