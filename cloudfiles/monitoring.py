@@ -112,14 +112,18 @@ class TransmissionMonitor:
     with self._lock:
       return self._intervaltree.end()
 
-  def histogram(self, bin_resolution_seconds:float = 1.0) -> None:
+  def histogram(self, resolution:float = 1.0) -> None:
+    """
+    Plot a bar chart showing the number of bytes transmitted
+    per a unit time. Resolution is specified in seconds.
+    """
     import matplotlib.pyplot as plt
     
     with self._lock:
       all_begin = int(np.floor(self._intervaltree.begin() / 1e6))
       all_end = int(np.ceil(self._intervaltree.end() / 1e6))
 
-      num_bins = int(np.ceil((all_end - all_begin) / bin_resolution_seconds))
+      num_bins = int(np.ceil((all_end - all_begin) / resolution))
       bins = np.zeros([ num_bins ], dtype=np.uint32)
 
       for interval in self._intervaltree:
@@ -128,13 +132,13 @@ class TransmissionMonitor:
 
         elapsed = (interval.end - interval.begin) / 1e6
 
-        if elapsed < bin_resolution_seconds:
+        if elapsed < resolution:
           num_bytes_per_bin = interval.data
         else:
-          num_bytes_per_bin = round(interval.data / np.ceil(elapsed / bin_resolution_seconds))
+          num_bytes_per_bin = round(interval.data / np.ceil(elapsed / resolution))
 
-        bin_start = int((begin - all_begin) / bin_resolution_seconds)
-        bin_end = int((end - all_begin) / bin_resolution_seconds)
+        bin_start = int((begin - all_begin) / resolution)
+        bin_end = int((end - all_begin) / resolution)
         bins[bin_start:bin_end+1] += num_bytes_per_bin
 
     plt.figure(figsize=(10, 6))
@@ -145,7 +149,7 @@ class TransmissionMonitor:
       tick_step = len(bins) // 20
 
     timestamps = [ 
-      f"{i*bin_resolution_seconds:.2f}" for i in range(0, len(bins), tick_step)
+      f"{i*resolution_sec:.2f}" for i in range(0, len(bins), tick_step)
     ]
     plt.xticks(
       range(0, len(bins), tick_step), 
