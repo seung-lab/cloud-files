@@ -41,10 +41,19 @@ class TransmissionMonitor:
       self._total_bytes_landed += num_bytes
 
   def total_bps(self) -> float:
+    """Average bits per second sent during the entire session."""
     with self._lock:
       begin = self._intervaltree.begin()
       end = self._intervaltree.end()
     return self._total_bytes_landed / ((end - begin) / 1e6) * 8
+
+  def total_bytes(self) -> int:
+    """Sum of all bytes sent."""
+    num_bytes = 0
+    with self._lock:
+      for interval in self._intervaltree:
+        num_bytes += interval.data
+    return num_bytes
 
   def current_bps(self, look_back_sec:float = 2.0) -> float:
     """
