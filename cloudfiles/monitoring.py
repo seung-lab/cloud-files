@@ -2,6 +2,7 @@ import intervaltree
 import threading
 import time
 import numpy as np
+import numpy.typing as npt
 
 class TransmissionMonitor:
   """Monitors the current transmissing rate of a file set."""
@@ -113,19 +114,16 @@ class TransmissionMonitor:
 
   def begin(self):
     with self._lock:
-      return self._intervaltree.begin()
+      return self._intervaltree.begin() / 1e6
 
   def end(self):
     with self._lock:
-      return self._intervaltree.end()
+      return self._intervaltree.end() / 1e6
 
-  def histogram(self, resolution:float = 1.0) -> None:
-    """
-    Plot a bar chart showing the number of bytes transmitted
-    per a unit time. Resolution is specified in seconds.
-    """
-    import matplotlib.pyplot as plt
-    
+  def peak_bps(self) -> float:
+    return np.max(self.histogram(resolution=1.0)) * 8
+
+  def histogram(self, resolution:float = 1.0) -> npt.NDArray[np.uint32]:
     with self._lock:
       all_begin = int(np.floor(self._intervaltree.begin() / 1e6))
       all_end = int(np.ceil(self._intervaltree.end() / 1e6))
@@ -147,6 +145,17 @@ class TransmissionMonitor:
         bin_start = int((begin - all_begin) / resolution)
         bin_end = int((end - all_begin) / resolution)
         bins[bin_start:bin_end+1] += num_bytes_per_bin
+
+    return bins
+
+  def plot(self, resolution:float = 1.0) -> None:
+    """
+    Plot a bar chart showing the number of bytes transmitted
+    per a unit time. Resolution is specified in seconds.
+    """
+    import matplotlib.pyplot as plt
+    
+    bins = self.histogram(resolution)
 
     plt.figure(figsize=(10, 6))
     plt.bar(range(len(bins)), bins, color='dodgerblue')
