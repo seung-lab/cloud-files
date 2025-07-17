@@ -497,7 +497,7 @@ class CloudFiles:
         raise error
 
       finish_time = time.time()
-      tm.add(start_time, finish_time, num_bytes_rx)
+      tm.end_io(start_time, finish_time, num_bytes_rx)
 
       return { 
         'path': path, 
@@ -696,7 +696,7 @@ class CloudFiles:
 
       finish_time = time.time()
       if self.max_bps_up >= 0:
-        tm.add(start_time, finish_time, num_bytes_tx)
+        tm.end_io(start_time, finish_time, num_bytes_tx)
 
     if not isinstance(files, (types.GeneratorType, zip)):
       dupes = duplicates([ todict(file)['path'] for file in files ])
