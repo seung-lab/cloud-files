@@ -12,7 +12,6 @@ class TransmissionMonitor:
     self._in_flight_ct = 0
     self._in_flight_bytes = 0
 
-
   @classmethod
   def merge(klass, tms:list["TransmissionMonitor"]) -> "TransmissionMonitor":
     tm = TransmissionMonitor()

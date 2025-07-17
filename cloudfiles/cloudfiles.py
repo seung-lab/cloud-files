@@ -484,6 +484,8 @@ class CloudFiles:
       server_hash = None
       server_hash_type = None
       try:
+        tm.start_io(1)
+
         with self._get_connection() as conn:
           content, encoding, server_hash, server_hash_type = conn.get_file(
             path, start=start, end=end, part_size=part_size
@@ -691,6 +693,8 @@ class CloudFiles:
         num_bytes_tx = len(content)
       elif isinstance(content, io.IOBase):
         num_bytes_tx = os.fstat(content.fileno()).st_size
+
+      tm.start_io(num_bytes_tx)
 
       if (
         self.protocol == "gs" 
