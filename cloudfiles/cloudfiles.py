@@ -389,7 +389,8 @@ class CloudFiles:
     parallel:Optional[ParallelType] = None,
     return_dict:bool = False, 
     raise_errors:bool = True,
-    part_size:Optional[int] = None
+    part_size:Optional[int] = None,
+    return_recording:bool = False,
   ) -> Union[dict,bytes,List[dict]]:
     """
     Download one or more files. Return order is not guaranteed to match input.
@@ -415,6 +416,10 @@ class CloudFiles:
       extra information. Errors will be raised immediately.
     raise_errors: Raise the first error immediately instead 
       of returning them as part of the output.
+    return_recording: Also return a TransmissionMonitor object that
+      records the start and end times and the transmitted size of 
+      each object (i.e. before decompression) stored in an interval 
+      tree. This enables post-hoc analysis of performance.
 
     Returns:
       if return_dict:
@@ -507,7 +512,6 @@ class CloudFiles:
         'compress': encoding,
         'raw': raw,
         'tags': tags,
-        'timing': (start_time, finish_time),
       }
     
     total = totalfn(paths, total)
@@ -515,11 +519,16 @@ class CloudFiles:
     if total == 1:
       ret = download(first(paths))
       if return_dict:
-        return { ret["path"]: ret["content"] }
+        ret = { ret["path"]: ret["content"] }
       elif multiple_return:
-        return [ ret ]
+        ret = [ ret ]
       else:
-        return ret['content']
+        ret = ret['content']
+
+      if return_recording:
+        return (ret, tm)
+      else:
+        return ret
 
     num_threads = self.num_threads
     if self.protocol == "file":
@@ -535,10 +544,14 @@ class CloudFiles:
       green=self.green,
     )
 
+    ret = results
     if return_dict:
-      return { res["path"]: res["content"] for res in results }  
+      ret = { res["path"]: res["content"] for res in results }
 
-    return results
+    if return_recording:
+      return (ret, tm)
+
+    return ret
 
   def get_json(
     self, paths:GetPathType, total:Optional[int] = None
