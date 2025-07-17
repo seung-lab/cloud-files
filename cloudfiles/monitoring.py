@@ -59,7 +59,6 @@ class TransmissionMonitor:
       lookback_intervals = self._intervaltree[query_us:]
       begin_us = self._intervaltree.begin()
 
-    import pdb; pdb.set_trace()
     num_bytes = 0
     for interval in lookback_intervals:
       if interval.begin > query_us:
