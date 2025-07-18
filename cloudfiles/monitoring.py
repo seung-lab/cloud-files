@@ -1,3 +1,5 @@
+from typing import Optional
+
 import intervaltree
 import threading
 import time
@@ -112,11 +114,11 @@ class TransmissionMonitor:
     """The current rate in gigabytes per a second."""
     return self.current_Gbps(*args, **kwargs) / 8.0
 
-  def begin(self):
+  def start_unix_time(self):
     with self._lock:
       return self._intervaltree.begin() / 1e6
 
-  def end(self):
+  def end_unix_time(self):
     with self._lock:
       return self._intervaltree.end() / 1e6
 
@@ -148,7 +150,7 @@ class TransmissionMonitor:
 
     return bins
 
-  def plot(self, resolution:float = 1.0) -> None:
+  def plot_histogram(self, resolution:float = 1.0, filename:Optional[str] = None) -> None:
     """
     Plot a bar chart showing the number of bytes transmitted
     per a unit time. Resolution is specified in seconds.
@@ -184,7 +186,93 @@ class TransmissionMonitor:
     plt.ylabel('Bytes Transmitted')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
-    plt.show()
+
+    if filename is not None:
+      plt.savefig(filename)
+    else:
+      plt.show()
+
+  def plot_gant(
+    self, 
+    filename:Optional[str] = None,
+    title:Optional[str] = None,
+    show_size_labels:bool = True,
+  ):
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as colors
+    from matplotlib.cm import ScalarMappable
+
+    start_time = self.start_unix_time()
+
+    file_sizes = []
+    with self._lock:
+      for interval in self._intervaltree:
+        file_sizes.append(interval.data)
+
+    min_file_size = min(file_sizes)
+    max_file_size = max(file_sizes)
+    del file_sizes
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    norm = colors.Normalize(vmin=min_file_size, vmax=max_file_size)
+    cmap = plt.cm.viridis
+
+    def human_readable_bytes(x:int) -> str:
+      factor = (1, 'B')
+      if x < 1000:
+        return f"{x} B"
+      elif 1000 <= x < int(1e6):
+        factor = (1000, 'kB')
+      elif int(1e6) <= x < int(1e9):
+        factor = (1e6, 'MB')
+      elif int(1e9) <= x < int(1e12):
+        factor = (1e9, 'GB')
+      else:
+        factor = (1e12, 'TB')
+
+      return f"{x/factor[0]:.2f} {factor[1]}"
+
+    with self._lock:
+      for i, interval in enumerate(self._intervaltree):
+          duration = (interval.end - interval.begin) / 1e6
+          left = (interval.begin / 1e6) - start_time
+          cval = norm(interval.data)
+          ax.barh(
+            str(i), 
+            width=duration,
+            left=left,
+            height=3,
+            color=cmap(cval)
+          )
+          if show_size_labels:
+            ax.text(
+                x=left + (duration/2),
+                y=i,            
+                s=human_readable_bytes(int(interval.data)),
+                ha='center',     
+                va='center',
+                color='black' if cval > 0.5 else '0.8',
+                fontsize=8,
+            )
+
+    sm = ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])  # Required for ScalarMappable with empty data
+    cbar = plt.colorbar(sm, ax=ax, label='File Size (bytes)')
+    
+    if title is None:
+      title = "File Transmission Recording"
+
+    plt.xlabel("Time (seconds)")
+    plt.ylabel("Files in Flight")
+    ax.set_yticks([])
+    plt.title(title)
+    plt.tight_layout()
+
+    if filename is not None:
+      plt.savefig(filename)
+    else:
+      plt.show()
 
   def __getstate__(self):
     # Copy the object's state from self.__dict__ which contains
