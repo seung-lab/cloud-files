@@ -13,6 +13,7 @@ intervaltree
 orjson
 pathos
 protobuf>=3.3.0
+psutil
 requests>=2.22.0
 six>=1.14.0
 tenacity>=4.10.0

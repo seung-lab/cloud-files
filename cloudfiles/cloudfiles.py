@@ -35,7 +35,7 @@ from .lib import (
   duplicates, first, sip, touch,
   md5, crc32c, decode_crc32c_b64
 )
-from .monitoring import TransmissionMonitor
+from .monitoring import TransmissionMonitor, IOEnum
 from .paths import ALIASES, find_common_buckets
 from .secrets import CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
@@ -448,7 +448,7 @@ class CloudFiles:
     # return_dict prevents the user from having a chance
     # to inspect errors, so we must raise here.
     raise_errors = raise_errors or return_dict or (not multiple_return)
-    tm = TransmissionMonitor()
+    tm = TransmissionMonitor(IOEnum.RX)
 
     def check_md5(path, content, server_hash):
       if server_hash is None:
@@ -661,7 +661,7 @@ class CloudFiles:
     """
     files = toiter(files)
     progress = nvl(progress, self.progress)
-    tm = TransmissionMonitor()
+    tm = TransmissionMonitor(IOEnum.TX)
 
     def todict(file):
       if isinstance(file, tuple):
@@ -1375,7 +1375,7 @@ class CloudFiles:
     shutil.copyfile, starting in Python 3.8, uses
     special OS kernel functions to accelerate file copies
     """
-    tm = TransmissionMonitor()
+    tm = TransmissionMonitor(IOEnum.TX)
     srcdir = cf_src.cloudpath.replace("file://", "")
     destdir = mkdir(cf_dest.cloudpath.replace("file://", ""))
     for path in paths:
@@ -1421,7 +1421,7 @@ class CloudFiles:
     allow_missing, resumable,
   ) -> TransmissionMonitor:
 
-    tm = TransmissionMonitor()
+    tm = TransmissionMonitor(IOEnum.RX)
 
     def thunk_save(key):
       nonlocal tm
@@ -1524,7 +1524,7 @@ class CloudFiles:
     of the cloud, this is much slower and more expensive
     than necessary.
     """
-    tm = TransmissionMonitor()
+    tm = TransmissionMonitor(IOEnum.TX)
 
     def thunk_copy(key):
       nonlocal tm

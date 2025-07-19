@@ -1,23 +1,36 @@
 from typing import Optional
 
-import intervaltree
-import threading
+import enum
+import queue
 import time
+import threading
+
+import intervaltree
 import numpy as np
 import numpy.typing as npt
 
+class IOEnum(enum.Enum):
+  RX = 1
+  TX = 2
+
 class TransmissionMonitor:
   """Monitors the current transmissing rate of a file set."""
-  def __init__(self):
+  def __init__(self, direction:IOEnum):
     self._intervaltree = intervaltree.IntervalTree()
     self._lock = threading.Lock()
     self._total_bytes_landed = 0
     self._in_flight_ct = 0
     self._in_flight_bytes = 0
+    self._direction = direction
+    self._network_sampler = NetworkSampler(direction)
+    self._network_sampler.start_sampling()
 
   @classmethod
   def merge(klass, tms:list["TransmissionMonitor"]) -> "TransmissionMonitor":
-    tm = TransmissionMonitor()
+    if len(tms) == 0:
+      return TransmissionMonitor(IOEnum.TX)
+
+    tm = TransmissionMonitor(tms[0]._direction)
 
     with tm._lock:
       for other in tms:
@@ -155,42 +168,13 @@ class TransmissionMonitor:
     Plot a bar chart showing the number of bytes transmitted
     per a unit time. Resolution is specified in seconds.
     """
-    import matplotlib.pyplot as plt
-    
     bins = self.histogram(resolution)
-
-    plt.figure(figsize=(10, 6))
-    plt.bar(range(len(bins)), bins, color='dodgerblue')
-
-    tick_step = 1
-    if len(bins) > 20:
-      tick_step = len(bins) // 20
-
-    timestamps = [ 
-      f"{i*resolution:.2f}" for i in range(0, len(bins), tick_step)
-    ]
-    plt.xticks(
-      range(0, len(bins), tick_step), 
-      timestamps, 
-      rotation=45, 
-      ha='right'
+    plot_histogram(
+      bins, 
+      direction=self._direction, 
+      resolution=resolution, 
+      filename=filename
     )
-
-    if resolution == 1.0:
-      text = "Second"
-    else:
-      text = f"{resolution:.2f} Seconds"
-
-    plt.title(f'Bytes Transmitted per {text}')
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Bytes Transmitted')
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-
-    if filename is not None:
-      plt.savefig(filename)
-    else:
-      plt.show()
 
   def plot_gant(
     self, 
@@ -260,8 +244,12 @@ class TransmissionMonitor:
     sm.set_array([])  # Required for ScalarMappable with empty data
     cbar = plt.colorbar(sm, ax=ax, label='File Size (bytes)')
     
+    direction_text = "Download"
+    if self._direction == IOEnum.TX:
+      direction_text = "Upload"
+
     if title is None:
-      title = "File Transmission Recording"
+      title = f"File {direction_text} Recording"
 
     plt.xlabel("Time (seconds)")
     plt.ylabel("Files in Flight")
@@ -288,12 +276,232 @@ class TransmissionMonitor:
     self.__dict__.update(state)
     self._lock = threading.Lock()
 
+class NetworkSampler:
+  def __init__(
+    self, 
+    direction:IOEnum, 
+    buffer_sec:float = 10.0, 
+    interval:float = 0.1
+  ):
+    self._terminate = threading.Event()
+    self._thread = None
+    self._direction = direction
+    self._interval = interval
+    self._buffer_sec = buffer_sec
+
+    self._sample_lock = threading.Lock()
+    self._init_sample_buffers()
+
+  def current_bps(self, look_back_sec:float = 2.0) -> float:
+    N = self.num_samples()
+    if N <= 1:
+      return 0
+
+    bs, ts = self.samples()
+
+    i = ts.size - 1
+    elapsed = 0
+    t = ts[-1]
+    while i >= 0:
+      elapsed = ts[i] - t
+      if elapsed >= look_back_sec:
+        break
+      i -= 1
+
+    if elapsed < 1e-4:
+      return 0
+
+    return (bs[-1] - bs[i]) / elapsed * 8
+
+  def histogram(self, resolution:float = 1.0) -> npt.NDArray[np.uint32]:
+    N = self.num_samples()
+    if N <= 1:
+      return 0
+
+    bs, ts = self.samples()
+    bs = bs[1:] - bs[:-1]
+
+    num_bins = int(np.ceil((ts[-1] - ts[0]) / resolution))
+    bins = np.zeros([ num_bins ], dtype=np.uint32)
+
+    for i in range(bs.size):
+      j = int((ts[i] - ts[0]) / resolution)
+      bins[j] += bs[i]
+
+    return bins
+
+  def plot_histogram(self, resolution:float = 0.1, filename:Optional[str] = None) -> None:
+    """
+    Plot a bar chart showing the number of bytes transmitted
+    per a unit time. Resolution is specified in seconds.
+    """
+    bins = self.histogram(resolution)
+    plot_histogram(
+      bins, 
+      direction=self._direction, 
+      resolution=resolution, 
+      filename=filename
+    )
+
+  def _init_sample_buffers(self):
+    buffer_size = int(max(np.ceil(self._buffer_sec / self._interval) + 1, 1))
+    self._samples_bytes = np.full(buffer_size, -1, dtype=np.int64)
+    self._samples_time = np.full(buffer_size, -1, dtype=np.float64)
+    self._cursor = 0
+    self._num_samples = 0
+
+  def start_sampling(self):
+    self._terminate.set()
+    self._terminate = threading.Event()
+
+    if self._thread is not None:
+      self._thread.join()
+
+    self._init_sample_buffers()
+
+    self._thread = threading.Thread(
+      target=self.sample_loop, 
+      args=(self._terminate, self._interval)
+    )
+    self._thread.daemon = True
+    self._thread.start()
+
+  def num_samples(self) -> int:
+    with self._sample_lock:
+      return self._num_samples
+
+  def samples(self) -> tuple[npt.NDArray[np.uint64], npt.NDArray[np.float64]]:
+    with self._sample_lock:
+      byte_samples = np.copy(self._samples_bytes)
+      time_samples = np.copy(self._samples_time)
+      cursor = self._cursor
+
+      if self._num_samples < byte_samples.size:
+        byte_samples = byte_samples[:cursor]
+        time_samples = time_samples[:cursor]
+      else:
+        byte_samples = np.concatenate([byte_samples[cursor:], byte_samples[:cursor]])
+        time_samples = np.concatenate([time_samples[cursor:], time_samples[:cursor]])
+
+    return (byte_samples, time_samples)
+
+  def sample_loop(self, terminate_evt:threading.Event, interval:float):
+    import psutil
+
+    # measure time to measure time
+    def measure_correction():
+      s = time.time()
+      time.time()
+      time.time()
+      time.time()
+      time.time()
+      time.time()
+      e = time.time()
+      return (e - s) / 5
+
+    time_correction = measure_correction()
+    psutil.net_io_counters.cache_clear()
+
+    def measure() -> tuple[int,float]:
+      net = psutil.net_io_counters(nowrap=True)
+      t = time.time() - time_correction
+
+      if self._direction == IOEnum.RX:
+        return (net.bytes_recv, t)
+      else:
+        return (net.bytes_sent, t)
+
+    recorrection_start = time.time()
+    while not terminate_evt.is_set():
+      s = time.time()
+      
+      size, t = measure()
+      with self._sample_lock:
+        self._samples_bytes[self._cursor] = size
+        self._samples_time[self._cursor] = t
+
+        if (recorrection_start-s) > 60:
+          time_correction = measure_correction()
+          recorrection_start = time.time()
+
+        self._cursor += 1
+        if self._cursor >= self._samples_time.size:
+          self._cursor = 0
+        self._num_samples += 1
+
+      e = time.time()
+
+      wait = interval - (e-s)
+      if wait > 0:
+        time.sleep(wait)
+
+  def stop_sampling(self):
+    self._terminate.set()
+    if self._thread is not None:
+      self._thread.join()
+
+  def __del__(self):
+    self.stop_sampling()
+
+  def __getstate__(self):
+    # Copy the object's state from self.__dict__ which contains
+    # all our instance attributes. Always use the dict.copy()
+    # method to avoid modifying the original state.
+    state = self.__dict__.copy()
+    # Remove the unpicklable entries.
+    del state['_sample_lock']
+    del state['_terminate']
+    del state['_thread']
+    return state
+
+  def __setstate__(self, state):
+    # Restore instance attributes (i.e., filename and lineno).
+    self.__dict__.update(state)
+    self._sample_lock = threading.Lock()
+    self._terminate_evt = threading.Event()
+    self._thread = None
 
 
+def plot_histogram(bins:npt.NDArray[np.integer], direction:IOEnum, resolution:float, filename:Optional[str] = None) -> None:
+  """
+  Plot a bar chart showing the number of bytes transmitted
+  per a unit time. Resolution is specified in seconds.
+  """
+  import matplotlib.pyplot as plt
+  
+  plt.figure(figsize=(10, 6))
+  plt.bar(range(len(bins)), bins, color='dodgerblue')
 
+  tick_step = 1
+  if len(bins) > 20:
+    tick_step = len(bins) // 20
 
+  timestamps = [ 
+    f"{i*resolution:.2f}" for i in range(0, len(bins), tick_step)
+  ]
+  plt.xticks(
+    range(0, len(bins), tick_step), 
+    timestamps, 
+    rotation=45, 
+    ha='right'
+  )
 
+  if resolution == 1.0:
+    text = "Second"
+  else:
+    text = f"{resolution:.2f} Seconds"
 
+  direction_text = "Downloaded"
+  if direction == IOEnum.TX:
+    direction_text = "Uploaded"
 
+  plt.title(f'Bytes {direction_text} per {text}')
+  plt.xlabel('Time (seconds)')
+  plt.ylabel(f'Bytes {direction_text}')
+  plt.grid(axis='y', linestyle='--', alpha=0.7)
+  plt.tight_layout()
 
-
+  if filename is not None:
+    plt.savefig(filename)
+  else:
+    plt.show()
