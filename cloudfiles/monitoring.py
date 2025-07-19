@@ -299,14 +299,14 @@ class NetworkSampler:
 
     bs, ts = self.samples()
 
-    i = ts.size - 1
+    i = ts.size - 2
     elapsed = 0
     t = ts[-1]
-    while i >= 0:
-      elapsed = ts[i] - t
-      if elapsed >= look_back_sec:
-        break
+    while (i >= 0) or (elapsed >= look_back_sec):
+      elapsed = t - ts[i]
       i -= 1
+    
+    i += 1
 
     if elapsed < 1e-4:
       return 0
@@ -330,11 +330,19 @@ class NetworkSampler:
 
     return bins
 
-  def plot_histogram(self, resolution:float = 0.1, filename:Optional[str] = None) -> None:
+  def plot_histogram(self, resolution:float = None, filename:Optional[str] = None) -> None:
     """
     Plot a bar chart showing the number of bytes transmitted
     per a unit time. Resolution is specified in seconds.
     """
+    if resolution is None:
+      resolution = self._interval
+    elif resolution < self._interval:
+      raise ValueError(
+        f"Can't create histogram bins at a higher resolution "
+        f"than the sample rate. Got: {resolution} Sample Rate: {self._interval}"
+      )
+
     bins = self.histogram(resolution)
     plot_histogram(
       bins, 
