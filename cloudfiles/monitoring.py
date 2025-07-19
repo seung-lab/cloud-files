@@ -35,7 +35,7 @@ class TransmissionMonitor:
     with tm._lock:
       for other in tms:
         with other._lock:
-          tm._intervaltree.union(other._intervaltree)
+          tm._intervaltree = tm._intervaltree.union(other._intervaltree)
 
     return tm
 

@@ -1,5 +1,6 @@
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+from datetime import datetime, timezone
 from functools import partial
 import itertools
 import json
@@ -178,12 +179,13 @@ def get_mfp(path, recursive):
 @click.option('--part-bytes', default=int(1e8), help="Composite upload threshold in bytes. Splits a file into pieces for some cloud services like gs and s3.", show_default=True)
 @click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
 @click.option('--resumable', is_flag=True, default=False, help="http->file transfers will dowload to .part files while they are in progress.", show_default=True)
+@click.option('--gantt', is_flag=True, default=False, help="Save a Gantt chart of the file transfer to the local directory.", show_default=True)
 @click.pass_context
 def cp(
   ctx, source, destination, 
   recursive, compression, progress, 
   block_size, part_bytes, no_sign_request,
-  resumable,
+  resumable, gantt,
 ):
   """
   Copy one or more files from a source to destination.
@@ -201,14 +203,14 @@ def cp(
       ctx, src, destination, recursive, 
       compression, progress, block_size, 
       part_bytes, no_sign_request,
-      resumable,
+      resumable, gantt,
     )
 
 def _cp_single(
   ctx, source, destination, recursive, 
   compression, progress, block_size,
   part_bytes, no_sign_request,
-  resumable,
+  resumable, gantt,
 ):
   use_stdin = (source == '-')
   use_stdout = (destination == '-')
@@ -281,7 +283,7 @@ def _cp_single(
       _cp(
         srcpath, destpath, compression,
         progress, block_size, part_bytes,
-        no_sign_request, resumable, xferpaths
+        no_sign_request, resumable, gantt, xferpaths
       )
       return 
 
@@ -296,7 +298,7 @@ def _cp_single(
     else:
       fn = partial(
         _cp, srcpath, destpath, compression, False, 
-        block_size, part_bytes, no_sign_request, resumable
+        block_size, part_bytes, no_sign_request, resumable, gantt
       )
 
     with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
@@ -310,7 +312,7 @@ def _cp_single(
       return
 
     if use_stdout:
-      _cp_stdout(srcpath, xferpaths)
+      _cp_stdout(srcpath, no_sign_request, gantt, xferpaths)
       return
 
     cfdest = CloudFiles(
@@ -324,29 +326,44 @@ def _cp_single(
     else:
       new_path = os.path.basename(ndest)
 
-    cfsrc.transfer_to(cfdest, paths=[{
+    tm = cfsrc.transfer_to(cfdest, paths=[{
       "path": xferpaths,
       "dest_path": new_path,
     }], reencode=compression, resumable=resumable)
 
+    if gantt:
+      tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
+
 def _cp(
   src, dst, compression, progress, 
   block_size, part_bytes, 
-  no_sign_request, resumable, 
+  no_sign_request, resumable, gantt,
   paths
 ):
   cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes, no_sign_request=no_sign_request)
   cfdest = CloudFiles(dst, progress=progress, composite_upload_threshold=part_bytes)
-  cfsrc.transfer_to(
+  tm = cfsrc.transfer_to(
     cfdest, paths=paths, 
     reencode=compression, block_size=block_size,
     resumable=resumable,
   )
 
-def _cp_stdout(src, no_sign_request, paths):
+  if gantt:
+    tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
+
+def _timestamp():
+  now = datetime.now(timezone.utc)
+  return now.strftime("%Y-%m-%d_%H-%M-%S.%f")[:-5] + "Z"
+
+def _cp_stdout(src, no_sign_request, gantt, paths):
   paths = toiter(paths)
   cf = CloudFiles(src, progress=False, no_sign_request=no_sign_request)
-  for res in cf.get(paths):
+  results, tm = cf.get(paths, return_recording=True)
+
+  if gantt:
+    tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
+
+  for res in results:
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
 
