@@ -292,6 +292,29 @@ class NetworkSampler:
     self._sample_lock = threading.Lock()
     self._init_sample_buffers()
 
+  def peak_bps(self, window:float = 1.0) -> float:
+    N = self.num_samples()
+    if N <= 1:
+      return 0
+
+    bs, ts = self.samples()
+    
+    peak_rate = 0.0
+
+    for i in range(len(ts) - 1):
+      for j in range(i + 1, len(ts)):
+        elapsed = (ts[j] - ts[i])
+        if elapsed >= window:
+          rate = (bs[j] - bs[i]) / elapsed * 8
+          peak_rate = max(peak_rate, rate)
+          break
+
+      if (ts[-1] - ts[i]) > 0:
+        rate = (bs[-1] - bs[i]) / (ts[-1] - ts[i]) * 8
+        peak_rate = max(peak_rate, rate)
+
+    return peak_rate
+
   def current_bps(self, look_back_sec:float = 2.0) -> float:
     N = self.num_samples()
     if N <= 1:
