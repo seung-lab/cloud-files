@@ -294,7 +294,7 @@ def _cp_single(
       pass
 
     if use_stdout:
-      fn = partial(_cp_stdout, srcpath, no_sign_request)
+      fn = partial(_cp_stdout, srcpath, no_sign_request, gantt)
     else:
       fn = partial(
         _cp, srcpath, destpath, compression, False, 
