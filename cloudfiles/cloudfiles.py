@@ -7,7 +7,7 @@ from typing import (
 
 from queue import Queue
 from collections import defaultdict
-from functools import partial, wraps
+from functools import partial, wraps, reduce
 import inspect
 import io
 import math
@@ -158,25 +158,37 @@ def parallel_execute(
   multiprocessing.set_start_method("spawn", force=True)
 
   results = []
+  tms = []
   try: 
     with pathos.pools.ProcessPool(parallel) as executor:
       for res in executor.imap(fn, sip(inputs, block_size)):
-        if isinstance(res, int):
-          pbar.update(res)
-        elif isinstance(res, list):
-          pbar.update(len(res))
+        update = res
+        if isinstance(res, tuple):
+          update = res[0]
+
+        if isinstance(update, int):
+          pbar.update(update)
+        elif isinstance(update, list):
+          pbar.update(len(update))
         else:
           pbar.update(block_size)
 
         if returns_list:
-          results.extend(res)
+          if isinstance(res, tuple):
+            results.extend(res[0])
+            tms.append(res[1])
+          else:
+            results.extend(res)
   finally:  
     if platform.system().lower() == "darwin":
       os.environ["no_proxy"] = no_proxy
     pbar.close()
 
   if returns_list:
-    return results
+    if len(tms):
+      return (results, TransmissionMonitor.merge(tms))
+    else:
+      return results
 
 def get_interface_class(protocol):
   if protocol in INTERFACES:
