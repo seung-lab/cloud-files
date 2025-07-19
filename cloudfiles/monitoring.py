@@ -226,7 +226,7 @@ class TransmissionMonitor:
             str(i), 
             width=duration,
             left=left,
-            height=3,
+            height=1,
             color=cmap(cval)
           )
           if show_size_labels:
