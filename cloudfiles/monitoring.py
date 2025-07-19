@@ -325,7 +325,7 @@ class NetworkSampler:
     i = ts.size - 2
     elapsed = 0
     t = ts[-1]
-    while (i >= 0) or (elapsed >= look_back_sec):
+    while (i >= 0) and not (elapsed >= look_back_sec):
       elapsed = t - ts[i]
       i -= 1
     
