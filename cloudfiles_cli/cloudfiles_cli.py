@@ -25,6 +25,7 @@ import pathos.pools
 import cloudfiles
 import cloudfiles.paths
 from cloudfiles import CloudFiles
+from cloudfiles.monitoring import TransmissionMonitor
 from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol, find_common_buckets
@@ -294,17 +295,22 @@ def _cp_single(
       pass
 
     if use_stdout:
-      fn = partial(_cp_stdout, srcpath, no_sign_request, gantt)
+      fn = partial(_cp_stdout, srcpath, no_sign_request, False)
     else:
       fn = partial(
         _cp, srcpath, destpath, compression, False, 
-        block_size, part_bytes, no_sign_request, resumable, gantt
+        block_size, part_bytes, no_sign_request, resumable, False
       )
 
+    tms = []
     with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
       with pathos.pools.ProcessPool(parallel) as executor:
-        for _ in executor.imap(fn, sip(xferpaths, block_size)):
+        for tm in executor.imap(fn, sip(xferpaths, block_size)):
           pbar.update(block_size)
+          tms.append(tm)
+
+    tm = TransmissionMonitor.merge(tms)
+    del tms
   else:
     cfsrc = CloudFiles(srcpath, progress=progress, no_sign_request=no_sign_request)
     if not cfsrc.exists(xferpaths):
@@ -331,8 +337,8 @@ def _cp_single(
       "dest_path": new_path,
     }], reencode=compression, resumable=resumable)
 
-    if gantt:
-      tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
+  if gantt:
+    tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
 
 def _cp(
   src, dst, compression, progress, 
@@ -351,6 +357,8 @@ def _cp(
   if gantt:
     tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
 
+  return tm
+
 def _timestamp():
   now = datetime.now(timezone.utc)
   return now.strftime("%Y-%m-%d_%H-%M-%S.%f")[:-5] + "Z"
@@ -366,6 +374,8 @@ def _cp_stdout(src, no_sign_request, gantt, paths):
   for res in results:
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
+
+  return tm
 
 @main.command()
 @click.argument("source", nargs=-1)
