@@ -176,7 +176,7 @@ class TransmissionMonitor:
       filename=filename
     )
 
-  def plot_gant(
+  def plot_gantt(
     self, 
     filename:Optional[str] = None,
     title:Optional[str] = None,
