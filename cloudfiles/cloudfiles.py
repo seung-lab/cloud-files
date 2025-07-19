@@ -669,7 +669,13 @@ class CloudFiles:
       each object (i.e. before decompression) stored in an interval 
       tree. This enables post-hoc analysis of performance.
 
-    Returns: number of files uploaded
+    Returns: 
+      N = number of files uploaded
+      tm = TransmissionMonitor
+      if return_recording:
+        return (N, tm)
+      else:
+        return N
     """
     files = toiter(files)
     progress = nvl(progress, self.progress)
