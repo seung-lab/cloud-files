@@ -2,6 +2,7 @@ from typing import Optional
 
 import enum
 import queue
+import uuid
 import time
 import threading
 
@@ -19,11 +20,12 @@ class TransmissionMonitor:
     self._intervaltree = intervaltree.IntervalTree()
     self._lock = threading.Lock()
     self._total_bytes_landed = 0
-    self._in_flight_ct = 0
+    self._in_flight = {}
     self._in_flight_bytes = 0
     self._direction = direction
-    self._network_sampler = NetworkSampler(direction)
-    self._network_sampler.start_sampling()
+
+    # self._network_sampler = NetworkSampler(direction)
+    # self._network_sampler.start_sampling()
 
   @classmethod
   def merge(klass, tms:list["TransmissionMonitor"]) -> "TransmissionMonitor":
@@ -39,19 +41,22 @@ class TransmissionMonitor:
 
     return tm
 
-  def start_io(self, num_bytes:int) -> None:
+  def start_io(self, num_bytes:int, start_time:Optional[float] = None) -> uuid.UUID:
+    flight_id = uuid.uuid1()
     with self._lock:
-      self._in_flight_ct += 1
+      if start_time is None:
+        start_time = time.time()
+      self._in_flight[flight_id] = start_time
       self._in_flight_bytes += num_bytes
+    return flight_id
 
-  def end_io(self, start_sec:float, end_sec:float, num_bytes:int) -> None:
+  def end_io(self, flight_id:uuid.UUID, num_bytes:int) -> None:
     """Add a new value to the interval set."""
-    start_us = int(start_sec * 1e6)
-    end_us = int(end_sec * 1e6)
-
+    end_us = int(time.time() * 1e6)
+    
     with self._lock:
-      self._in_flight_ct -= 1
-      self._in_flight_bytes -= num_bytes      
+      start_us = int(self._in_flight.pop(flight_id) * 1e6)
+      self._in_flight_bytes -= num_bytes    
       self._intervaltree.addi(start_us, end_us, num_bytes)
       self._total_bytes_landed += num_bytes
 

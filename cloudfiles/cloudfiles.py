@@ -488,7 +488,6 @@ class CloudFiles:
         while tm.current_bps() > self.max_bps_down:
           time.sleep(0.1)
 
-      start_time = time.time()
       path, start, end, tags = path_to_byte_range_tags(path)
       error = None
       content = None
@@ -496,7 +495,7 @@ class CloudFiles:
       server_hash = None
       server_hash_type = None
       try:
-        tm.start_io(1)
+        flight_id = tm.start_io(1)
 
         with self._get_connection() as conn:
           content, encoding, server_hash, server_hash_type = conn.get_file(
@@ -520,8 +519,7 @@ class CloudFiles:
       if raise_errors and error:
         raise error
 
-      finish_time = time.time()
-      tm.end_io(start_time, finish_time, num_bytes_rx)
+      tm.end_io(flight_id, num_bytes_rx)
 
       return { 
         'path': path, 
@@ -712,7 +710,7 @@ class CloudFiles:
       elif isinstance(content, io.IOBase):
         num_bytes_tx = os.fstat(content.fileno()).st_size
 
-      tm.start_io(num_bytes_tx)
+      flight_id = tm.start_io(num_bytes_tx, start_time)
 
       if (
         self.protocol == "gs" 
@@ -745,8 +743,7 @@ class CloudFiles:
           storage_class=file.get('storage_class', storage_class)
         )
 
-      finish_time = time.time()
-      tm.end_io(start_time, finish_time, num_bytes_tx)
+      tm.end_io(flight_id, num_bytes_tx)
 
     if not isinstance(files, (types.GeneratorType, zip)):
       dupes = duplicates([ todict(file)['path'] for file in files ])
@@ -1418,6 +1415,8 @@ class CloudFiles:
       except FileNotFoundError:
         pass
 
+      flight_id = tm.start_io(num_bytes_tx, start_time)
+
       try:
         shutil.copyfile(src, dest) # avoids user space
       except FileNotFoundError:
@@ -1426,8 +1425,8 @@ class CloudFiles:
             f.write(b'')
         else:
           raise
-      finish_time = time.time()
-      tm.end_io(start_time, finish_time, num_bytes_tx)
+      finally:
+        tm.end_io(flight_id, num_bytes_tx)
 
       pbar.update(1)
 
@@ -1443,7 +1442,7 @@ class CloudFiles:
 
     def thunk_save(key):
       nonlocal tm
-      start_time = time.time()
+      flight_id = tm.start_io(1)
       with cf_src._get_connection() as conn:
         if isinstance(key, dict):
           dest_key = key.get("dest_path", key["path"])
@@ -1458,8 +1457,7 @@ class CloudFiles:
       if found == False and not allow_missing:
         raise FileNotFoundError(src_key)
 
-      finish_time = time.time()
-      tm.end_io(start_time, finish_time, num_bytes_rx)
+      tm.end_io(flight_id, num_bytes_rx)
 
       return int(found)
 
@@ -1546,7 +1544,7 @@ class CloudFiles:
 
     def thunk_copy(key):
       nonlocal tm
-      start_time = time.time()
+      flight_id = tm.start_io(1)
       with cf_src._get_connection() as conn:
         if isinstance(key, dict):
           dest_key = key.get("dest_path", key["path"])
@@ -1561,8 +1559,7 @@ class CloudFiles:
       if found == False and not allow_missing:
         raise FileNotFoundError(src_key)
 
-      finish_time = time.time()
-      tm.end_io(start_time, finish_time, num_bytes_tx)
+      tm.end_io(flight_id, num_bytes_tx)
 
       return int(found)
 
