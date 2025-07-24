@@ -1684,6 +1684,16 @@ class CloudFiles:
       return os.path.join(*paths)
     return posixpath.join(*paths)
 
+  def dirname(self, path:str) -> str:
+    if self._path.protocol == "file":
+      return os.path.dirname(path)
+    return posixpath.dirname(path)
+
+  def basename(self, path:str) -> str:
+    if self._path.protocol == "file":
+      return os.path.basename(path)
+    return posixpath.basename(path)  
+
   def __getitem__(self, key) -> Union[dict,bytes,List[dict]]:
     if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], str):
       return self.get({ 'path': key[0], 'start': key[1].start, 'end': key[1].stop })
@@ -1849,6 +1859,12 @@ class CloudFile:
 
   def join(self, *args):
     return self.cf.join(*args)
+
+  def dirname(self, *args):
+    return self.cf.dirname(*args)
+
+  def basename(self, *args):
+    return self.cf.basename(*args)
 
   def touch(self):
     return self.cf.touch(self.filename)
