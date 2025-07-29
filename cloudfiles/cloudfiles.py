@@ -21,7 +21,6 @@ import shutil
 import types
 import time
 
-import intervaltree
 import orjson
 import pathos.pools
 from tqdm import tqdm
