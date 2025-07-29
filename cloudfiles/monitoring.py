@@ -420,8 +420,6 @@ class NetworkSampler:
     bar_width = 0.4
     x_indices = range(len(download_bins))
 
-    import pdb; pdb.set_trace()
-
     plt.bar(
         [x - bar_width/2 for x in x_indices],
         download_bins,
