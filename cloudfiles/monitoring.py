@@ -225,8 +225,10 @@ class TransmissionMonitor:
         factor = (1e6, 'MB')
       elif int(1e9) <= x < int(1e12):
         factor = (1e9, 'GB')
-      else:
+      elif int(1e12) <= x < int(1e15):
         factor = (1e12, 'TB')
+      else:
+        factor = (1e15, 'EB')
 
       return f"{x/factor[0]:.2f} {factor[1]}"
 
