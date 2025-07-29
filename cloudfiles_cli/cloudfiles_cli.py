@@ -317,11 +317,11 @@ def _cp_single(
       pass
 
     if use_stdout:
-      fn = partial(_cp_stdout, srcpath, no_sign_request, False)
+      fn = partial(_cp_stdout, srcpath, no_sign_request, False, False)
     else:
       fn = partial(
         _cp, srcpath, destpath, compression, False, 
-        block_size, part_bytes, no_sign_request, resumable, False
+        block_size, part_bytes, no_sign_request, resumable, False, False,
       )
 
     tms = []
