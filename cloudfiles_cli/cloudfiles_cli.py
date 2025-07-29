@@ -25,7 +25,7 @@ import pathos.pools
 import cloudfiles
 import cloudfiles.paths
 from cloudfiles import CloudFiles
-from cloudfiles.monitoring import TransmissionMonitor, NetworkSampler, IOEnum
+from cloudfiles.monitoring import TransmissionMonitor, IOSampler, IOEnum
 from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol, find_common_buckets
@@ -206,7 +206,7 @@ def cp(
 
   network_sampler = None
   if machine_io_chart:
-    network_sampler = NetworkSampler(
+    network_sampler = IOSampler(
       buffer_sec=machine_io_chart_buffer_sec,
       interval=0.25,
     )

@@ -341,7 +341,7 @@ class TransmissionMonitor:
     self.__dict__.update(state)
     self._lock = threading.Lock()
 
-class NetworkSampler:
+class IOSampler:
   def __init__(
     self, 
     buffer_sec:float = 600.0, 
