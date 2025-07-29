@@ -175,8 +175,8 @@ class TransmissionMonitor:
     Plot a bar chart showing the number of bytes transmitted
     per a unit time. Resolution is specified in seconds.
     """
-    bins = self.histogram(resolution)
     import matplotlib.pyplot as plt
+    bins = self.histogram(resolution)
 
     xfer = self.histogram(resolution) * 8
     xfer = xfer.astype(np.float32)
