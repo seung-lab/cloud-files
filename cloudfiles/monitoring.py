@@ -298,36 +298,41 @@ class NetworkSampler:
     self._sample_lock = threading.Lock()
     self._init_sample_buffers()
 
-  def peak_bps(self, window:float = 1.0) -> float:
+  def peak_bps(self, window:float = 1.0) -> tuple[float,float]:
+    """Returns the peak rate over the look back window given in seconds. 
+
+    Returns (download, upload) in bits per second (bps).
+    """
     N = self.num_samples()
     if N <= 1:
-      return 0
+      return (0.0, 0.0)
 
-    bs, ts = self.samples()
+    rx, tx, ts = self.samples()
     
-    peak_rate = 0.0
+    def measure_peak(data):
+      peak_rate = 0.0
+      for i in range(len(ts) - 1):
+        for j in range(i + 1, len(ts)):
+          elapsed = (ts[j] - ts[i])
+          if elapsed >= window:
+            rate = (data[j] - data[i]) / elapsed * 8
+            peak_rate = max(peak_rate, rate)
+            break
 
-    for i in range(len(ts) - 1):
-      for j in range(i + 1, len(ts)):
-        elapsed = (ts[j] - ts[i])
-        if elapsed >= window:
-          rate = (bs[j] - bs[i]) / elapsed * 8
+        if (ts[-1] - ts[i]) > 0:
+          rate = (data[-1] - data[i]) / (ts[-1] - ts[i]) * 8
           peak_rate = max(peak_rate, rate)
-          break
 
-      if (ts[-1] - ts[i]) > 0:
-        rate = (bs[-1] - bs[i]) / (ts[-1] - ts[i]) * 8
-        peak_rate = max(peak_rate, rate)
+      return peak_rate
 
-    return peak_rate
+    return (measure_peak(rx), measure_peak(tx))
 
-  def current_bps(self, look_back_sec:float = 2.0) -> float:
+  def current_bps(self, look_back_sec:float = 2.0) -> tuple[float,float]:
     N = self.num_samples()
     if N <= 1:
-      return 0
+      return (0.0, 0.0)
 
-    bs, ts = self.samples()
-
+    rx, tx, ts = self.samples()
     i = ts.size - 2
     elapsed = 0
     t = ts[-1]
@@ -338,9 +343,10 @@ class NetworkSampler:
     i += 1
 
     if elapsed < 1e-4:
-      return 0
+      return (0.0, 0.0)
 
-    return (bs[-1] - bs[i]) / elapsed * 8
+    compute_rate = lambda data: (data[-1] - data[i]) / elapsed * 8
+    return (compute_rate(rx), compute_rate(tx))
 
   def _histogram(self, resolution, bs, ts) -> npt.NDArray[np.uint32]:
     bs = bs[1:] - bs[:-1]
