@@ -87,6 +87,7 @@ CloudFiles was developed to access files from object storage without ever touchi
 ```bash
 pip install cloud-files
 pip install cloud-files[test] # to enable testing with pytest
+pip install cloud-files[monitoring] # enable plotting network performance
 ```
 
 If you run into trouble installing dependenies, make sure you're using at least Python3.6 and you have updated pip. On Linux, some dependencies require manylinux2010 or manylinux2014 binaries which earlier versions of pip do not search for. MacOS, Linux, and Windows are supported platforms.
