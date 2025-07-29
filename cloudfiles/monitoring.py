@@ -386,7 +386,10 @@ class NetworkSampler:
     self._cursor = 0
     self._num_samples = 0
 
-  def start_sampling(self):
+  def start_sampling(self, force=False):
+    if force == False and self.is_sampling():
+      return
+
     self._terminate.set()
     self._terminate = threading.Event()
 
@@ -471,10 +474,14 @@ class NetworkSampler:
       if wait > 0:
         time.sleep(wait)
 
+  def is_sampling(self):
+    return self._thread is not None
+
   def stop_sampling(self):
     self._terminate.set()
     if self._thread is not None:
       self._thread.join()
+    self._thread = None
 
   def __del__(self):
     self.stop_sampling()
