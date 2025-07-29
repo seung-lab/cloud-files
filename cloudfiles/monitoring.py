@@ -201,8 +201,13 @@ class TransmissionMonitor:
     if show_size_labels is None:
       show_size_labels = len(file_sizes) < 40
 
-    min_file_size = min(file_sizes)
-    max_file_size = max(file_sizes)
+    if len(file_sizes):
+      min_file_size = min(file_sizes)
+      max_file_size = max(file_sizes)
+    else:
+      min_file_size = 0
+      max_file_size = 0
+
     del file_sizes
 
     fig, ax = plt.subplots(figsize=(10, 5))
