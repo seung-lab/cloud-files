@@ -25,7 +25,7 @@ import pathos.pools
 import cloudfiles
 import cloudfiles.paths
 from cloudfiles import CloudFiles
-from cloudfiles.monitoring import TransmissionMonitor
+from cloudfiles.monitoring import TransmissionMonitor, NetworkSampler, IOEnum
 from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol, find_common_buckets
@@ -181,12 +181,13 @@ def get_mfp(path, recursive):
 @click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
 @click.option('--resumable', is_flag=True, default=False, help="http->file transfers will dowload to .part files while they are in progress.", show_default=True)
 @click.option('--gantt', is_flag=True, default=False, help="Save a Gantt chart of the file transfer to the local directory.", show_default=True)
+@click.option('--bandwidth-global', is_flag=True, default=False, help="Save a chart of Megabits per a second based on sampling OS network counters.", show_default=True)
 @click.pass_context
 def cp(
   ctx, source, destination, 
   recursive, compression, progress, 
   block_size, part_bytes, no_sign_request,
-  resumable, gantt,
+  resumable, gantt, bandwidth_global,
 ):
   """
   Copy one or more files from a source to destination.
@@ -199,6 +200,10 @@ def cp(
     print("cloudfiles: destination must be a directory for multiple source files.")
     return
 
+  network_sampler = NetworkSampler(IOEnum.TX)
+  if bandwidth_global:
+    network_sampler.start_sampling()
+
   for src in source:
     _cp_single(
       ctx, src, destination, recursive, 
@@ -206,6 +211,15 @@ def cp(
       part_bytes, no_sign_request,
       resumable, gantt,
     )
+
+  if bandwidth_global:
+    filename = f"./cloudfiles-cp-bandwidth-global-{_timestamp()}.png"
+    network_sampler.stop_sampling()
+    network_sampler.plot_histogram(
+      resolution=1.0,
+      filename=filename,
+    )
+    print(f"Saved chart: {filename}")
 
 def _cp_single(
   ctx, source, destination, recursive, 
@@ -338,7 +352,9 @@ def _cp_single(
     }], reencode=compression, resumable=resumable)
 
   if gantt:
-    tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
+    filename = f"./cloudfiles-cp-gantt-{_timestamp()}.png"
+    tm.plot_gantt(filename=filename)
+    print(f"Saved chart: {filename}")
 
 def _cp(
   src, dst, compression, progress, 
@@ -355,7 +371,9 @@ def _cp(
   )
 
   if gantt:
-    tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
+    filename = f"./cloudfiles-cp-gantt-{_timestamp()}.png"
+    tm.plot_gantt(filename=filename)
+    print(f"Saved chart: {filename}")
 
   return tm
 

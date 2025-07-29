@@ -185,7 +185,7 @@ class TransmissionMonitor:
     self, 
     filename:Optional[str] = None,
     title:Optional[str] = None,
-    show_size_labels:bool = True,
+    show_size_labels:Optional[bool] = None,
   ):
     import matplotlib.pyplot as plt
     import matplotlib.colors as colors
@@ -197,6 +197,9 @@ class TransmissionMonitor:
     with self._lock:
       for interval in self._intervaltree:
         file_sizes.append(interval.data)
+
+    if show_size_labels is None:
+      show_size_labels = len(file_sizes) < 40
 
     min_file_size = min(file_sizes)
     max_file_size = max(file_sizes)
