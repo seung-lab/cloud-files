@@ -21,11 +21,13 @@ class TransmissionMonitor:
     self._lock = threading.Lock()
     self._total_bytes_landed = 0
     self._in_flight = {}
-    self._in_flight_bytes = 0
+    
+    # NOTE: _in_flight_bytes doesn't work for downloads b/c we are not
+    # requesting the size of the file up front to avoid perf impact.
+    # _in_flight_bytes isn't necessary unless we are modeling the contribution
+    # of CloudFiles to machine network usage to implement throttling.
+    self._in_flight_bytes = 0 
     self._direction = direction
-
-    # self._network_sampler = NetworkSampler(direction)
-    # self._network_sampler.start_sampling()
 
   @classmethod
   def merge(klass, tms:list["TransmissionMonitor"]) -> "TransmissionMonitor":
