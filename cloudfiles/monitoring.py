@@ -80,7 +80,7 @@ class TransmissionMonitor:
     Compute the current bits per a second with a lookback
     value given in microseconds.
     """
-    look_back_us = look_back_sec * 1e6
+    look_back_us = int(look_back_sec * 1e6)
 
     with self._lock:
       now_us = int(time.time() * 1e6)
