@@ -287,13 +287,11 @@ class TransmissionMonitor:
 class NetworkSampler:
   def __init__(
     self, 
-    direction:IOEnum, 
-    buffer_sec:float = 10.0, 
-    interval:float = 0.1
+    buffer_sec:float = 600.0, 
+    interval:float = 0.5
   ):
     self._terminate = threading.Event()
     self._thread = None
-    self._direction = direction
     self._interval = interval
     self._buffer_sec = buffer_sec
 
@@ -344,14 +342,8 @@ class NetworkSampler:
 
     return (bs[-1] - bs[i]) / elapsed * 8
 
-  def histogram(self, resolution:float = 1.0) -> npt.NDArray[np.uint32]:
-    N = self.num_samples()
-    if N <= 1:
-      return 0
-
-    bs, ts = self.samples()
+  def _histogram(self, resolution, bs, ts) -> npt.NDArray[np.uint32]:
     bs = bs[1:] - bs[:-1]
-
     num_bins = int(np.ceil((ts[-1] - ts[0]) / resolution))
     bins = np.zeros([ num_bins ], dtype=np.uint32)
 
@@ -361,11 +353,29 @@ class NetworkSampler:
 
     return bins
 
+  def histogram_rx(self, resolution:float = 1.0) -> npt.NDArray[np.uint32]:
+    N = self.num_samples()
+    if N <= 1:
+      return np.array([], dtype=np.uint32)
+
+    rx, tx, ts = self.samples()
+    return self._histogram(resolution, rx, ts)
+
+  def histogram_tx(self, resolution:float = 1.0) -> npt.NDArray[np.uint32]:
+    N = self.num_samples()
+    if N <= 1:
+      return np.array([], dtype=np.uint32)
+
+    rx, tx, ts = self.samples()
+    return self._histogram(resolution, tx, ts)
+
   def plot_histogram(self, resolution:float = None, filename:Optional[str] = None) -> None:
     """
     Plot a bar chart showing the number of bytes transmitted
     per a unit time. Resolution is specified in seconds.
     """
+    import matplotlib.pyplot as plt
+
     if resolution is None:
       resolution = self._interval
     elif resolution < self._interval:
@@ -374,17 +384,69 @@ class NetworkSampler:
         f"than the sample rate. Got: {resolution} Sample Rate: {self._interval}"
       )
 
-    bins = self.histogram(resolution)
-    plot_histogram(
-      bins, 
-      direction=self._direction, 
-      resolution=resolution, 
-      filename=filename
+    download_bins = self.histogram_rx(resolution)
+    upload_bins = self.histogram_tx(resolution)
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(len(download_bins)), download_bins, color='dodgerblue')
+
+    tick_step = 1
+    if len(download_bins) > 20:
+      tick_step = len(download_bins) // 20
+
+    timestamps = [ 
+      f"{i*resolution:.2f}" for i in range(0, len(download_bins), tick_step)
+    ]
+    plt.xticks(
+      range(0, len(download_bins), tick_step), 
+      timestamps, 
+      rotation=45, 
+      ha='right'
     )
+
+    bar_width = 0.4
+    x_indices = range(len(download_bins))
+
+    import pdb; pdb.set_trace()
+
+    plt.bar(
+        [x - bar_width/2 for x in x_indices],
+        download_bins,
+        width=bar_width,
+        color='dodgerblue',
+        label='Downloaded'
+    )
+    
+    plt.bar(
+        [x + bar_width/2 for x in x_indices],
+        upload_bins,
+        width=bar_width,
+        color='salmon',
+        label='Uploaded'
+    )
+
+    plt.legend()
+
+    if resolution == 1.0:
+      text = "Second"
+    else:
+      text = f"{resolution:.2f} Seconds"
+
+    plt.title(f'Bytes Transferred per {text}')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel(f'Bytes Transferred')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+
+    if filename is not None:
+      plt.savefig(filename)
+    else:
+      plt.show()
 
   def _init_sample_buffers(self):
     buffer_size = int(max(np.ceil(self._buffer_sec / self._interval) + 1, 1))
-    self._samples_bytes = np.full(buffer_size, -1, dtype=np.int64)
+    self._samples_bytes_rx = np.full(buffer_size, -1, dtype=np.int64)
+    self._samples_bytes_tx = np.full(buffer_size, -1, dtype=np.int64)
     self._samples_time = np.full(buffer_size, -1, dtype=np.float64)
     self._cursor = 0
     self._num_samples = 0
@@ -412,20 +474,40 @@ class NetworkSampler:
     with self._sample_lock:
       return self._num_samples
 
+  def start_time(self) -> float:
+    with self._sample_lock:
+      if self._num_samples == 0:
+        return 0.0
+
+      if self.num_samples < self._samples_time.size:
+        return self._samples_time[0]
+      else:
+        pos = (self._cursor + 1) % self._samples_time.size
+        return self._samples_time[pos]
+
+  def end_time(self) -> float:
+    with self._sample_lock:
+      if self._num_samples == 0:
+        return 0.0
+      return self._samples_time[self._cursor]
+
   def samples(self) -> tuple[npt.NDArray[np.uint64], npt.NDArray[np.float64]]:
     with self._sample_lock:
-      byte_samples = np.copy(self._samples_bytes)
+      byte_samples_rx = np.copy(self._samples_bytes_rx)
+      byte_samples_tx = np.copy(self._samples_bytes_tx)
       time_samples = np.copy(self._samples_time)
       cursor = self._cursor
 
-      if self._num_samples < byte_samples.size:
-        byte_samples = byte_samples[:cursor]
+      if self._num_samples < byte_samples_rx.size:
+        byte_samples_rx = byte_samples_rx[:cursor]
+        byte_samples_tx = byte_samples_tx[:cursor]
         time_samples = time_samples[:cursor]
       else:
-        byte_samples = np.concatenate([byte_samples[cursor:], byte_samples[:cursor]])
+        byte_samples_rx = np.concatenate([byte_samples_rx[cursor:], byte_samples_rx[:cursor]])
+        byte_samples_tx = np.concatenate([byte_samples_tx[cursor:], byte_samples_tx[:cursor]])
         time_samples = np.concatenate([time_samples[cursor:], time_samples[:cursor]])
 
-    return (byte_samples, time_samples)
+    return (byte_samples_rx, byte_samples_tx, time_samples)
 
   def sample_loop(self, terminate_evt:threading.Event, interval:float):
     import psutil
@@ -447,19 +529,16 @@ class NetworkSampler:
     def measure() -> tuple[int,float]:
       net = psutil.net_io_counters(nowrap=True)
       t = time.time() - time_correction
-
-      if self._direction == IOEnum.RX:
-        return (net.bytes_recv, t)
-      else:
-        return (net.bytes_sent, t)
+      return (net.bytes_recv, net.bytes_sent, t)
 
     recorrection_start = time.time()
     while not terminate_evt.is_set():
       s = time.time()
       
-      size, t = measure()
+      size_rx, size_tx, t = measure()
       with self._sample_lock:
-        self._samples_bytes[self._cursor] = size
+        self._samples_bytes_rx[self._cursor] = size_rx
+        self._samples_bytes_tx[self._cursor] = size_tx
         self._samples_time[self._cursor] = t
 
         if (recorrection_start-s) > 60:

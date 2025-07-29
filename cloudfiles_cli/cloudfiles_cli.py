@@ -181,13 +181,13 @@ def get_mfp(path, recursive):
 @click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
 @click.option('--resumable', is_flag=True, default=False, help="http->file transfers will dowload to .part files while they are in progress.", show_default=True)
 @click.option('--gantt', is_flag=True, default=False, help="Save a Gantt chart of the file transfer to the local directory.", show_default=True)
-@click.option('--bandwidth-global', is_flag=True, default=False, help="Save a chart of Megabits per a second based on sampling OS network counters.", show_default=True)
+@click.option('--machine-io-chart', is_flag=True, default=False, help="Save a chart of Megabits per a second based on sampling OS network counters.", show_default=True)
 @click.pass_context
 def cp(
   ctx, source, destination, 
   recursive, compression, progress, 
   block_size, part_bytes, no_sign_request,
-  resumable, gantt, bandwidth_global,
+  resumable, gantt, machine_io_chart,
 ):
   """
   Copy one or more files from a source to destination.
@@ -200,8 +200,9 @@ def cp(
     print("cloudfiles: destination must be a directory for multiple source files.")
     return
 
-  network_sampler = NetworkSampler(IOEnum.TX)
-  if bandwidth_global:
+  network_sampler = None
+  if machine_io_chart:
+    network_sampler = NetworkSampler(buffer_sec=600, interval=0.5)
     network_sampler.start_sampling()
 
   for src in source:
@@ -212,7 +213,7 @@ def cp(
       resumable, gantt,
     )
 
-  if bandwidth_global:
+  if machine_io_chart:
     filename = f"./cloudfiles-cp-bandwidth-global-{_timestamp()}.png"
     network_sampler.stop_sampling()
     network_sampler.plot_histogram(
