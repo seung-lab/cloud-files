@@ -176,12 +176,60 @@ class TransmissionMonitor:
     per a unit time. Resolution is specified in seconds.
     """
     bins = self.histogram(resolution)
-    plot_histogram(
-      bins, 
-      direction=self._direction, 
-      resolution=resolution, 
-      filename=filename
+    import matplotlib.pyplot as plt
+
+    xfer = self.histogram(resolution) * 8
+    xfer = xfer.astype(np.float32)
+    peak = np.max(xfer)
+
+    if peak < 1000:
+      ylabel = 'bps'
+      factor = 1.0
+    elif 1000 <= peak < int(1e6):
+      ylabel = 'Kbps'
+      factor = 1000.0
+    elif int(1e6) <= peak < int(1e9):
+      ylabel = 'Mbps'
+      factor = 1e6
+    else:
+      ylabel = "Gbps"
+      factor = 1e9
+
+    xfer /= factor
+
+    plt.figure(figsize=(10, 6))
+
+    x_values = np.arange(len(xfer)) * resolution
+    shade_alpha = 0.4
+
+    plt.plot(
+        x_values,
+        xfer,
+        color='dodgerblue',
+        linestyle='-',
+        linewidth=1.5,
+        alpha=0.8,
+        marker='',  # Remove markers for cleaner look
     )
+    plt.fill_between(
+      x_values, 0, xfer, 
+      color='dodgerblue', alpha=shade_alpha
+    )
+
+    direction_text = "Download"
+    if self._direction == IOEnum.TX:
+      direction_text = "Upload"
+
+    plt.title(f'Estimated Data {direction_text} Rate')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel(ylabel)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+
+    if filename is not None:
+      plt.savefig(filename)
+    else:
+      plt.show()
 
   def plot_gantt(
     self, 
@@ -464,7 +512,7 @@ class NetworkSampler:
     plt.legend()
     plt.tight_layout()
 
-    plt.title(f'Data Transfer Rate')
+    plt.title(f'Measured Data Transfer Rate')
     plt.xlabel('Time (seconds)')
     plt.ylabel(ylabel)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
@@ -623,47 +671,3 @@ class NetworkSampler:
     self._terminate_evt = threading.Event()
     self._thread = None
 
-
-def plot_histogram(bins:npt.NDArray[np.integer], direction:IOEnum, resolution:float, filename:Optional[str] = None) -> None:
-  """
-  Plot a bar chart showing the number of bytes transmitted
-  per a unit time. Resolution is specified in seconds.
-  """
-  import matplotlib.pyplot as plt
-  
-  plt.figure(figsize=(10, 6))
-  plt.bar(range(len(bins)), bins, color='dodgerblue')
-
-  tick_step = 1
-  if len(bins) > 20:
-    tick_step = len(bins) // 20
-
-  timestamps = [ 
-    f"{i*resolution:.2f}" for i in range(0, len(bins), tick_step)
-  ]
-  plt.xticks(
-    range(0, len(bins), tick_step), 
-    timestamps, 
-    rotation=45, 
-    ha='right'
-  )
-
-  if resolution == 1.0:
-    text = "Second"
-  else:
-    text = f"{resolution:.2f} Seconds"
-
-  direction_text = "Downloaded"
-  if direction == IOEnum.TX:
-    direction_text = "Uploaded"
-
-  plt.title(f'Bytes {direction_text} per {text}')
-  plt.xlabel('Time (seconds)')
-  plt.ylabel(f'Bytes {direction_text}')
-  plt.grid(axis='y', linestyle='--', alpha=0.7)
-  plt.tight_layout()
-
-  if filename is not None:
-    plt.savefig(filename)
-  else:
-    plt.show()
