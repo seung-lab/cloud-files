@@ -202,6 +202,10 @@ binary = cf['filename'][0:5] # same result, fetches 11 bytes
 >> b'hello' # represents byte range 0-4 inclusive of filename
 
 binaries = cf[:100] # download the first 100 files
+
+# Get the TransmissionMonitor object that records
+# the flight time of each file.
+binaries, tm = cf.get(..., return_recording=True)
 ```
 
 `get` supports several different styles of input. The simplest takes a scalar filename and returns the contents of that file. However, you can also specify lists of filenames, a byte range request, and lists of byte range requests. You can provide a generator or iterator as input as well. Order is not guaranteed.
@@ -230,6 +234,10 @@ cf.puts([{
 
 cf.puts([ (path, content), (path, content) ], compression='gzip')
 cf.put_jsons(...)
+
+# Get the TransmissionMonitor object that records the
+# flight times of each object.
+_, tm = cf.puts(..., return_recording=True)
 
 # Definition of put, put_json is identical
 def put(
@@ -435,6 +443,12 @@ cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
 cloudfiles cp -c br s3://bkt/file.txt gs://bkt2/
 # decompress
 cloudfiles cp -c none s3://bkt/file.txt gs://bkt2/
+# save chart of file flight times
+cloudfiles cp --flight-time s3://bkt/file.txt gs://bkt2/
+# save a chart of estimated bandwidth usage from these files alone
+cloudfiles cp --io-chart s3://bkt/file.txt gs://bkt2/
+# save a chart of measured bandwidth usage for the machine
+cloudfiles cp --machine-io-chart s3://bkt/file.txt gs://bkt2/
 # move or rename files
 cloudfiles mv s3://bkt/file.txt gs://bkt2/
 # create an empty file if not existing
@@ -493,6 +507,42 @@ cloudfiles alias rm example # remove example://
 ```
 
 The alias file is only accessed (and cached) if CloudFiles encounters an unknown protocol. If you stick to default protocols and use the syntax `s3://https://example.com/` for alternative endpoints, you can still use CloudFiles in environments without filesystem access.
+
+## Performance Monitoring
+
+CloudFiles now comes with two tools inside of `cloudfiles.monitoring` for measuring the performance of transfer operations both via the CLI and the programatic interface.
+
+A `TransmissionMonitor` object is created during each download or upload (e.g. `cf.get` or `cf.puts`) call. You can access this object by using the `return_recording=True` flag. This object saves the flight times of each object along with its size in an interval tree datastructure. It comes with methods for estimating the peak bits per a second and can plot both time of flight and the estimated transfer rates (assuming the transfer is evenly divided over the flight of an object, an assumption that is not always true). This allows you to estimate the contribution of a given CloudFiles operation to a machine's network IO.
+
+```python
+from cloudfiles import CloudFiles
+
+... 
+
+results, tm = cf.get([ ... some files ... ])
+
+tm.peak_Mbps() # estimated peak transfer rate
+tm.total_Mbps() # estimated average transfer rate
+tm.plot_gantt() # time of flight chart
+tm.plot_histogram() # transfer rate chart
+```
+
+
+A second object, `IOSampler`, can sample the OS network counters using a background thread and provides a global view of the machine's network performance during the life of the transfer. It is enabled on the CLI for the `cp` command when the `--machine-io-chart` flag is enabled, but must be manually started programatically. This is to avoid accidentally starting unnecessary sampling threads. The samples are accumulated into a circular buffer, so make sure to set the buffer length long enough for your points of interest to be captured.
+
+```python
+from cloudfiles.monitoring import IOSampler
+
+sampler = IOSampler(buffer_sec=600, interval=0.25)
+sampler.start_sampling()
+
+...
+
+
+sampler.stop_sampling()
+sampler.plot_histogram()
+```
+
 
 ## Credits
 
