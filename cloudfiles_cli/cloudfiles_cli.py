@@ -181,13 +181,17 @@ def get_mfp(path, recursive):
 @click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
 @click.option('--resumable', is_flag=True, default=False, help="http->file transfers will dowload to .part files while they are in progress.", show_default=True)
 @click.option('--gantt', is_flag=True, default=False, help="Save a Gantt chart of the file transfer to the local directory.", show_default=True)
-@click.option('--machine-io-chart', is_flag=True, default=False, help="Save a chart of Megabits per a second based on sampling OS network counters.", show_default=True)
+@click.option('--io-chart', is_flag=True, default=False, help="Save a chart of bits per a second based on file sizes and transmission times.", show_default=True)
+@click.option('--machine-io-chart', is_flag=True, default=False, help="Save a chart of bits per a second based on 4 Hz sampling OS network counters for the entire machine.", show_default=True)
+@click.option('--machine-io-chart-buffer-sec', default=600, help="Circular buffer length in seconds. Only allocated if chart enabled. 1 sec = 96 bytes", show_default=True)
 @click.pass_context
 def cp(
   ctx, source, destination, 
   recursive, compression, progress, 
   block_size, part_bytes, no_sign_request,
-  resumable, gantt, machine_io_chart,
+  resumable, 
+  gantt, io_chart, 
+  machine_io_chart, machine_io_chart_buffer_sec,
 ):
   """
   Copy one or more files from a source to destination.
@@ -202,7 +206,10 @@ def cp(
 
   network_sampler = None
   if machine_io_chart:
-    network_sampler = NetworkSampler(buffer_sec=600, interval=0.5)
+    network_sampler = NetworkSampler(
+      buffer_sec=machine_io_chart_buffer_sec,
+      interval=0.25,
+    )
     network_sampler.start_sampling()
 
   for src in source:
@@ -210,11 +217,11 @@ def cp(
       ctx, src, destination, recursive, 
       compression, progress, block_size, 
       part_bytes, no_sign_request,
-      resumable, gantt,
+      resumable, gantt, io_chart,
     )
 
   if machine_io_chart:
-    filename = f"./cloudfiles-cp-bandwidth-global-{_timestamp()}.png"
+    filename = f"./cloudfiles-cp-machine-io-{_timestamp()}.png"
     network_sampler.stop_sampling()
     network_sampler.plot_histogram(
       resolution=1.0,
@@ -226,7 +233,7 @@ def _cp_single(
   ctx, source, destination, recursive, 
   compression, progress, block_size,
   part_bytes, no_sign_request,
-  resumable, gantt,
+  resumable, gantt, io_chart,
 ):
   use_stdin = (source == '-')
   use_stdout = (destination == '-')
@@ -299,7 +306,7 @@ def _cp_single(
       _cp(
         srcpath, destpath, compression,
         progress, block_size, part_bytes,
-        no_sign_request, resumable, gantt, xferpaths
+        no_sign_request, resumable, gantt, io_chart, xferpaths
       )
       return 
 
@@ -333,7 +340,7 @@ def _cp_single(
       return
 
     if use_stdout:
-      _cp_stdout(srcpath, no_sign_request, gantt, xferpaths)
+      _cp_stdout(srcpath, no_sign_request, gantt, io_chart, xferpaths)
       return
 
     cfdest = CloudFiles(
@@ -352,15 +359,22 @@ def _cp_single(
       "dest_path": new_path,
     }], reencode=compression, resumable=resumable)
 
+  ts = _timestamp()
+
+  if io_chart:
+    filename = f"./cloudfiles-cp-histogram-{ts}.png"
+    tm.plot_histogram(filename=filename)
+    print(f"Saved chart: {filename}")
+
   if gantt:
-    filename = f"./cloudfiles-cp-gantt-{_timestamp()}.png"
+    filename = f"./cloudfiles-cp-gantt-{ts}.png"
     tm.plot_gantt(filename=filename)
     print(f"Saved chart: {filename}")
 
 def _cp(
   src, dst, compression, progress, 
   block_size, part_bytes, 
-  no_sign_request, resumable, gantt,
+  no_sign_request, resumable, gantt, io_chart,
   paths
 ):
   cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes, no_sign_request=no_sign_request)
@@ -371,8 +385,15 @@ def _cp(
     resumable=resumable,
   )
 
+  ts = _timestamp()
+
+  if io_chart:
+    filename = f"./cloudfiles-cp-histogram-{ts}.png"
+    tm.plot_histogram(filename=filename)
+    print(f"Saved chart: {filename}")
+
   if gantt:
-    filename = f"./cloudfiles-cp-gantt-{_timestamp()}.png"
+    filename = f"./cloudfiles-cp-gantt-{ts}.png"
     tm.plot_gantt(filename=filename)
     print(f"Saved chart: {filename}")
 
@@ -382,13 +403,18 @@ def _timestamp():
   now = datetime.now(timezone.utc)
   return now.strftime("%Y-%m-%d_%H-%M-%S.%f")[:-5] + "Z"
 
-def _cp_stdout(src, no_sign_request, gantt, paths):
+def _cp_stdout(src, no_sign_request, gantt, io_chart, paths):
   paths = toiter(paths)
   cf = CloudFiles(src, progress=False, no_sign_request=no_sign_request)
   results, tm = cf.get(paths, return_recording=True)
 
+  ts = _timestamp()
+
+  if io_chart:
+    tm.plot_histogram(filename=f"./cloudfiles-cp-histogram-{ts}.png")
+
   if gantt:
-    tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{_timestamp()}.png")
+    tm.plot_gantt(filename=f"./cloudfiles-cp-gantt-{ts}.png")
 
   for res in results:
     content = res["content"].decode("utf8")
