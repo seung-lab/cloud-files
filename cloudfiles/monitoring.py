@@ -392,62 +392,81 @@ class NetworkSampler:
     import matplotlib.pyplot as plt
 
     if resolution is None:
-      resolution = self._interval
+      resolution = 1.0
     elif resolution < self._interval:
       raise ValueError(
         f"Can't create histogram bins at a higher resolution "
         f"than the sample rate. Got: {resolution} Sample Rate: {self._interval}"
       )
 
-    download_bins = self.histogram_rx(resolution)
-    upload_bins = self.histogram_tx(resolution)
+    download_bps = self.histogram_rx(resolution) * 8
+    upload_bps = self.histogram_tx(resolution) * 8
+
+    download_bps = download_bps.astype(np.float32)
+    upload_bps = upload_bps.astype(np.float32)
+
+    peak_down = np.max(download_bps)
+    peak_up = np.max(upload_bps)
+    peak = max(peak_up, peak_down)
+
+    if peak < 1000:
+      ylabel = 'bps'
+      factor = 1.0
+    elif 1000 <= peak < int(1e6):
+      ylabel = 'Kbps'
+      factor = 1000.0
+    elif int(1e6) <= peak < int(1e9):
+      ylabel = 'Mbps'
+      factor = 1e6
+    else:
+      ylabel = "Gbps"
+      factor = 1e9
+
+    download_bps /= factor
+    upload_bps /= factor
 
     plt.figure(figsize=(10, 6))
-    plt.bar(range(len(download_bins)), download_bins, color='dodgerblue')
 
-    tick_step = 1
-    if len(download_bins) > 20:
-      tick_step = len(download_bins) // 20
+    min_length = min(len(download_bps), len(upload_bps))
+    x_values = np.arange(min_length) * resolution
+    shade_alpha = 0.4
 
-    timestamps = [ 
-      f"{i*resolution:.2f}" for i in range(0, len(download_bins), tick_step)
-    ]
-    plt.xticks(
-      range(0, len(download_bins), tick_step), 
-      timestamps, 
-      rotation=45, 
-      ha='right'
-    )
-
-    bar_width = 0.4
-    x_indices = range(len(download_bins))
-
-    plt.bar(
-        [x - bar_width/2 for x in x_indices],
-        download_bins,
-        width=bar_width,
+    plt.plot(
+        x_values,
+        download_bps[:min_length],
         color='dodgerblue',
-        label='Downloaded'
+        linestyle='-',
+        linewidth=1.5,
+        label='Download',
+        alpha=0.8,
+        marker='',  # Remove markers for cleaner look
+    )
+    plt.fill_between(
+      x_values, 0, download_bps[:min_length], 
+      color='dodgerblue', alpha=shade_alpha
     )
     
-    plt.bar(
-        [x + bar_width/2 for x in x_indices],
-        upload_bins,
-        width=bar_width,
+    plt.plot(
+        x_values,
+        upload_bps[:min_length],
         color='salmon',
-        label='Uploaded'
+        linestyle='-',
+        linewidth=1.5,
+        label='Upload',
+        alpha=0.8,
+        marker='',
+    )
+    plt.fill_between(
+      x_values, 0, upload_bps[:min_length], 
+      color='salmon', alpha=shade_alpha
     )
 
     plt.legend()
+    plt.tight_layout()
 
-    if resolution == 1.0:
-      text = "Second"
-    else:
-      text = f"{resolution:.2f} Seconds"
-
-    plt.title(f'Bytes Transferred per {text}')
+    plt.title(f'Data Transfer Rate')
     plt.xlabel('Time (seconds)')
-    plt.ylabel(f'Bytes Transferred')
+    plt.ylabel(ylabel)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
 
