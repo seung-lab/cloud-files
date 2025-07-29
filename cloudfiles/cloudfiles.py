@@ -284,12 +284,6 @@ class CloudFiles:
   composite_upload_threshold: GCS and S3 both support multi-part uploads. 
     For files larger than this threshold, use that facility.
   no_sign_request: (s3 only) don't sign the request with credentials
-  max_bps_up: Rate limiter. Specify the maximum upload rate in bits per a second.
-    NB. This mechanism only counts files that have finished uploading, so it
-    can only work when the files uploaded are "small" compared to available bandwidth.
-  max_bps_down: Rate limiter. Specify the maximum download rate in bits per a second.
-    NB. This mechanism only counts files that have finished uploading, so it
-    can only work when the files uploaded are "small" compared to available bandwidth.
   """
   def __init__(
     self,
@@ -306,8 +300,6 @@ class CloudFiles:
     lock_dir:Optional[str] = None,
     composite_upload_threshold:int = int(1e8),
     no_sign_request:bool = False,
-    max_bps_up:int = -1,
-    max_bps_down:int = -1,
   ):
     if use_https:
       cloudpath = paths.to_https_protocol(cloudpath)
@@ -324,9 +316,6 @@ class CloudFiles:
     self.locking = locking
     self.composite_upload_threshold = composite_upload_threshold
     self.no_sign_request = bool(no_sign_request)
-
-    self.max_bps_down = int(max_bps_down)
-    self.max_bps_up = int(max_bps_up)
 
     self._lock_dir = lock_dir
     self._path = paths.extract(cloudpath)
@@ -483,10 +472,6 @@ class CloudFiles:
         raise CRC32CIntegrityError("crc32c mismatch for {}: server {} ; client {}".format(path, server_hash, crc))
 
     def download(path):
-      if self.max_bps_down >= 0:
-        while tm.current_bps() > self.max_bps_down:
-          time.sleep(0.1)
-
       path, start, end, tags = path_to_byte_range_tags(path)
       error = None
       content = None
@@ -684,10 +669,6 @@ class CloudFiles:
       return file
 
     def uploadfn(file):
-      if self.max_bps_up >= 0:
-        while tm.current_bps() > self.max_bps_up:
-          time.sleep(0.1)
-
       start_time = time.time()
       file = todict(file)
 
