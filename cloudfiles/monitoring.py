@@ -520,6 +520,21 @@ class NetworkSampler:
 
     return (byte_samples_rx, byte_samples_tx, time_samples)
 
+  def _do_sample(self, time_correction:float) -> float:
+    import psutil
+    net = psutil.net_io_counters(nowrap=True)
+    t = time.time() - time_correction
+
+    with self._sample_lock:
+      self._samples_bytes_rx[self._cursor] = net.bytes_recv
+      self._samples_bytes_tx[self._cursor] = net.bytes_sent
+      self._samples_time[self._cursor] = t
+
+      self._cursor += 1
+      if self._cursor >= self._samples_time.size:
+        self._cursor = 0
+      self._num_samples += 1
+
   def sample_loop(self, terminate_evt:threading.Event, interval:float):
     import psutil
 
@@ -537,35 +552,25 @@ class NetworkSampler:
     time_correction = measure_correction()
     psutil.net_io_counters.cache_clear()
 
-    def measure() -> tuple[int,float]:
-      net = psutil.net_io_counters(nowrap=True)
-      t = time.time() - time_correction
-      return (net.bytes_recv, net.bytes_sent, t)
-
     recorrection_start = time.time()
+    e = time.time()
+
     while not terminate_evt.is_set():
       s = time.time()
-      
-      size_rx, size_tx, t = measure()
-      with self._sample_lock:
-        self._samples_bytes_rx[self._cursor] = size_rx
-        self._samples_bytes_tx[self._cursor] = size_tx
-        self._samples_time[self._cursor] = t
+      self._do_sample(time_correction)
 
-        if (recorrection_start-s) > 60:
-          time_correction = measure_correction()
-          recorrection_start = time.time()
-
-        self._cursor += 1
-        if self._cursor >= self._samples_time.size:
-          self._cursor = 0
-        self._num_samples += 1
+      if (recorrection_start-s) > 60:
+        time_correction = measure_correction()
+        recorrection_start = time.time()
 
       e = time.time()
 
       wait = interval - (e-s)
       if wait > 0:
         time.sleep(wait)
+
+    if (interval * 0.5) < (time.time() - e):
+      self._do_sample(time_correction)
 
   def is_sampling(self):
     return self._thread is not None
