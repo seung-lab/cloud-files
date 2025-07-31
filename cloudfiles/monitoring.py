@@ -709,3 +709,9 @@ class IOSampler:
     self._terminate_evt = threading.Event()
     self._thread = None
 
+  def __enter__(self):
+    self.start_sampling()
+    return self
+
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    self.stop_sampling()
