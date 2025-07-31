@@ -235,6 +235,9 @@ class TransmissionMonitor:
     else:
       plt.show()
 
+    plt.gca().clear()
+    plt.close('all')
+
   def plot_gantt(
     self, 
     filename:Optional[str] = None,
@@ -337,6 +340,9 @@ class TransmissionMonitor:
       plt.savefig(filename)
     else:
       plt.show()
+
+    plt.gca().clear()
+    plt.close('all')
 
   def __getstate__(self):
     # Copy the object's state from self.__dict__ which contains
@@ -533,6 +539,9 @@ class IOSampler:
       plt.savefig(filename)
     else:
       plt.show()
+
+    plt.gca().clear()
+    plt.close('all')
 
   def _init_sample_buffers(self):
     buffer_size = int(max(np.ceil(self._buffer_sec / self._interval) + 1, 1))
