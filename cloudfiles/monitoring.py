@@ -356,7 +356,7 @@ class IOSampler:
   def __init__(
     self, 
     buffer_sec:float = 600.0, 
-    interval:float = 0.5
+    interval:float = 0.25
   ):
     self._terminate = threading.Event()
     self._thread = None
