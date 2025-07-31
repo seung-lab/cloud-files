@@ -1,5 +1,6 @@
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+from datetime import datetime, timezone
 from functools import partial
 import itertools
 import json
@@ -24,6 +25,7 @@ import pathos.pools
 import cloudfiles
 import cloudfiles.paths
 from cloudfiles import CloudFiles
+from cloudfiles.monitoring import TransmissionMonitor, IOSampler, IOEnum
 from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
 from cloudfiles.paths import extract, get_protocol, find_common_buckets
@@ -178,12 +180,18 @@ def get_mfp(path, recursive):
 @click.option('--part-bytes', default=int(1e8), help="Composite upload threshold in bytes. Splits a file into pieces for some cloud services like gs and s3.", show_default=True)
 @click.option('--no-sign-request', is_flag=True, default=False, help="Use s3 in anonymous mode (don't sign requests) for the source.", show_default=True)
 @click.option('--resumable', is_flag=True, default=False, help="http->file transfers will dowload to .part files while they are in progress.", show_default=True)
+@click.option('--flight-time', is_flag=True, default=False, help="Save a Gantt chart of the file transfer to the local directory.", show_default=True)
+@click.option('--io-rate', is_flag=True, default=False, help="Save a chart of bitrate estimated based on file sizes and transmission duration.", show_default=True)
+@click.option('--machine-io-rate', is_flag=True, default=False, help="Save a chart of bitrate based on 4 Hz sampling OS network counters for the entire machine.", show_default=True)
+@click.option('--machine-io-rate-buffer-sec', default=600, help="Circular buffer length in seconds. Only allocated if chart enabled. 1 sec = 96 bytes", show_default=True)
 @click.pass_context
 def cp(
   ctx, source, destination, 
   recursive, compression, progress, 
   block_size, part_bytes, no_sign_request,
-  resumable,
+  resumable, 
+  flight_time, io_rate, 
+  machine_io_rate, machine_io_rate_buffer_sec,
 ):
   """
   Copy one or more files from a source to destination.
@@ -196,19 +204,36 @@ def cp(
     print("cloudfiles: destination must be a directory for multiple source files.")
     return
 
+  network_sampler = None
+  if machine_io_rate:
+    network_sampler = IOSampler(
+      buffer_sec=machine_io_rate_buffer_sec,
+      interval=0.25,
+    )
+    network_sampler.start_sampling()
+
   for src in source:
     _cp_single(
       ctx, src, destination, recursive, 
       compression, progress, block_size, 
       part_bytes, no_sign_request,
-      resumable,
+      resumable, flight_time, io_rate,
     )
+
+  if machine_io_rate:
+    filename = f"./cloudfiles-cp-measured-io-{_timestamp()}.png"
+    network_sampler.stop_sampling()
+    network_sampler.plot_histogram(
+      resolution=1.0,
+      filename=filename,
+    )
+    print(f"Saved chart: {filename}")
 
 def _cp_single(
   ctx, source, destination, recursive, 
   compression, progress, block_size,
   part_bytes, no_sign_request,
-  resumable,
+  resumable, gantt, io_rate,
 ):
   use_stdin = (source == '-')
   use_stdout = (destination == '-')
@@ -281,7 +306,7 @@ def _cp_single(
       _cp(
         srcpath, destpath, compression,
         progress, block_size, part_bytes,
-        no_sign_request, resumable, xferpaths
+        no_sign_request, resumable, gantt, io_rate, xferpaths
       )
       return 
 
@@ -292,17 +317,22 @@ def _cp_single(
       pass
 
     if use_stdout:
-      fn = partial(_cp_stdout, srcpath, no_sign_request)
+      fn = partial(_cp_stdout, srcpath, no_sign_request, False, False)
     else:
       fn = partial(
         _cp, srcpath, destpath, compression, False, 
-        block_size, part_bytes, no_sign_request, resumable
+        block_size, part_bytes, no_sign_request, resumable, False, False,
       )
 
+    tms = []
     with tqdm(desc="Transferring", total=total, disable=(not progress)) as pbar:
       with pathos.pools.ProcessPool(parallel) as executor:
-        for _ in executor.imap(fn, sip(xferpaths, block_size)):
+        for tm in executor.imap(fn, sip(xferpaths, block_size)):
           pbar.update(block_size)
+          tms.append(tm)
+
+    tm = TransmissionMonitor.merge(tms)
+    del tms
   else:
     cfsrc = CloudFiles(srcpath, progress=progress, no_sign_request=no_sign_request)
     if not cfsrc.exists(xferpaths):
@@ -310,7 +340,7 @@ def _cp_single(
       return
 
     if use_stdout:
-      _cp_stdout(srcpath, xferpaths)
+      _cp_stdout(srcpath, no_sign_request, gantt, io_rate, xferpaths)
       return
 
     cfdest = CloudFiles(
@@ -324,31 +354,73 @@ def _cp_single(
     else:
       new_path = os.path.basename(ndest)
 
-    cfsrc.transfer_to(cfdest, paths=[{
+    tm = cfsrc.transfer_to(cfdest, paths=[{
       "path": xferpaths,
       "dest_path": new_path,
     }], reencode=compression, resumable=resumable)
 
+  ts = _timestamp()
+
+  if io_rate:
+    filename = f"./cloudfiles-cp-est-io-{ts}.png"
+    tm.plot_histogram(filename=filename)
+    print(f"Saved chart: {filename}")
+
+  if gantt:
+    filename = f"./cloudfiles-cp-flight-time-{ts}.png"
+    tm.plot_gantt(filename=filename)
+    print(f"Saved chart: {filename}")
+
 def _cp(
   src, dst, compression, progress, 
   block_size, part_bytes, 
-  no_sign_request, resumable, 
+  no_sign_request, resumable, gantt, io_rate,
   paths
 ):
   cfsrc = CloudFiles(src, progress=progress, composite_upload_threshold=part_bytes, no_sign_request=no_sign_request)
   cfdest = CloudFiles(dst, progress=progress, composite_upload_threshold=part_bytes)
-  cfsrc.transfer_to(
+  tm = cfsrc.transfer_to(
     cfdest, paths=paths, 
     reencode=compression, block_size=block_size,
     resumable=resumable,
   )
 
-def _cp_stdout(src, no_sign_request, paths):
+  ts = _timestamp()
+
+  if io_rate:
+    filename = f"./cloudfiles-cp-est-io-{ts}.png"
+    tm.plot_histogram(filename=filename)
+    print(f"Saved chart: {filename}")
+
+  if gantt:
+    filename = f"./cloudfiles-cp-flight-time-{ts}.png"
+    tm.plot_gantt(filename=filename)
+    print(f"Saved chart: {filename}")
+
+  return tm
+
+def _timestamp():
+  now = datetime.now(timezone.utc)
+  return now.strftime("%Y-%m-%d_%H-%M-%S.%f")[:-5] + "Z"
+
+def _cp_stdout(src, no_sign_request, gantt, io_rate, paths):
   paths = toiter(paths)
   cf = CloudFiles(src, progress=False, no_sign_request=no_sign_request)
-  for res in cf.get(paths):
+  results, tm = cf.get(paths, return_recording=True)
+
+  ts = _timestamp()
+
+  if io_rate:
+    tm.plot_histogram(filename=f"./cloudfiles-cp-est-io-{ts}.png")
+
+  if gantt:
+    tm.plot_gantt(filename=f"./cloudfiles-cp-flight-time-{ts}.png")
+
+  for res in results:
     content = res["content"].decode("utf8")
     sys.stdout.write(content)
+
+  return tm
 
 @main.command()
 @click.argument("source", nargs=-1)

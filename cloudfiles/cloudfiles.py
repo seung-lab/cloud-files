@@ -7,8 +7,9 @@ from typing import (
 
 from queue import Queue
 from collections import defaultdict
-from functools import partial, wraps
+from functools import partial, wraps, reduce
 import inspect
+import io
 import math
 import multiprocessing
 import itertools
@@ -18,6 +19,7 @@ import posixpath
 import re
 import shutil
 import types
+import time
 
 import orjson
 import pathos.pools
@@ -32,6 +34,7 @@ from .lib import (
   duplicates, first, sip, touch,
   md5, crc32c, decode_crc32c_b64
 )
+from .monitoring import TransmissionMonitor, IOEnum
 from .paths import ALIASES, find_common_buckets
 from .secrets import CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
@@ -154,25 +157,37 @@ def parallel_execute(
   multiprocessing.set_start_method("spawn", force=True)
 
   results = []
+  tms = []
   try: 
     with pathos.pools.ProcessPool(parallel) as executor:
       for res in executor.imap(fn, sip(inputs, block_size)):
-        if isinstance(res, int):
-          pbar.update(res)
-        elif isinstance(res, list):
-          pbar.update(len(res))
+        update = res
+        if isinstance(res, tuple):
+          update = res[0]
+
+        if isinstance(update, int):
+          pbar.update(update)
+        elif isinstance(update, list):
+          pbar.update(len(update))
         else:
           pbar.update(block_size)
 
         if returns_list:
-          results.extend(res)
+          if isinstance(res, tuple):
+            results.extend(res[0])
+            tms.append(res[1])
+          else:
+            results.extend(res)
   finally:  
     if platform.system().lower() == "darwin":
       os.environ["no_proxy"] = no_proxy
     pbar.close()
 
   if returns_list:
-    return results
+    if len(tms):
+      return (results, TransmissionMonitor.merge(tms))
+    else:
+      return results
 
 def get_interface_class(protocol):
   if protocol in INTERFACES:
@@ -366,11 +381,16 @@ class CloudFiles:
 
   @parallelize(desc="Download", returns_list=True)
   def get(
-    self, paths:GetPathType, total:Optional[int] = None, 
-    raw:bool = False, progress:Optional[bool] = None, 
+    self, 
+    paths:GetPathType, 
+    total:Optional[int] = None, 
+    raw:bool = False, 
+    progress:Optional[bool] = None, 
     parallel:Optional[ParallelType] = None,
-    return_dict:bool = False, raise_errors:bool = True,
-    part_size:Optional[int] = None
+    return_dict:bool = False, 
+    raise_errors:bool = True,
+    part_size:Optional[int] = None,
+    return_recording:bool = False,
   ) -> Union[dict,bytes,List[dict]]:
     """
     Download one or more files. Return order is not guaranteed to match input.
@@ -396,6 +416,10 @@ class CloudFiles:
       extra information. Errors will be raised immediately.
     raise_errors: Raise the first error immediately instead 
       of returning them as part of the output.
+    return_recording: Also return a TransmissionMonitor object that
+      records the start and end times and the transmitted size of 
+      each object (i.e. before decompression) stored in an interval 
+      tree. This enables post-hoc analysis of performance.
 
     Returns:
       if return_dict:
@@ -413,12 +437,18 @@ class CloudFiles:
             'raw': boolean,
           }
         ]
+
+      if return_recording:
+        return (ABOVE, TransmissionMonitor)
+      else:
+        return ABOVE
     """
     paths, multiple_return = toiter(paths, is_iter=True)
     progress = nvl(progress, self.progress)
     # return_dict prevents the user from having a chance
     # to inspect errors, so we must raise here.
     raise_errors = raise_errors or return_dict or (not multiple_return)
+    tm = TransmissionMonitor(IOEnum.RX)
 
     def check_md5(path, content, server_hash):
       if server_hash is None:
@@ -448,12 +478,17 @@ class CloudFiles:
       encoding = None
       server_hash = None
       server_hash_type = None
+      num_bytes_rx = 0
       try:
+        flight_id = tm.start_io(1)
+
         with self._get_connection() as conn:
           content, encoding, server_hash, server_hash_type = conn.get_file(
             path, start=start, end=end, part_size=part_size
           )
         
+        num_bytes_rx = len(content) if content is not None else 0
+
         # md5s don't match for partial reads
         if start is None and end is None:
           if server_hash_type == "md5":
@@ -465,6 +500,9 @@ class CloudFiles:
           content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
         error = err
+        tm.end_error(flight_id)
+
+      tm.end_io(flight_id, num_bytes_rx)
 
       if raise_errors and error:
         raise error
@@ -484,11 +522,16 @@ class CloudFiles:
     if total == 1:
       ret = download(first(paths))
       if return_dict:
-        return { ret["path"]: ret["content"] }
+        ret = { ret["path"]: ret["content"] }
       elif multiple_return:
-        return [ ret ]
+        ret = [ ret ]
       else:
-        return ret['content']
+        ret = ret['content']
+
+      if return_recording:
+        return (ret, tm)
+      else:
+        return ret
 
     num_threads = self.num_threads
     if self.protocol == "file":
@@ -504,10 +547,14 @@ class CloudFiles:
       green=self.green,
     )
 
+    ret = results
     if return_dict:
-      return { res["path"]: res["content"] for res in results }  
+      ret = { res["path"]: res["content"] for res in results }
 
-    return results
+    if return_recording:
+      return (ret, tm)
+
+    return ret
 
   def get_json(
     self, paths:GetPathType, total:Optional[int] = None
@@ -554,12 +601,19 @@ class CloudFiles:
 
   @parallelize(desc="Upload")
   def puts(
-    self, files:PutType, 
-    content_type:Optional[str] = None, compress:CompressType = None, 
-    compression_level:Optional[int] = None, cache_control:Optional[str] = None,
-    total:Optional[int] = None, raw:bool = False, progress:Optional[bool] = None,
-    parallel:ParallelType = 1, storage_class:Optional[str] = None
-  ) -> int:
+    self, 
+    files:PutType, 
+    content_type:Optional[str] = None,
+    compress:CompressType = None, 
+    compression_level:Optional[int] = None,
+    cache_control:Optional[str] = None,
+    total:Optional[int] = None,
+    raw:bool = False,
+    progress:Optional[bool] = None,
+    parallel:ParallelType = 1,
+    storage_class:Optional[str] = None,
+    return_recording:bool = False,
+  ) -> Union[int, tuple[int,TransmissionMonitor]]:
     """
     Writes one or more files at a given location.
 
@@ -594,11 +648,22 @@ class CloudFiles:
       function call. If progress is a string, it sets the 
       text of the progress bar.
     parallel: number of concurrent processes (0 means all cores)
+    return_recording: Also return a TransmissionMonitor object that
+      records the start and end times and the transmitted size of 
+      each object (i.e. before decompression) stored in an interval 
+      tree. This enables post-hoc analysis of performance.
 
-    Returns: number of files uploaded
+    Returns: 
+      N = number of files uploaded
+      tm = TransmissionMonitor
+      if return_recording:
+        return (N, tm)
+      else:
+        return N
     """
     files = toiter(files)
     progress = nvl(progress, self.progress)
+    tm = TransmissionMonitor(IOEnum.TX)
 
     def todict(file):
       if isinstance(file, tuple):
@@ -606,6 +671,7 @@ class CloudFiles:
       return file
 
     def uploadfn(file):
+      start_time = time.monotonic()
       file = todict(file)
 
       file_compress = file.get('compress', compress)
@@ -620,11 +686,19 @@ class CloudFiles:
           compress_level=file.get('compression_level', compression_level),
         )
 
+      num_bytes_tx = 0
+      if hasattr(content, "__len__"):
+        num_bytes_tx = len(content)
+      elif isinstance(content, io.IOBase):
+        num_bytes_tx = os.fstat(content.fileno()).st_size
+
+      flight_id = tm.start_io(num_bytes_tx, start_time)
+
       if (
         self.protocol == "gs" 
         and (
           (hasattr(content, "read") and hasattr(content, "seek"))
-          or (hasattr(content, "__len__") and len(content) > self.composite_upload_threshold)
+          or (num_bytes_tx > self.composite_upload_threshold)
         )
       ):
         gcs.composite_upload(
@@ -651,6 +725,8 @@ class CloudFiles:
           storage_class=file.get('storage_class', storage_class)
         )
 
+      tm.end_io(flight_id, num_bytes_tx)
+
     if not isinstance(files, (types.GeneratorType, zip)):
       dupes = duplicates([ todict(file)['path'] for file in files ])
       if dupes:
@@ -660,7 +736,10 @@ class CloudFiles:
 
     if total == 1:
       uploadfn(first(files))
-      return 1
+      if return_recording:
+        return (1,tm)
+      else:
+        return 1
 
     fns = ( partial(uploadfn, file) for file in files )
     desc = self._progress_description("Upload")
@@ -671,7 +750,11 @@ class CloudFiles:
       total=total,
       green=self.green,
     )
-    return len(results)
+
+    if return_recording:
+      return (len(results), tm)
+    else:
+      return len(results)
 
   def put(
     self, 
@@ -709,9 +792,13 @@ class CloudFiles:
     self, files:PutType,     
     compress:CompressType = None, 
     compression_level:Optional[int] = None, 
-    cache_control:Optional[str] = None, total:Optional[int] = None,
-    raw:bool = False, progress:Optional[bool] = None, parallel:ParallelType = 1,
-    storage_class:Optional[str] = None
+    cache_control:Optional[str] = None, 
+    total:Optional[int] = None,
+    raw:bool = False, 
+    progress:Optional[bool] = None, 
+    parallel:ParallelType = 1,
+    storage_class:Optional[str] = None, 
+    return_recording:bool = False,
   ) -> int:
     """
     Write one or more files as JSON.
@@ -740,7 +827,7 @@ class CloudFiles:
       compress=compress, compression_level=compression_level,
       content_type='application/json', storage_class=storage_class,
       total=total, raw=raw,
-      progress=progress, parallel=parallel
+      progress=progress, parallel=parallel, return_recording=return_recording,
     )
 
   def put_json(
@@ -1051,7 +1138,7 @@ class CloudFiles:
     allow_missing:bool = False,
     progress:Optional[bool] = None,
     resumable:bool = False,
-  ) -> None:
+  ) -> TransmissionMonitor:
     """
     Transfer all files from this CloudFiles storage 
     to the destination CloudFiles in batches sized 
@@ -1114,7 +1201,7 @@ class CloudFiles:
     allow_missing:bool = False,
     progress:Optional[bool] = None,
     resumable:bool = False,
-  ) -> None:
+  ) -> TransmissionMonitor:
     """
     Transfer all files from the source CloudFiles storage 
     to this CloudFiles in batches sized in the 
@@ -1178,7 +1265,7 @@ class CloudFiles:
         and self.protocol == "file"
         and reencode is None
       ):
-        self.__transfer_file_to_file(
+        return self.__transfer_file_to_file(
           cf_src, self, paths, total, 
           pbar, block_size, allow_missing
         )
@@ -1187,7 +1274,7 @@ class CloudFiles:
         and self.protocol == "file"
         and reencode is None
       ):
-        self.__transfer_remote_to_file(
+        return self.__transfer_remote_to_file(
           cf_src, self, paths, total, 
           pbar, block_size, content_type,
           allow_missing, resumable,
@@ -1197,7 +1284,7 @@ class CloudFiles:
         and self.protocol != "file"
         and reencode is None
       ):
-        self.__transfer_file_to_remote(
+        return self.__transfer_file_to_remote(
           cf_src, self, paths, total, 
           pbar, block_size, content_type,
           allow_missing,
@@ -1213,13 +1300,13 @@ class CloudFiles:
         )
         and reencode is None
       ):
-        self.__transfer_cloud_internal(
+        return self.__transfer_cloud_internal(
           cf_src, self, paths, 
           total, pbar, block_size, 
           allow_missing,
         )
       else:
-        self.__transfer_general(
+        return self.__transfer_general(
           cf_src, self, paths, total, 
           pbar, block_size, 
           reencode, content_type, 
@@ -1231,7 +1318,7 @@ class CloudFiles:
     total, pbar, block_size,
     reencode, content_type, 
     allow_missing
-  ):
+  ) -> TransmissionMonitor:
     """
     Downloads the file into RAM, transforms
     the data, and uploads it. This is the slowest and
@@ -1240,6 +1327,7 @@ class CloudFiles:
     pair of endpoints as well as transcoding compression
     formats.
     """
+    upload_tms = []
     for block_paths in sip(paths, block_size):
       for path in block_paths:
         if isinstance(path, dict):
@@ -1263,26 +1351,32 @@ class CloudFiles:
             item["path"] = item["tags"]["dest_path"]
             del item["tags"]["dest_path"]
           yield item
-      self.puts(
+      (ct, batch_tm) = self.puts(
         renameiter(), 
         raw=True, 
         progress=False, 
         compress=reencode,
         content_type=content_type,
+        return_recording=True,
       )
       pbar.update(len(block_paths))
+      upload_tms.append(batch_tm)
+    
+    return TransmissionMonitor.merge(upload_tms)
 
   def __transfer_file_to_file(
     self, cf_src, cf_dest, paths, 
     total, pbar, block_size, allow_missing
-  ):
+  ) -> TransmissionMonitor:
     """
     shutil.copyfile, starting in Python 3.8, uses
     special OS kernel functions to accelerate file copies
     """
+    tm = TransmissionMonitor(IOEnum.TX)
     srcdir = cf_src.cloudpath.replace("file://", "")
     destdir = mkdir(cf_dest.cloudpath.replace("file://", ""))
     for path in paths:
+      start_time = time.monotonic()
       if isinstance(path, dict):
         src = os.path.join(srcdir, path["path"])
         dest = os.path.join(destdir, path["dest_path"])
@@ -1296,6 +1390,15 @@ class CloudFiles:
       if dest_ext_compress != dest_ext:
         dest += dest_ext_compress
 
+      num_bytes_tx = 0
+      try:
+        if src:
+          num_bytes_tx = os.path.getsize(src)
+      except FileNotFoundError:
+        pass
+
+      flight_id = tm.start_io(num_bytes_tx, start_time)
+
       try:
         shutil.copyfile(src, dest) # avoids user space
       except FileNotFoundError:
@@ -1303,16 +1406,26 @@ class CloudFiles:
           with open(dest, "wb") as f:
             f.write(b'')
         else:
+          tm.end_error(flight_id)
           raise
+      finally:
+        tm.end_io(flight_id, num_bytes_tx)
 
       pbar.update(1)
+
+    return tm
 
   def __transfer_remote_to_file(
     self, cf_src, cf_dest, paths, 
     total, pbar, block_size, content_type,
     allow_missing, resumable,
-  ):
+  ) -> TransmissionMonitor:
+
+    tm = TransmissionMonitor(IOEnum.RX)
+
     def thunk_save(key):
+      nonlocal tm
+      flight_id = tm.start_io(1)
       with cf_src._get_connection() as conn:
         if isinstance(key, dict):
           dest_key = key.get("dest_path", key["path"])
@@ -1322,14 +1435,17 @@ class CloudFiles:
           dest_key = key
 
         dest_key = os.path.join(cf_dest._path.path, dest_key)
-        found = conn.save_file(src_key, dest_key, resumable=resumable)
+        (found, num_bytes_rx) = conn.save_file(src_key, dest_key, resumable=resumable)
+
+      tm.end_io(flight_id, num_bytes_rx)
 
       if found == False and not allow_missing:
+        tm.end_error(flight_id)
         raise FileNotFoundError(src_key)
 
       return int(found)
 
-    results = schedule_jobs(
+    schedule_jobs(
       fns=( partial(thunk_save, path) for path in paths ),
       progress=pbar,
       concurrency=self.num_threads,
@@ -1337,7 +1453,7 @@ class CloudFiles:
       green=self.green,
       count_return=True,
     )
-    return len(results)
+    return tm
 
   def __transfer_file_to_remote(
     self, cf_src, cf_dest, paths, 
@@ -1349,6 +1465,7 @@ class CloudFiles:
     so that GCS and S3 can do low-memory chunked multi-part 
     uploads if necessary.
     """
+    tms = []
     srcdir = cf_src.cloudpath.replace("file://", "")
     for block_paths in sip(paths, block_size):
       to_upload = []
@@ -1379,12 +1496,21 @@ class CloudFiles:
           "content": handle,
           "compress": encoding,
         })
-      cf_dest.puts(to_upload, raw=True, progress=False, content_type=content_type)
+      (ct, batch_tm) = cf_dest.puts(
+        to_upload,
+        raw=True, 
+        progress=False, 
+        content_type=content_type,
+        return_recording=True,
+      )
       for item in to_upload:
         handle = item["content"]
         if hasattr(handle, "close"):
           handle.close()
+      tms.append(batch_tm)
       pbar.update(len(block_paths))
+
+    return TransmissionMonitor.merge(tms)
 
   def __transfer_cloud_internal(
     self, cf_src, cf_dest, paths, 
@@ -1398,7 +1524,11 @@ class CloudFiles:
     of the cloud, this is much slower and more expensive
     than necessary.
     """
+    tm = TransmissionMonitor(IOEnum.TX)
+
     def thunk_copy(key):
+      nonlocal tm
+      flight_id = tm.start_io(1)
       with cf_src._get_connection() as conn:
         if isinstance(key, dict):
           dest_key = key.get("dest_path", key["path"])
@@ -1408,14 +1538,17 @@ class CloudFiles:
           dest_key = key
 
         dest_key = posixpath.join(cf_dest._path.path, dest_key)
-        found = conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
+        (found, num_bytes_tx) = conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
+
+      tm.end_io(flight_id, num_bytes_tx)
 
       if found == False and not allow_missing:
+        tm.end_error(flight_id)
         raise FileNotFoundError(src_key)
 
       return int(found)
 
-    results = schedule_jobs(
+    schedule_jobs(
       fns=( partial(thunk_copy, path) for path in paths ),
       progress=pbar,
       concurrency=self.num_threads,
@@ -1423,7 +1556,7 @@ class CloudFiles:
       green=self.green,
       count_return=True,
     )
-    return len(results)
+    return tm
 
   def move(self, src:str, dest:str):
     """Move (rename) src to dest.
@@ -1532,6 +1665,16 @@ class CloudFiles:
     if self._path.protocol == "file":
       return os.path.join(*paths)
     return posixpath.join(*paths)
+
+  def dirname(self, path:str) -> str:
+    if self._path.protocol == "file":
+      return os.path.dirname(path)
+    return posixpath.dirname(path)
+
+  def basename(self, path:str) -> str:
+    if self._path.protocol == "file":
+      return os.path.basename(path)
+    return posixpath.basename(path)  
 
   def __getitem__(self, key) -> Union[dict,bytes,List[dict]]:
     if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice) and isinstance(key[0], str):
@@ -1698,6 +1841,12 @@ class CloudFile:
 
   def join(self, *args):
     return self.cf.join(*args)
+
+  def dirname(self, *args):
+    return self.cf.dirname(*args)
+
+  def basename(self, *args):
+    return self.cf.basename(*args)
 
   def touch(self):
     return self.cf.touch(self.filename)

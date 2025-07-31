@@ -467,7 +467,7 @@ class MemoryInterface(StorageInterface):
       result = result[slice(start, end)]
     return (result, encoding, None, None)
 
-  def save_file(self, src, dest, resumable):
+  def save_file(self, src, dest, resumable) -> tuple[bool,int]:
     key = self.get_path_to_file(src)
     with EXT_TEST_SEQUENCE_LOCK:
       exts = list(EXT_TEST_SEQUENCE)
@@ -489,9 +489,9 @@ class MemoryInterface(StorageInterface):
       with open(dest + true_ext, "wb") as f:
         f.write(self._data[path])
     except KeyError:
-      return False
+      return (False, 0)
 
-    return True
+    return (True, len(self._data[path]))
 
   def head(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -541,13 +541,13 @@ class MemoryInterface(StorageInterface):
 
     return None
 
-  def copy_file(self, src_path, dest_bucket, dest_key):
+  def copy_file(self, src_path, dest_bucket, dest_key) -> tuple[bool,int]:
     key = self.get_path_to_file(src_path)
     with MEM_BUCKET_POOL_LOCK:
      pool = MEM_POOL[MemoryPoolParams(dest_bucket)]
     dest_bucket = pool.get_connection(None, None)
     dest_bucket[dest_key] = self._data[key]
-    return True
+    return (True, len(self._data[key]))
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -662,7 +662,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     blob.upload_from_string(content, content_type)
 
   @retry
-  def copy_file(self, src_path, dest_bucket, dest_key):
+  def copy_file(self, src_path, dest_bucket, dest_key) -> tuple[bool,int]:
     key = self.get_path_to_file(src_path)
     source_blob = self._bucket.blob( key )
     with GCS_BUCKET_POOL_LOCK:
@@ -670,13 +670,13 @@ class GoogleCloudStorageInterface(StorageInterface):
     dest_bucket = pool.get_connection(self._secrets, None)
 
     try:
-      self._bucket.copy_blob(
+      blob = self._bucket.copy_blob(
         source_blob, dest_bucket, dest_key
       )
     except google.api_core.exceptions.NotFound:
-      return False
+      return (False, 0)
 
-    return True
+    return (True, blob.size)
 
   @retry_if_not(google.cloud.exceptions.NotFound)
   def get_file(self, file_path, start=None, end=None, part_size=None):
@@ -703,7 +703,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     return (content, blob.content_encoding, hash_value, hash_type)
 
   @retry
-  def save_file(self, src, dest, resumable):
+  def save_file(self, src, dest, resumable) -> tuple[bool, int]:
     key = self.get_path_to_file(src)
     blob = self._bucket.blob(key)
     try:
@@ -714,13 +714,15 @@ class GoogleCloudStorageInterface(StorageInterface):
         checksum=None
       )
     except google.cloud.exceptions.NotFound:
-      return False
+      return (False, 0)
+
+    num_bytes = os.path.getsize(dest)
 
     ext = FileInterface.get_extension(blob.content_encoding)
     if not dest.endswith(ext):
       os.rename(dest, dest + ext)
 
-    return True
+    return (True, num_bytes)
 
   @retry_if_not(google.cloud.exceptions.NotFound)
   def head(self, file_path):
@@ -927,7 +929,7 @@ class HttpInterface(StorageInterface):
     return (resp.content, content_encoding, None, None)
 
   @retry
-  def save_file(self, src, dest, resumable):
+  def save_file(self, src, dest, resumable) -> tuple[bool, int]:
     key = self.get_path_to_file(src)
 
     headers = self.head(src)
@@ -948,20 +950,23 @@ class HttpInterface(StorageInterface):
     if resumable and os.path.exists(partname):
       downloaded_size = os.path.getsize(partname)        
 
+    streamed_bytes = 0
+
     range_headers = { "Range": f"bytes={downloaded_size}-" }
     with self.session.get(key, headers=range_headers, stream=True) as resp:
       if resp.status_code not in [200, 206]:
         resp.raise_for_status()
-        return False
+        return (False, 0)
 
       with open(partname, 'ab') as f:
         for chunk in resp.iter_content(chunk_size=int(10e6)):
           f.write(chunk)
+          streamed_bytes += len(chunk)
 
     if resumable:
       os.rename(partname, fulldest)
 
-    return True
+    return (True, streamed_bytes)
 
   @retry
   def exists(self, file_path):
@@ -1166,10 +1171,7 @@ class S3Interface(StorageInterface):
     is_file_handle = hasattr(content, "read") and hasattr(content, "seek")
 
     if is_file_handle:
-      file_bytes_offset = content.tell()
-      content.seek(0, os.SEEK_END)
-      content_length = content.tell() - file_bytes_offset
-      content.seek(file_bytes_offset)
+      content_length = os.fstat(content.fileno()).st_size
     else:
       content_length = len(content)
 
@@ -1208,7 +1210,7 @@ class S3Interface(StorageInterface):
       self._conn.put_object(**attrs)
 
   @retry
-  def copy_file(self, src_path, dest_bucket_name, dest_key):
+  def copy_file(self, src_path, dest_bucket_name, dest_key) -> tuple[bool,int]:
     key = self.get_path_to_file(src_path)
     s3client = self._get_bucket(dest_bucket_name)
     copy_source = {
@@ -1216,7 +1218,7 @@ class S3Interface(StorageInterface):
       'Key': key,
     }
     try:
-      s3client.copy_object(
+      response = s3client.copy_object(
           CopySource=copy_source,
           Bucket=dest_bucket_name,
           Key=dest_key,
@@ -1224,11 +1226,16 @@ class S3Interface(StorageInterface):
       )
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] in ('NoSuchKey', '404'):
-        return False
+        return (False, 0)
       else:
         raise
 
-    return True
+    try:
+      num_bytes = int(response["ResponseMetadata"]["HTTPHeaders"]["content-length"])
+    except KeyError:
+      num_bytes = 0
+
+    return (True, num_bytes)
 
   @retry
   def get_file(self, file_path, start=None, end=None, part_size=None):
@@ -1289,14 +1296,14 @@ class S3Interface(StorageInterface):
         raise
 
   @retry
-  def save_file(self, src, dest, resumable):
+  def save_file(self, src, dest, resumable) -> tuple[bool,int]:
     key = self.get_path_to_file(src)
     kwargs = self._additional_attrs.copy()
 
     resp = self.head(src)
 
     if resp is None:
-      return False
+      return (False, 0)
 
     mkdir(os.path.dirname(dest))
 
@@ -1319,11 +1326,12 @@ class S3Interface(StorageInterface):
       )
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] in ('NoSuchKey', '404'):
-        return False
+        return (False, 0)
       else:
         raise
 
-    return True
+    num_bytes = os.path.getsize(dest)
+    return (True, num_bytes)
 
   @retry
   def head(self, file_path):

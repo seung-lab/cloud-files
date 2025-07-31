@@ -4,6 +4,13 @@ import re
 import shutil
 import time
 
+
+import uuid
+from typing import Optional
+from unittest.mock import patch, MagicMock
+import numpy as np
+from cloudfiles.monitoring import TransmissionMonitor, IOSampler, IOEnum
+
 from moto import mock_aws
 
 COMPRESSION_TYPES = [ 
@@ -1259,3 +1266,117 @@ def test_touch(s3, protocol):
   cf.touch([ str(i) for i in range(20) ])
 
   assert sorted(list(cf)) == sorted([ str(i) for i in range(20) ])
+
+class TestTransmissionMonitor:
+  @pytest.fixture
+  def tx_monitor(self):
+    return TransmissionMonitor(IOEnum.TX)
+  
+  @pytest.fixture
+  def rx_monitor(self):
+    return TransmissionMonitor(IOEnum.RX)
+  
+  def test_init(self, tx_monitor):
+    assert tx_monitor._direction == IOEnum.TX
+    assert tx_monitor._total_bytes_landed == 0
+    assert len(tx_monitor._in_flight) == 0
+    assert len(tx_monitor._errors) == 0
+    assert tx_monitor._in_flight_bytes == 0
+    
+  def test_start_io(self, tx_monitor):
+    flight_id = tx_monitor.start_io(100)
+    assert isinstance(flight_id, uuid.UUID)
+    assert len(tx_monitor._in_flight) == 1
+    assert tx_monitor._in_flight_bytes == 100
+    
+  def test_end_io(self, tx_monitor):
+    flight_id = tx_monitor.start_io(100)
+    time.sleep(0.01) 
+    tx_monitor.end_io(flight_id, 100)
+    
+    assert len(tx_monitor._in_flight) == 0
+    assert tx_monitor._in_flight_bytes == 0
+    assert tx_monitor._total_bytes_landed == 100
+    assert len(tx_monitor._intervaltree) == 1
+    
+  def test_end_error(self, tx_monitor):
+    flight_id = tx_monitor.start_io(100)
+    tx_monitor.end_error(flight_id)
+    
+    assert flight_id in tx_monitor._errors
+    assert len(tx_monitor._in_flight) == 1  # Still in flight
+    
+  def test_total_bytes(self, tx_monitor):
+    flight_id1 = tx_monitor.start_io(100)
+    flight_id2 = tx_monitor.start_io(200)
+    tx_monitor.end_io(flight_id1, 100)
+    tx_monitor.end_io(flight_id2, 200)
+    
+    assert tx_monitor.total_bytes() == 300
+    
+  def test_total_bps(self, tx_monitor):
+    flight_id = tx_monitor.start_io(100)
+    time.sleep(1.0)
+    tx_monitor.end_io(flight_id, 100)
+    
+    bps = tx_monitor.total_bps()
+    assert pytest.approx(bps, rel=0.1) == 800  # 100 bytes * 8 bits/byte / 1 sec
+    
+  def test_current_bps(self, tx_monitor):
+    # Test with lookback window
+    flight_id = tx_monitor.start_io(100)
+    time.sleep(1.0)
+    tx_monitor.end_io(flight_id, 100)
+    
+    bps = tx_monitor.current_bps(look_back_sec=0.5)
+    assert bps > 0
+    
+  def test_peak_bps(self, tx_monitor):
+    flight_id1 = tx_monitor.start_io(100)
+    time.sleep(0.5)
+    tx_monitor.end_io(flight_id1, 100)
+    
+    flight_id2 = tx_monitor.start_io(200)
+    time.sleep(0.5)
+    tx_monitor.end_io(flight_id2, 200)
+    
+    peak = tx_monitor.peak_bps()
+    assert peak > 0
+    
+  def test_histogram(self, tx_monitor):
+    flight_id = tx_monitor.start_io(100)
+    time.sleep(1.0)
+    tx_monitor.end_io(flight_id, 100)
+    
+    hist = tx_monitor.histogram(resolution=1.0)
+    assert len(hist) > 0
+    assert np.sum(hist) == 100
+    
+  def test_merge(self, tx_monitor):
+    monitor1 = TransmissionMonitor(IOEnum.TX)
+    monitor2 = TransmissionMonitor(IOEnum.TX)
+    
+    flight_id1 = monitor1.start_io(100)
+    time.sleep(0.1)
+    monitor1.end_io(flight_id1, 100)
+    
+    flight_id2 = monitor2.start_io(200)
+    time.sleep(0.1)
+    monitor2.end_io(flight_id2, 200)
+    
+    merged = TransmissionMonitor.merge([monitor1, monitor2])
+    
+    assert merged.total_bytes() == 300
+    assert len(merged._intervaltree) == 2
+  
+  def test_serialization(self, tx_monitor):
+    flight_id = tx_monitor.start_io(100)
+    time.sleep(0.1)
+    tx_monitor.end_io(flight_id, 100)
+    
+    import pickle
+    data = pickle.dumps(tx_monitor)
+    new_monitor = pickle.loads(data)
+    
+    assert new_monitor.total_bytes() == 100
+    assert hasattr(new_monitor, '_lock')

@@ -9,6 +9,7 @@ google-auth>=1.10.0
 google-cloud-core>=1.1.0
 google-cloud-storage>=1.31.1
 google-crc32c>=1.0.0
+intervaltree
 orjson
 pathos
 protobuf>=3.3.0
