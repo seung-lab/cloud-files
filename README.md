@@ -519,14 +519,13 @@ from cloudfiles import CloudFiles
 
 ... 
 
-results, tm = cf.get([ ... some files ... ])
+results, tm = cf.get([ ... some files ... ], return_recording=True)
 
-tm.peak_Mbps() # estimated peak transfer rate
-tm.total_Mbps() # estimated average transfer rate
+value = tm.peak_Mbps() # estimated peak transfer rate
+value = tm.total_Mbps() # estimated average transfer rate
 tm.plot_gantt() # time of flight chart
 tm.plot_histogram() # transfer rate chart
 ```
-
 
 A second object, `IOSampler`, can sample the OS network counters using a background thread and provides a global view of the machine's network performance during the life of the transfer. It is enabled on the CLI for the `cp` command when the `--machine-io-rate` flag is enabled, but must be manually started programatically. This is to avoid accidentally starting unnecessary sampling threads. The samples are accumulated into a circular buffer, so make sure to set the buffer length long enough for your points of interest to be captured.
 
@@ -542,7 +541,6 @@ sampler.start_sampling()
 sampler.stop_sampling()
 sampler.plot_histogram()
 ```
-
 
 ## Credits
 
