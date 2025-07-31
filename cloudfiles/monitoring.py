@@ -156,24 +156,35 @@ class TransmissionMonitor:
       all_end = int(np.ceil(self._intervaltree.end() / 1e6))
 
       num_bins = int(np.ceil((all_end - all_begin) / resolution))
-      bins = np.zeros([ num_bins ], dtype=np.uint32)
+      bins = np.zeros([ num_bins ], dtype=np.float64)
 
       for interval in self._intervaltree:
         begin = interval.begin / 1e6
         end = interval.end / 1e6
+        duration = end - begin
+        total_bytes = interval.data[1]
+        
+        first_bin = int((begin - all_begin) / resolution)
+        last_bin = int((end - all_begin) / resolution)
 
-        elapsed = (interval.end - interval.begin) / 1e6
-
-        if elapsed < resolution:
-          num_bytes_per_bin = interval.data[1]
+        if first_bin == last_bin:
+          bins[first_bin] += total_bytes
         else:
-          num_bytes_per_bin = round(interval.data[1] / np.ceil(elapsed / resolution))
+          bin_start = all_begin + first_bin * resolution
+          bin_end = all_begin + last_bin * resolution
 
-        bin_start = int((begin - all_begin) / resolution)
-        bin_end = int((end - all_begin) / resolution)
-        bins[bin_start:bin_end+1] += num_bytes_per_bin
+          first_bin_coverage = (bin_start + resolution) - begin
+          bins[first_bin] += total_bytes * (first_bin_coverage / duration)
 
-    return bins
+          last_bin_coverage = end - bin_end
+          bins[last_bin] += total_bytes * (last_bin_coverage / duration)
+
+          full_bins_count = last_bin - first_bin - 1
+          if full_bins_count > 0:
+              per_bin_bytes = total_bytes * (resolution / duration)
+              bins[first_bin+1:last_bin] += per_bin_bytes
+
+    return bins.astype(np.uint32)
 
   def plot_histogram(self, resolution:float = 1.0, filename:Optional[str] = None) -> None:
     """
