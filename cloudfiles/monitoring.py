@@ -181,7 +181,6 @@ class TransmissionMonitor:
     per a unit time. Resolution is specified in seconds.
     """
     import matplotlib.pyplot as plt
-    bins = self.histogram(resolution)
 
     xfer = self.histogram(resolution) * 8
     xfer = xfer.astype(np.float32)
