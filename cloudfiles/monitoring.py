@@ -184,7 +184,7 @@ class TransmissionMonitor:
               per_bin_bytes = total_bytes * (resolution / duration)
               bins[first_bin+1:last_bin] += per_bin_bytes
 
-    return bins.astype(np.uint32)
+    return bins.round().astype(np.uint32)
 
   def plot_histogram(self, resolution:float = 1.0, filename:Optional[str] = None) -> None:
     """
