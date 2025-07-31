@@ -446,9 +446,9 @@ cloudfiles cp -c none s3://bkt/file.txt gs://bkt2/
 # save chart of file flight times
 cloudfiles cp --flight-time s3://bkt/file.txt gs://bkt2/
 # save a chart of estimated bandwidth usage from these files alone
-cloudfiles cp --io-chart s3://bkt/file.txt gs://bkt2/
+cloudfiles cp --io-rate s3://bkt/file.txt gs://bkt2/
 # save a chart of measured bandwidth usage for the machine
-cloudfiles cp --machine-io-chart s3://bkt/file.txt gs://bkt2/
+cloudfiles cp --machine-io-rate s3://bkt/file.txt gs://bkt2/
 # move or rename files
 cloudfiles mv s3://bkt/file.txt gs://bkt2/
 # create an empty file if not existing
@@ -528,7 +528,7 @@ tm.plot_histogram() # transfer rate chart
 ```
 
 
-A second object, `IOSampler`, can sample the OS network counters using a background thread and provides a global view of the machine's network performance during the life of the transfer. It is enabled on the CLI for the `cp` command when the `--machine-io-chart` flag is enabled, but must be manually started programatically. This is to avoid accidentally starting unnecessary sampling threads. The samples are accumulated into a circular buffer, so make sure to set the buffer length long enough for your points of interest to be captured.
+A second object, `IOSampler`, can sample the OS network counters using a background thread and provides a global view of the machine's network performance during the life of the transfer. It is enabled on the CLI for the `cp` command when the `--machine-io-rate` flag is enabled, but must be manually started programatically. This is to avoid accidentally starting unnecessary sampling threads. The samples are accumulated into a circular buffer, so make sure to set the buffer length long enough for your points of interest to be captured.
 
 ```python
 from cloudfiles.monitoring import IOSampler
