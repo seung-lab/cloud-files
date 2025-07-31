@@ -269,7 +269,10 @@ class TransmissionMonitor:
 
     fig, ax = plt.subplots(figsize=(10, 5))
 
-    norm = colors.Normalize(vmin=min_file_size, vmax=max_file_size)
+    if max_file_size == min_file_size:
+      norm = colors.Normalize(vmin=0, vmax=max_file_size*1.1)
+    else:
+      norm = colors.Normalize(vmin=min_file_size, vmax=max_file_size)
     cmap = plt.cm.viridis
 
     def human_readable_bytes(x:int) -> str:
