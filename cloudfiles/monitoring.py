@@ -378,6 +378,11 @@ class IOSampler:
     buffer_sec:float = 600.0, 
     interval:float = 0.25
   ):
+    if buffer_sec <= 0 or interval <= 0:
+      raise ValueError(
+        f"Buffer and interval must be positive. buffer sec: {buffer_sec}, interval: {interval}"
+      )
+
     self._terminate = threading.Event()
     self._thread = None
     self._interval = interval
