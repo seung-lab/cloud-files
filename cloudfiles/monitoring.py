@@ -151,6 +151,13 @@ class TransmissionMonitor:
     return np.max(self.histogram(resolution=1.0)) * 8
 
   def histogram(self, resolution:float = 1.0) -> npt.NDArray[np.uint32]:
+
+    if resolution <= 0:
+      raise ValueError(f"Resolution must be positive. Got: {resolution}")
+
+    if not self._intervaltree:
+      return np.array([], dtype=np.uint32)
+
     with self._lock:
       all_begin = int(np.floor(self._intervaltree.begin() / 1e6))
       all_end = int(np.ceil(self._intervaltree.end() / 1e6))
