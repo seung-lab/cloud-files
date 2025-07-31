@@ -478,6 +478,7 @@ class CloudFiles:
       encoding = None
       server_hash = None
       server_hash_type = None
+      num_bytes_rx = 0
       try:
         flight_id = tm.start_io(1)
 
@@ -499,11 +500,12 @@ class CloudFiles:
           content = compression.decompress(content, encoding, filename=path)
       except Exception as err:
         error = err
+        tm.end_error(flight_id)
+
+      tm.end_io(flight_id, num_bytes_rx)
 
       if raise_errors and error:
         raise error
-
-      tm.end_io(flight_id, num_bytes_rx)
 
       return { 
         'path': path, 
@@ -1404,6 +1406,7 @@ class CloudFiles:
           with open(dest, "wb") as f:
             f.write(b'')
         else:
+          tm.end_error(flight_id)
           raise
       finally:
         tm.end_io(flight_id, num_bytes_tx)
@@ -1434,10 +1437,11 @@ class CloudFiles:
         dest_key = os.path.join(cf_dest._path.path, dest_key)
         (found, num_bytes_rx) = conn.save_file(src_key, dest_key, resumable=resumable)
 
-      if found == False and not allow_missing:
-        raise FileNotFoundError(src_key)
-
       tm.end_io(flight_id, num_bytes_rx)
+      
+      if found == False and not allow_missing:
+        tm.end_error(flight_id)
+        raise FileNotFoundError(src_key)
 
       return int(found)
 
@@ -1536,10 +1540,11 @@ class CloudFiles:
         dest_key = posixpath.join(cf_dest._path.path, dest_key)
         (found, num_bytes_tx) = conn.copy_file(src_key, cf_dest._path.bucket, dest_key)
 
-      if found == False and not allow_missing:
-        raise FileNotFoundError(src_key)
-
       tm.end_io(flight_id, num_bytes_tx)
+
+      if found == False and not allow_missing:
+        tm.end_error(flight_id)
+        raise FileNotFoundError(src_key)
 
       return int(found)
 

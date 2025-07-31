@@ -21,6 +21,7 @@ class TransmissionMonitor:
     self._lock = threading.Lock()
     self._total_bytes_landed = 0
     self._in_flight = {}
+    self._errors = set()
     
     # NOTE: _in_flight_bytes doesn't work for downloads b/c we are not
     # requesting the size of the file up front to avoid perf impact.
@@ -52,6 +53,10 @@ class TransmissionMonitor:
       self._in_flight_bytes += num_bytes
     return flight_id
 
+  def end_error(self, flight_id:uuid.UUID) -> None:
+    with self._lock:
+      self._errors.add(flight_id)
+
   def end_io(self, flight_id:uuid.UUID, num_bytes:int) -> None:
     """Add a new value to the interval set."""
     end_us = int(time.time() * 1e6)
@@ -59,7 +64,7 @@ class TransmissionMonitor:
     with self._lock:
       start_us = int(self._in_flight.pop(flight_id) * 1e6)
       self._in_flight_bytes -= num_bytes    
-      self._intervaltree.addi(start_us, end_us, num_bytes)
+      self._intervaltree.addi(start_us, end_us, [flight_id, num_bytes])
       self._total_bytes_landed += num_bytes
 
   def total_bps(self) -> float:
@@ -74,7 +79,7 @@ class TransmissionMonitor:
     num_bytes = 0
     with self._lock:
       for interval in self._intervaltree:
-        num_bytes += interval.data
+        num_bytes += interval.data[1]
     return num_bytes
 
   def current_bps(self, look_back_sec:float = 2.0) -> float:
@@ -93,10 +98,10 @@ class TransmissionMonitor:
     num_bytes = 0
     for interval in lookback_intervals:
       if interval.begin > query_us:
-        num_bytes += interval.data
+        num_bytes += interval.data[1]
       else:
         adjustment_factor = (interval.end - query_us) / (interval.end - interval.begin)
-        num_bytes += int(round(interval.data * adjustment_factor))
+        num_bytes += int(round(interval.data[1] * adjustment_factor))
 
     window_us = min(look_back_us, now_us - begin_us)
 
@@ -160,9 +165,9 @@ class TransmissionMonitor:
         elapsed = (interval.end - interval.begin) / 1e6
 
         if elapsed < resolution:
-          num_bytes_per_bin = interval.data
+          num_bytes_per_bin = interval.data[1]
         else:
-          num_bytes_per_bin = round(interval.data / np.ceil(elapsed / resolution))
+          num_bytes_per_bin = round(interval.data[1] / np.ceil(elapsed / resolution))
 
         bin_start = int((begin - all_begin) / resolution)
         bin_end = int((end - all_begin) / resolution)
@@ -246,7 +251,7 @@ class TransmissionMonitor:
     file_sizes = []
     with self._lock:
       for interval in self._intervaltree:
-        file_sizes.append(interval.data)
+        file_sizes.append(interval.data[1])
 
     if show_size_labels is None:
       show_size_labels = len(file_sizes) < 40
@@ -286,19 +291,26 @@ class TransmissionMonitor:
       for i, interval in enumerate(self._intervaltree):
           duration = (interval.end - interval.begin) / 1e6
           left = (interval.begin / 1e6) - start_time
-          cval = norm(interval.data)
+          flight_id = interval.data[0]
+
+          if flight_id in self._errors:
+            color = "red"
+          else:
+            cval = norm(interval.data[1])
+            color = cmap(cval)
+
           ax.barh(
             str(i), 
             width=duration,
             left=left,
             height=1,
-            color=cmap(cval)
+            color=color,
           )
           if show_size_labels:
             ax.text(
                 x=left + (duration/2),
                 y=i,            
-                s=human_readable_bytes(int(interval.data)),
+                s=human_readable_bytes(int(interval.data[1])),
                 ha='center',     
                 va='center',
                 color='black' if cval > 0.5 else '0.8',
