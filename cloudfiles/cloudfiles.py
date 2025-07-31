@@ -671,7 +671,7 @@ class CloudFiles:
       return file
 
     def uploadfn(file):
-      start_time = time.time()
+      start_time = time.monotonic()
       file = todict(file)
 
       file_compress = file.get('compress', compress)
@@ -1376,7 +1376,7 @@ class CloudFiles:
     srcdir = cf_src.cloudpath.replace("file://", "")
     destdir = mkdir(cf_dest.cloudpath.replace("file://", ""))
     for path in paths:
-      start_time = time.time()
+      start_time = time.monotonic()
       if isinstance(path, dict):
         src = os.path.join(srcdir, path["path"])
         dest = os.path.join(destdir, path["dest_path"])
@@ -1438,7 +1438,7 @@ class CloudFiles:
         (found, num_bytes_rx) = conn.save_file(src_key, dest_key, resumable=resumable)
 
       tm.end_io(flight_id, num_bytes_rx)
-      
+
       if found == False and not allow_missing:
         tm.end_error(flight_id)
         raise FileNotFoundError(src_key)

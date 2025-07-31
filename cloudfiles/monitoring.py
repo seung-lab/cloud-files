@@ -48,7 +48,7 @@ class TransmissionMonitor:
     flight_id = uuid.uuid1()
     with self._lock:
       if start_time is None:
-        start_time = time.time()
+        start_time = time.monotonic()
       self._in_flight[flight_id] = start_time
       self._in_flight_bytes += num_bytes
     return flight_id
@@ -59,11 +59,11 @@ class TransmissionMonitor:
 
   def end_io(self, flight_id:uuid.UUID, num_bytes:int) -> None:
     """Add a new value to the interval set."""
-    end_us = int(time.time() * 1e6)
+    end_us = int(time.monotonic() * 1e6)
     
     with self._lock:
       start_us = int(self._in_flight.pop(flight_id) * 1e6)
-      self._in_flight_bytes -= num_bytes    
+      self._in_flight_bytes -= num_bytes
       self._intervaltree.addi(start_us, end_us, [flight_id, num_bytes])
       self._total_bytes_landed += num_bytes
 
@@ -90,7 +90,7 @@ class TransmissionMonitor:
     look_back_us = int(look_back_sec * 1e6)
 
     with self._lock:
-      now_us = int(time.time() * 1e6)
+      now_us = int(time.monotonic() * 1e6)
       query_us = now_us - look_back_us
       lookback_intervals = self._intervaltree[query_us:]
       begin_us = self._intervaltree.begin()
@@ -626,7 +626,7 @@ class IOSampler:
   def _do_sample(self, time_correction:float) -> float:
     import psutil
     net = psutil.net_io_counters(nowrap=True)
-    t = time.time() - time_correction
+    t = time.monotonic() - time_correction
 
     with self._sample_lock:
       self._samples_bytes_rx[self._cursor] = net.bytes_recv
@@ -643,36 +643,36 @@ class IOSampler:
 
     # measure time to measure time
     def measure_correction():
-      s = time.time()
-      time.time()
-      time.time()
-      time.time()
-      time.time()
-      time.time()
-      e = time.time()
+      s = time.monotonic()
+      time.monotonic()
+      time.monotonic()
+      time.monotonic()
+      time.monotonic()
+      time.monotonic()
+      e = time.monotonic()
       return (e - s) / 5
 
     time_correction = measure_correction()
     psutil.net_io_counters.cache_clear()
 
-    recorrection_start = time.time()
-    e = time.time()
+    recorrection_start = time.monotonic()
+    e = time.monotonic()
 
     while not terminate_evt.is_set():
-      s = time.time()
+      s = time.monotonic()
       self._do_sample(time_correction)
 
       if (recorrection_start-s) > 60:
         time_correction = measure_correction()
-        recorrection_start = time.time()
+        recorrection_start = time.monotonic()
 
-      e = time.time()
+      e = time.monotonic()
 
       wait = interval - (e-s)
       if wait > 0:
         time.sleep(wait)
 
-    if (interval * 0.5) < (time.time() - e):
+    if (interval * 0.5) < (time.monotonic() - e):
       self._do_sample(time_correction)
 
   def is_sampling(self):
@@ -699,7 +699,6 @@ class IOSampler:
     return state
 
   def __setstate__(self, state):
-    # Restore instance attributes (i.e., filename and lineno).
     self.__dict__.update(state)
     self._sample_lock = threading.Lock()
     self._terminate_evt = threading.Event()
