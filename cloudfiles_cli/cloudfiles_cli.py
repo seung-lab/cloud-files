@@ -156,6 +156,7 @@ def exprgen(prefix, matches):
 
   return finished_prefixes
 
+SUFFIX_REGEXP = re.compile(r'\*([\w\d\-\._]+)$')
 
 def get_mfp(path, recursive):
   """many,flat,prefix"""
@@ -164,7 +165,11 @@ def get_mfp(path, recursive):
   many = recursive
   prefix = ""
   suffix = ""
-  path, suffix = os.path.splitext(path)
+
+  matches = SUFFIX_REGEXP.search(path)
+  if matches is not None:
+    suffix = matches.groups()[0]
+    path = path.removesuffix(suffix)
 
   if path[-2:] == "**":
     many = True
