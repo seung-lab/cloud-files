@@ -97,7 +97,7 @@ def ls(shortpath, flat, expr, cloudpath, no_auth):
   if no_auth and 's3://' not in cloudpath:
     cloudpath = cloudfiles.paths.to_https_protocol(cloudpath)
 
-  _, flt, prefix = get_mfp(cloudpath, True)
+  _, flt, prefix, suffix = get_mfp(cloudpath, True)
   epath = extract(cloudpath)
   if len(epath.path) > 0:
     if prefix == "" and flt == False:
@@ -128,6 +128,10 @@ def ls(shortpath, flat, expr, cloudpath, no_auth):
     iterables = [ cf.list(prefix=prefix, flat=flat) ]
 
   iterables = itertools.chain(*iterables)
+
+  if suffix:
+    iterables = ( x for x in iterables if x.endswith(suffix) )
+
   for pathset in sip(iterables, 1000):
     if not shortpath:
       pathset = [ cloudpathjoin(cloudpath, pth) for pth in pathset ]
@@ -152,6 +156,7 @@ def exprgen(prefix, matches):
 
   return finished_prefixes
 
+SUFFIX_REGEXP = re.compile(r'\*([\w\d\-\._]+)$')
 
 def get_mfp(path, recursive):
   """many,flat,prefix"""
@@ -159,6 +164,13 @@ def get_mfp(path, recursive):
   flat = not recursive
   many = recursive
   prefix = ""
+  suffix = ""
+
+  matches = SUFFIX_REGEXP.search(path)
+  if matches is not None:
+    suffix = matches.groups()[0]
+    path = path.removesuffix(suffix)
+
   if path[-2:] == "**":
     many = True
     flat = False
@@ -168,7 +180,7 @@ def get_mfp(path, recursive):
     flat = True
     prefix = os.path.basename(path[:-1])
 
-  return (many, flat, prefix)
+  return (many, flat, prefix, suffix)
 
 @main.command()
 @click.argument("source", nargs=-1)
@@ -267,7 +279,7 @@ def _cp_single(
 
   # The else clause here is to handle single file transfers
   srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
-  many, flat, prefix = get_mfp(nsrc, recursive)
+  many, flat, prefix, suffix = get_mfp(nsrc, recursive)
 
   if issrcdir and not many:
     print(f"cloudfiles: {source} is a directory (not copied).")
@@ -302,6 +314,9 @@ def _cp_single(
     compression = False
 
   if not isinstance(xferpaths, str):
+    if suffix:
+      xferpaths = ( x for x in xferpaths if x.endswith(suffix) )
+
     if parallel == 1:
       _cp(
         srcpath, destpath, compression,
@@ -494,7 +509,7 @@ def _mv_single(
 
   # The else clause here is to handle single file transfers
   srcpath = nsrc if issrcdir else os.path.dirname(nsrc)
-  many, flat, prefix = get_mfp(nsrc, recursive)
+  many, flat, prefix, suffix = get_mfp(nsrc, recursive)
 
   if issrcdir and not many:
     print(f"cloudfiles: {source} is a directory (not copied).")
@@ -524,6 +539,9 @@ def _mv_single(
       return
 
   if not isinstance(xferpaths, str):
+    if suffix:
+      xferpaths = ( x for x in xferpaths if x.endswith(suffix) )
+
     if parallel == 1:
       _mv(srcpath, destpath, progress, block_size, part_bytes, no_sign_request, xferpaths)
       return 
@@ -701,7 +719,7 @@ def rm(ctx, paths, recursive, progress, block_size):
   singles = []
   multiples = []
   for path in paths:
-    many, flat, prefix = get_mfp(path, recursive)
+    many, flat, prefix, suffix = get_mfp(path, recursive)
     if ispathdir(path) and not many:
       print(f"cloudfiles: {path}: is a directory.")
       return
@@ -742,13 +760,15 @@ def _rm_many(path, recursive, progress, parallel, block_size):
   isdir = (ispathdir(path) or CloudFiles(npath).isdir()) 
   recursive = recursive and isdir
 
-  many, flat, prefix = get_mfp(path, recursive)
+  many, flat, prefix, suffix = get_mfp(path, recursive)
 
   cfpath = npath if isdir else os.path.dirname(npath)
   xferpaths = os.path.basename(npath)
 
   if many:
     xferpaths = CloudFiles(cfpath).list(prefix=prefix, flat=flat)
+    if suffix:
+      xferpaths = ( x for x in xferpaths if x.endswith(suffix) )
 
   if parallel == 1 or not many:
     __rm(cfpath, progress, xferpaths)
@@ -825,10 +845,13 @@ def head(paths):
   for path in paths:
     npath = normalize_path(path)
     npath = re.sub(r'\*+$', '', path)
-    many, flat, prefix = get_mfp(path, False)
+    many, flat, prefix, suffix = get_mfp(path, False)
     if many:
       cf = CloudFiles(npath)
-      res = cf.head(cf.list(prefix=prefix, flat=flat))
+      lst = cf.list(prefix=prefix, flat=flat)
+      if suffix:
+        lst = ( x for x in lst if x.endswith(suffix) )
+      res = cf.head(lst)
       results.update(res)
     else:
       cf = CloudFiles(os.path.dirname(npath))
