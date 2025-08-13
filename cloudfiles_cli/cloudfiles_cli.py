@@ -601,6 +601,7 @@ def touch(
   ctx, sources,
   progress, no_sign_request,
 ):
+  """Create file if it doesn't exist."""
   sources = list(map(normalize_path, sources))
   sources = [ src.replace("precomputed://", "") for src in sources ]
   pbar = tqdm(total=len(sources), desc="Touch", disable=(not progress))
