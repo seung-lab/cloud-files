@@ -876,6 +876,14 @@ def test_cli_cp():
   subprocess.run(f"cloudfiles cp {destdir}", shell=True)
   assert not os.path.exists(destdir)
 
+  for i in range(N):
+    touch(os.path.join(srcdir, f"{i}jpg"))
+
+  mkdir(destdir)
+  subprocess.run(f"cloudfiles cp {srcdir}/*jpg {destdir}", shell=True)
+  assert len(os.listdir(destdir)) == N
+  shutil.rmtree(destdir)
+
   try:
     shutil.rmtree(srcdir)
   except FileNotFoundError:
