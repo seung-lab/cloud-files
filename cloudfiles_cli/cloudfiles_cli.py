@@ -182,6 +182,19 @@ def get_mfp(path, recursive):
 
   return (many, flat, prefix, suffix)
 
+@main.command("mkdir")
+@click.argument("paths", nargs=-1)
+def _mkdir(paths):
+  """
+  Create paths on the local file system.
+  """
+  for path in paths:
+    path = normalize_path(path)
+    protocol = get_protocol(path)
+
+    if protocol == "file":
+      mkdir(path.replace("file://", "", 1))
+
 @main.command()
 @click.argument("source", nargs=-1)
 @click.argument("destination", nargs=1)
