@@ -539,6 +539,9 @@ def _mv_single(
       return
 
   if not isinstance(xferpaths, str):
+    if suffix:
+      xferpaths = ( x for x in xferpaths if x.endswith(suffix) )
+
     if parallel == 1:
       _mv(srcpath, destpath, progress, block_size, part_bytes, no_sign_request, xferpaths)
       return 
