@@ -1033,6 +1033,15 @@ def test_cli_rm_shell():
   subprocess.run(["cloudfiles", "rm", "./cloudfiles-deletable-test-file"])
   assert not os.path.exists("./cloudfiles-deletable-test-file")
 
+  mkfiles()
+  for i in range(N):
+    touch(os.path.join(test_dir, f"{i}.jpg"))  
+
+  assert len(os.listdir(test_dir)) == N * 2
+  subprocess.run(["cloudfiles", "rm", test_dir + "/*.jpg"])
+  res = set([ str(_) for _ in range(N) ])
+  assert set(os.listdir(test_dir)) == res
+
   try:
     shutil.rmtree(test_dir)
   except FileNotFoundError:
