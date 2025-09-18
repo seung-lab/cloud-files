@@ -1013,6 +1013,8 @@ class CloudFiles:
     prefix, return_multiple = toiter(prefix, is_iter=True)
     total_bytes = 0
 
+    total = totalfn(prefix, None)
+
     lock = threading.Lock()
 
     def size_thunk(prefix):
@@ -1027,7 +1029,9 @@ class CloudFiles:
     schedule_jobs(
       fns=( partial(size_thunk, path) for path in prefix ),
       concurrency=self.num_threads,
+      progress=self.progress,
       green=self.green,
+      total=total,
     )
 
     return total_bytes
