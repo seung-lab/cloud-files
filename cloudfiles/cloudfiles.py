@@ -1009,6 +1009,7 @@ class CloudFiles:
     return first(results.values())
 
   def subtree_size(self, prefix:GetPathType = "") -> int:
+    """High performance size calculation for directory trees."""
     prefix, return_multiple = toiter(prefix, is_iter=True)
     total_bytes = 0
 
@@ -1023,7 +1024,6 @@ class CloudFiles:
         with lock:
           total_bytes += subtree_bytes
     
-    desc = self._progress_description('Measuring Sizes')
     schedule_jobs(
       fns=( partial(size_thunk, path) for path in prefix ),
       concurrency=self.num_threads,
