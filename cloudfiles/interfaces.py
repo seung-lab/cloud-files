@@ -594,8 +594,7 @@ class MemoryInterface(StorageInterface):
 
     Returns: iterator
     """
-    layer_path = self.get_path_to_file("")        
-    path = os.path.join(layer_path, prefix) + '*'
+    layer_path = self.get_path_to_file("")
 
     remove = layer_path
     if len(remove) and remove[-1] != '/':
