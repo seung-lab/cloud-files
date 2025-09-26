@@ -798,6 +798,7 @@ class GoogleCloudStorageInterface(StorageInterface):
       except google.cloud.exceptions.NotFound:
         pass
 
+
   @retry
   def list_files(self, prefix, flat=False):
     """
@@ -817,33 +818,22 @@ class GoogleCloudStorageInterface(StorageInterface):
       delimiter=delimiter,
     )
 
-    first = True
-    for blob in blobs:
-      # This awkward construction is necessary
-      # because the request that populates prefixes 
-      # isn't made until the iterator is activated.
-      if first and blobs.prefixes:
+    for page in blobs.pages:
+      if page.prefixes:
         yield from (
           item.removeprefix(path)
-          for item in blobs.prefixes
+          for item in page.prefixes
         )
-        first = False
 
-      filename = blob.name.removeprefix(layer_path)
-      if not filename:
-        continue
-      elif not flat and filename[-1] != '/':
-        yield filename
-      elif flat and '/' not in blob.name.removeprefix(path):
-        yield filename
+      for blob in page:
+        filename = blob.name.removeprefix(layer_path)
+        if not filename:
+          continue
+        elif not flat and filename[-1] != '/':
+          yield filename
+        elif flat and '/' not in blob.name.removeprefix(path):
+          yield filename
 
-    # When there are no regular items at this level
-    # we need to still print the directories.
-    if first and blobs.prefixes:
-      yield from (
-        item.removeprefix(path)
-        for item in blobs.prefixes
-      )
 
   def release_connection(self):
     global GC_POOL
