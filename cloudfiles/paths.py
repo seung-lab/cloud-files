@@ -22,7 +22,7 @@ PRECOMPUTED_SUFFIX = '|neuroglancer-precomputed:'
 
 ALIAS_FILE = os.path.join(CLOUD_FILES_DIR, "aliases.json")
 OFFICIAL_ALIASES = {
-  "nokura": "s3://https://nokura.pni.princeton.edu/",
+  "nokura": "s3://https://c10s.pni.princeton.edu/",
   "matrix": "s3://https://s3-hpcrc.rc.princeton.edu/",
   "tigerdata": "s3://https://td.princeton.edu/",
 }
