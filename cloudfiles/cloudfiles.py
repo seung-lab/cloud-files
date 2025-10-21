@@ -18,6 +18,7 @@ import platform
 import posixpath
 import re
 import shutil
+import threading
 import types
 import time
 
@@ -1006,6 +1007,34 @@ class CloudFiles:
     if return_multiple:
       return results
     return first(results.values())
+
+  def subtree_size(self, prefix:GetPathType = "") -> int:
+    """High performance size calculation for directory trees."""
+    prefix, return_multiple = toiter(prefix, is_iter=True)
+    total_bytes = 0
+
+    total = totalfn(prefix, None)
+
+    lock = threading.Lock()
+
+    def size_thunk(prefix):
+      nonlocal total_bytes
+      nonlocal lock
+
+      with self._get_connection() as conn:
+        subtree_bytes = conn.subtree_size(prefix)
+        with lock:
+          total_bytes += subtree_bytes
+    
+    schedule_jobs(
+      fns=( partial(size_thunk, path) for path in prefix ),
+      concurrency=self.num_threads,
+      progress=self.progress,
+      green=self.green,
+      total=total,
+    )
+
+    return total_bytes
 
   @parallelize(desc="Delete")
   def delete(

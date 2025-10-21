@@ -48,6 +48,7 @@ MEM_POOL = None
 
 S3_ACLS = {
   "tigerdata": "private",
+  "nokura": "public-read",
 }
 
 S3ConnectionPoolParams = namedtuple('S3ConnectionPoolParams', 'service bucket_name request_payer')
@@ -302,6 +303,19 @@ class FileInterface(StorageInterface):
       return None
 
     return self.io_with_lock(do_size, path, exclusive=False)
+
+  def subtree_size(self, prefix:str = "") -> int:
+    total_bytes = 0
+
+    subdir = self.get_path_to_file("")
+    if prefix:
+      subdir = os.path.join(subdir, os.path.dirname(prefix))
+
+    for root, dirs, files in os.walk(subdir):
+      files = ( os.path.join(root, f) for f in files )
+      total_bytes += sum(( os.path.getsize(f) for f in files ))
+
+    return total_bytes
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -580,8 +594,7 @@ class MemoryInterface(StorageInterface):
 
     Returns: iterator
     """
-    layer_path = self.get_path_to_file("")        
-    path = os.path.join(layer_path, prefix) + '*'
+    layer_path = self.get_path_to_file("")
 
     remove = layer_path
     if len(remove) and remove[-1] != '/':
@@ -614,6 +627,21 @@ class MemoryInterface(StorageInterface):
     filenames = list(map(stripext, filenames))
     filenames.sort()
     return iter(filenames)
+
+  def subtree_size(self, prefix:str = "") -> int:
+    layer_path = self.get_path_to_file("")        
+
+    remove = layer_path
+    if len(remove) and remove[-1] != '/':
+      remove += '/'
+
+    total_bytes = 0
+    for filename, binary in self._data.items():
+      f_prefix = f.removeprefix(remove)[:len(prefix)]
+      if f_prefix == prefix:
+        total_bytes += len(binary)
+
+    return total_bytes
 
 class GoogleCloudStorageInterface(StorageInterface):
   exists_batch_size = Batch._MAX_BATCH_SIZE
@@ -835,6 +863,19 @@ class GoogleCloudStorageInterface(StorageInterface):
           yield filename
 
 
+  @retry
+  def subtree_size(self, prefix:str = "") -> int:
+    layer_path = self.get_path_to_file("")        
+    path = posixpath.join(layer_path, prefix)
+
+    blobs = self._bucket.list_blobs(prefix=path) 
+    
+    total_bytes = 0
+    for blob in blobs:
+      total_bytes += blob.size
+
+    return total_bytes
+
   def release_connection(self):
     global GC_POOL
     with GCS_BUCKET_POOL_LOCK:
@@ -888,6 +929,9 @@ class HttpInterface(StorageInterface):
   def size(self, file_path):
     headers = self.head(file_path)
     return int(headers["Content-Length"])
+
+  def subtree_size(self, prefix:str = "") -> int:
+    raise NotImplementedError()
 
   @retry
   def get_file(self, file_path, start=None, end=None, part_size=None):
@@ -1489,6 +1533,44 @@ class S3Interface(StorageInterface):
 
       for filename in iterate(resp):
         yield filename
+
+  def subtree_size(self, prefix:str = "") -> int:
+    layer_path = self.get_path_to_file("")        
+    path = posixpath.join(layer_path, prefix)
+
+    @retry
+    def s3lst(path, continuation_token=None):
+      kwargs = {
+        'Bucket': self._path.bucket,
+        'Prefix': path,
+        **self._additional_attrs
+      }
+
+      if continuation_token:
+        kwargs['ContinuationToken'] = continuation_token
+
+      return self._conn.list_objects_v2(**kwargs)
+
+    resp = s3lst(path)
+    
+    def iterate(resp):
+      if 'Contents' not in resp.keys():
+        resp['Contents'] = []
+
+      for item in resp['Contents']:
+        yield item.get('Size', 0)
+
+    total_bytes = 0
+    for num_bytes in iterate(resp):
+      total_bytes += num_bytes
+
+    while resp['IsTruncated'] and resp['NextContinuationToken']:
+      resp = s3lst(path, resp['NextContinuationToken'])
+
+      for num_bytes in iterate(resp):
+        total_bytes += num_bytes
+
+    return total_bytes
 
   def release_connection(self):
     global S3_POOL
