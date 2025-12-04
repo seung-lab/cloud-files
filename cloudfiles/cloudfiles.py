@@ -1735,11 +1735,17 @@ class CloudFiles:
 
 class CloudFile:
   def __init__(
-    self, path:str, cache_meta:bool = False, 
+    self,
+    path:str,
+    cache_meta:bool = False, 
     secrets:SecretsType = None,
     composite_upload_threshold:int = int(1e8),
     locking:bool = True,
     lock_dir:Optional[str] = None,
+    endpoint:Optional[str] = None, 
+    no_sign_request:bool = False,
+    request_payer:Optional[str] = None,
+    use_https:bool = False,
   ):
     path = paths.normalize(path)
     self.cf = CloudFiles(
@@ -1748,6 +1754,10 @@ class CloudFile:
       composite_upload_threshold=composite_upload_threshold,
       locking=locking,
       lock_dir=lock_dir,
+      use_https=use_https,
+      endpoint=endpoint,
+      request_payer=request_payer,
+      no_sign_request=no_sign_request,
     )
     self.filename = paths.basename(path)
     
