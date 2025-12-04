@@ -809,7 +809,10 @@ def du(paths, grand_total, summarize, human_readable):
     npath = normalize_path(path)
     if ispathdir(path):
       cf = CloudFiles(npath)
-      results.append(cf.size(cf.list()))
+      if summarize:
+        results.append(cf.subtree_size())
+      else:
+        results.append(cf.size(cf.list()))
     else:
       cf = CloudFiles(os.path.dirname(npath))
       sz = cf.size(os.path.basename(npath))
@@ -839,7 +842,10 @@ def du(paths, grand_total, summarize, human_readable):
 
   summary = {}
   for path, res in zip(paths, results):
-    summary[path] = sum(res.values())
+    if isinstance(res, int):
+      summary[path] = res
+    else:
+      summary[path] = sum(res.values())
     if summarize:
       print(f"{SI(summary[path])}\t{path}")
 
