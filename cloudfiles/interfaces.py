@@ -923,6 +923,8 @@ class HttpInterface(StorageInterface):
     key = self.get_path_to_file(file_path)
     headers = self.default_headers()
     with self.session.head(key, headers=headers) as resp:
+      if resp.status_code in (404, 403):
+        return None
       resp.raise_for_status()
       return resp.headers
 
