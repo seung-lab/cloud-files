@@ -945,24 +945,20 @@ class HttpInterface(StorageInterface):
       end = int(end - 1) if end is not None else ''
       headers["Range"] = f"bytes={start}-{end}"
     
-    resp = self.session.get(key, headers=headers)
-    
-    if resp.status_code in (404, 403):
-      return (None, None, None, None)
-    resp.close()
-    resp.raise_for_status()
+    with self.session.get(key, headers=headers, stream=True) as resp:    
+      if resp.status_code in (404, 403):
+        return (None, None, None, None)
+      resp.raise_for_status()
+      resp.raw.decode_content = False
+      content = resp.raw.read()
+      content_encoding = resp.headers.get('Content-Encoding', None)  
 
     # Don't check MD5 for http because the etag can come in many
     # forms from either GCS, S3 or another service entirely. We
     # probably won't figure out how to decode it right.
     # etag = resp.headers.get('etag', None)
-    content_encoding = resp.headers.get('Content-Encoding', None)
-
-    # requests automatically decodes these
-    if content_encoding in (None, '', 'gzip', 'deflate', 'br'):
-      content_encoding = None
     
-    return (resp.content, content_encoding, None, None)
+    return (content, content_encoding, None, None)
 
   @retry
   def save_file(self, src, dest, resumable) -> tuple[bool, int]:
