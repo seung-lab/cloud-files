@@ -1059,7 +1059,6 @@ class HttpInterface(StorageInterface):
         )
 
       for res in results.get("items", []):
-        print(res["name"])
         yield res["name"].removeprefix(strip)
       
       token = results.get("nextPageToken", None)
