@@ -1695,6 +1695,12 @@ class CloudFiles:
       return os.path.join(*paths)
     return posixpath.join(*paths)
 
+  @property
+  def sep(self) -> str:
+    if self._path.protocol == "file":
+      return os.sep
+    return posixpath.sep
+
   def dirname(self, path:str) -> str:
     if self._path.protocol == "file":
       return os.path.dirname(path)
@@ -1764,6 +1770,10 @@ class CloudFile:
     self.cache_meta = cache_meta
     self._size:Optional[int] = None
     self._head = None
+
+  @property
+  def sep(self) -> str:
+    return self.cf.sep
 
   @property
   def protocol(self):
