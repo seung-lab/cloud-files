@@ -446,11 +446,12 @@ class MemoryInterface(StorageInterface):
     elif compress:
       raise ValueError("Compression type {} not supported.".format(compress))
 
-    if content \
-      and content_type \
-      and re.search('json|te?xt', content_type) \
-      and type(content) is str:
-
+    if (
+      isinstance(content, str)
+      and len(content) > 0
+      and content_type
+      and re.search('json|te?xt', content_type)
+    ):
       content = content.encode('utf-8')
 
     if hasattr(content, "read") and hasattr(content, "seek"):
@@ -480,7 +481,7 @@ class MemoryInterface(StorageInterface):
       encoding = None
 
     result = self._data.get(path, None)
-    if result:
+    if isinstance(result, (bytes, bytearray, str)):
       result = result[slice(start, end)]
     return (result, encoding, None, None)
 
