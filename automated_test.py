@@ -128,6 +128,24 @@ def test_read_write(s3, protocol, num_threads, green):
   if protocol == 'file':
     rmtree(url)
 
+def test_read_write_py_objects_mem():
+  from cloudfiles import CloudFiles, CloudFile, exceptions
+  url = compute_url("mem", "rw")
+
+  cf = CloudFiles(url)
+  
+  content = set([1,2,3])
+  cf.put('my_set', content, compress=None, raw=True, cache_control='no-cache')
+  cf['my_set2'] = content
+
+  f = CloudFile(cf.join(url, "my_set"))
+  assert cf.get('my_set') == content
+  assert cf['my_set2'] == content
+  assert f.get() == content
+  assert cf.get('nonexistentfile') is None
+
+  cf.delete(["my_set", "my_set2"])
+
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))
 def test_get_json_order(s3, protocol):
   from cloudfiles import CloudFiles
