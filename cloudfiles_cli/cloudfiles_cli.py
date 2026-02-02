@@ -802,9 +802,13 @@ def __rm(cloudpath, progress, paths):
 @click.option('-c', '--grand-total', is_flag=True, default=False, help="Sum a grand total of all inputs.")
 @click.option('-s', '--summarize', is_flag=True, default=False, help="Sum a total for each input argument.")
 @click.option('-h', '--human-readable', is_flag=True, default=False, help='"Human-readable" output. Use unit suffixes: Bytes, KiB, MiB, GiB, TiB, PiB, and EiB.')
-def du(paths, grand_total, summarize, human_readable):
+@click.option('-N', '--count-files', is_flag=True, default=False, help='Also report the number of files.')
+def du(paths, grand_total, summarize, human_readable, count_files):
   """Display disk usage statistics."""
   results = []
+
+  list_data = False
+
   for path in paths:
     npath = normalize_path(path)
     if ispathdir(path):
@@ -812,6 +816,7 @@ def du(paths, grand_total, summarize, human_readable):
       if summarize:
         results.append(cf.subtree_size())
       else:
+        list_data = True
         results.append(cf.size(cf.list()))
     else:
       cf = CloudFiles(os.path.dirname(npath))
@@ -841,11 +846,15 @@ def du(paths, grand_total, summarize, human_readable):
       return f"{(val / 2**60):.2f} EiB"
 
   summary = {}
+  num_files = 0
   for path, res in zip(paths, results):
-    if isinstance(res, int):
-      summary[path] = res
-    else:
+    if list_data:
       summary[path] = sum(res.values())
+      num_files += len(res)
+    else:
+      summary[path] = res["num_bytes"]
+      num_files += res["N"]
+
     if summarize:
       print(f"{SI(summary[path])}\t{path}")
 
@@ -855,7 +864,10 @@ def du(paths, grand_total, summarize, human_readable):
         print(f"{SI(size)}\t{pth}")
 
   if grand_total:
-    print(f"{SI(sum(summary.values()))}\ttotal") 
+    print(f"{SI(sum(summary.values()))}\tbytes total")
+
+  if count_files:
+    print(f"{num_files}\tfiles total") 
 
 @main.command()
 @click.argument('paths', nargs=-1)

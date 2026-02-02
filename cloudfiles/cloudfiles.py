@@ -1008,10 +1008,11 @@ class CloudFiles:
       return results
     return first(results.values())
 
-  def subtree_size(self, prefix:GetPathType = "") -> int:
+  def subtree_size(self, prefix:GetPathType = "") -> dict[str,int]:
     """High performance size calculation for directory trees."""
     prefix, return_multiple = toiter(prefix, is_iter=True)
     total_bytes = 0
+    total_files = 0
 
     total = totalfn(prefix, None)
 
@@ -1019,11 +1020,13 @@ class CloudFiles:
 
     def size_thunk(prefix):
       nonlocal total_bytes
+      nonlocal total_files
       nonlocal lock
 
       with self._get_connection() as conn:
-        subtree_bytes = conn.subtree_size(prefix)
+        subtree_files, subtree_bytes = conn.subtree_size(prefix)
         with lock:
+          total_files += subtree_files
           total_bytes += subtree_bytes
     
     schedule_jobs(
@@ -1034,7 +1037,10 @@ class CloudFiles:
       total=total,
     )
 
-    return total_bytes
+    return {
+      "N": total_files,
+      "num_bytes": total_bytes,
+    }
 
   @parallelize(desc="Delete")
   def delete(

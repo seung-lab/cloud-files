@@ -304,18 +304,21 @@ class FileInterface(StorageInterface):
 
     return self.io_with_lock(do_size, path, exclusive=False)
 
-  def subtree_size(self, prefix:str = "") -> int:
+  def subtree_size(self, prefix:str = "") -> tuple[int,int]:
     total_bytes = 0
+    total_files = 0
 
     subdir = self.get_path_to_file("")
     if prefix:
       subdir = os.path.join(subdir, os.path.dirname(prefix))
 
     for root, dirs, files in os.walk(subdir):
-      files = ( os.path.join(root, f) for f in files )
-      total_bytes += sum(( os.path.getsize(f) for f in files ))
+      for f in files:
+          path = os.path.join(root, f)
+          total_files += 1
+          total_bytes += os.path.getsize(path)
 
-    return total_bytes
+    return (total_files, total_bytes)
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
@@ -628,7 +631,7 @@ class MemoryInterface(StorageInterface):
     filenames.sort()
     return iter(filenames)
 
-  def subtree_size(self, prefix:str = "") -> int:
+  def subtree_size(self, prefix:str = "") -> tuple[int,int]:
     layer_path = self.get_path_to_file("")        
 
     remove = layer_path
@@ -636,12 +639,14 @@ class MemoryInterface(StorageInterface):
       remove += '/'
 
     total_bytes = 0
+    total_files = 0
     for filename, binary in self._data.items():
       f_prefix = f.removeprefix(remove)[:len(prefix)]
       if f_prefix == prefix:
         total_bytes += len(binary)
+        total_files += 1
 
-    return total_bytes
+    return (total_files, total_bytes)
 
 class GoogleCloudStorageInterface(StorageInterface):
   exists_batch_size = Batch._MAX_BATCH_SIZE
@@ -866,7 +871,7 @@ class GoogleCloudStorageInterface(StorageInterface):
 
 
   @retry
-  def subtree_size(self, prefix:str = "") -> int:
+  def subtree_size(self, prefix:str = "") -> tuple[int,int]:
     layer_path = self.get_path_to_file("")        
     path = posixpath.join(layer_path, prefix)
 
@@ -877,11 +882,13 @@ class GoogleCloudStorageInterface(StorageInterface):
     )
 
     total_bytes = 0
+    total_files = 0
     for page in blobs.pages:
       for blob in page:
         total_bytes += blob.size
+        total_files += 1
 
-    return total_bytes
+    return (total_files, total_bytes)
 
   def release_connection(self):
     global GC_POOL
@@ -939,7 +946,7 @@ class HttpInterface(StorageInterface):
     headers = self.head(file_path)
     return int(headers["Content-Length"])
 
-  def subtree_size(self, prefix:str = "") -> int:
+  def subtree_size(self, prefix:str = "") -> tuple[int,int]:
     raise NotImplementedError()
 
   @retry
@@ -1538,7 +1545,7 @@ class S3Interface(StorageInterface):
       for filename in iterate(resp):
         yield filename
 
-  def subtree_size(self, prefix:str = "") -> int:
+  def subtree_size(self, prefix:str = "") -> tuple[int,int]:
     layer_path = self.get_path_to_file("")        
     path = posixpath.join(layer_path, prefix)
 
@@ -1565,16 +1572,19 @@ class S3Interface(StorageInterface):
         yield item.get('Size', 0)
 
     total_bytes = 0
+    total_files = 0
     for num_bytes in iterate(resp):
+      total_files += 1
       total_bytes += num_bytes
 
     while resp['IsTruncated'] and resp['NextContinuationToken']:
       resp = s3lst(path, resp['NextContinuationToken'])
 
       for num_bytes in iterate(resp):
+        total_files += 1
         total_bytes += num_bytes
 
-    return total_bytes
+    return (total_files, total_bytes)
 
   def release_connection(self):
     global S3_POOL
