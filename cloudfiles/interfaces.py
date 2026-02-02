@@ -844,6 +844,8 @@ class GoogleCloudStorageInterface(StorageInterface):
     blobs = self._bucket.list_blobs(
       prefix=path, 
       delimiter=delimiter,
+      page_size=2500,
+      fields="items(name),nextPageToken",
     )
 
     for page in blobs.pages:
