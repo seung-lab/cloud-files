@@ -868,11 +868,16 @@ class GoogleCloudStorageInterface(StorageInterface):
     layer_path = self.get_path_to_file("")        
     path = posixpath.join(layer_path, prefix)
 
-    blobs = self._bucket.list_blobs(prefix=path) 
-    
+    blobs = self._bucket.list_blobs(
+      prefix=path,
+      page_size=5000,
+      fields="items(name,size),nextPageToken",
+    )
+
     total_bytes = 0
-    for blob in blobs:
-      total_bytes += blob.size
+    for page in blobs.pages:
+      for blob in page:
+        total_bytes += blob.size
 
     return total_bytes
 
