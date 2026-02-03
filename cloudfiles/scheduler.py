@@ -98,9 +98,10 @@ def schedule_single_threaded_jobs(
   if isinstance(progress, tqdm):
     pbar = progress
   else:
+    N = totalfn(fns, total)
     pbar = tqdm(
-      total=totalfn(fns, total), 
-      disable=(not progress), 
+      total=N, 
+      disable=(not progress or N == 0), 
       desc=(progress if isinstance(progress, str) else None)
     )
 
