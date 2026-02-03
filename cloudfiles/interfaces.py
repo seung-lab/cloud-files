@@ -851,7 +851,7 @@ class GoogleCloudStorageInterface(StorageInterface):
       prefix=path, 
       delimiter=delimiter,
       page_size=2500,
-      fields="items(name),nextPageToken",
+      fields="items(name),nextPageToken,prefixes",
     )
 
     for page in blobs.pages:
