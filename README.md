@@ -44,7 +44,10 @@ cf.moves("gs://bucket/", [ ("a", "b") ])
 cf.touch("example")
 cf.touch([ "example", "example2" ])
 
-# for single files
+### NOTE: FOR SINGLE FILES
+### Note CloudFiles plural vs CloudFile singular
+### The examples below are for CloudFile
+
 cf = CloudFile("gs://bucket/file1")
 info = cf.head()
 binary = cf.get()
