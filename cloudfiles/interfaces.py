@@ -1465,6 +1465,16 @@ class S3Interface(StorageInterface):
 
   @retry
   def delete_files(self, file_paths):
+    # Dell ECS requires Content-MD5 for batch delete,
+    # but the XML is constructed inside the s3 object...
+    # To solve this, we would need to implement a REST API call
+    # compute md5 and sign it. For now, let's just delete single files.
+    # it's less performant, but it works.
+    if self._path.alias == "nokura":
+      for path in file_paths:
+        self.delete_file(path)
+      return
+
     for batch in sip(file_paths, self.delete_batch_size):
       response = self._conn.delete_objects(
         Bucket=self._path.bucket,
