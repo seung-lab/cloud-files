@@ -807,16 +807,16 @@ def du(paths, grand_total, summarize, human_readable, count_files):
   """Display disk usage statistics."""
   results = []
 
-  list_data = False
+  simplified_data = True
 
   for path in paths:
     npath = normalize_path(path)
     if ispathdir(path):
       cf = CloudFiles(npath)
       if summarize:
+        simplified_data = False
         results.append(cf.subtree_size())
       else:
-        list_data = True
         results.append(cf.size(cf.list()))
     else:
       cf = CloudFiles(os.path.dirname(npath))
@@ -848,7 +848,7 @@ def du(paths, grand_total, summarize, human_readable, count_files):
   summary = {}
   num_files = 0
   for path, res in zip(paths, results):
-    if list_data:
+    if simplified_data:
       summary[path] = sum(res.values())
       num_files += len(res)
     else:
