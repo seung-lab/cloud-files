@@ -229,6 +229,18 @@ def ascloudpath(epath):
     return f"{epath.format}://" + pth
   return pth
 
+def service_provider(epath:ExtractedPath) -> str:
+  stack = [
+    epath.alias,
+    epath.protocol,
+  ]
+  while len(stack):
+    elem = stack.pop(0)
+    if elem is None:
+      continue
+    return elem
+  return None
+
 def asprotocolpath(epath):
   pth = ''
 
