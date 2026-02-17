@@ -752,7 +752,7 @@ def _rm_singles(paths, progress, parallel, block_size):
   for path in paths:
     npath = normalize_path(path)
     extracted = cloudfiles.paths.extract(npath)
-    provider = extracted.protocol if not extracted.alias else extracted.alias
+    provider = cloudfiles.paths.service_provider(extracted)
     cfgroups[(provider, extracted.bucket)].append(extracted.path)
   
   for group, paths in cfgroups.items():
