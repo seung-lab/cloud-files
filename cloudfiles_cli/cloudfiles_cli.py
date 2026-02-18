@@ -12,6 +12,7 @@ import os.path
 from tqdm import tqdm
 import shutil
 import sys
+import time
 
 # Below two lines fix MacOS warning on 
 # High Sierra and above when we are using
@@ -1172,4 +1173,79 @@ def alias_rm(name):
   except KeyError:
     pass
 
+@main.group("watch")
+def iostatsgroup():
+  """
+  Monitor machine IO, print stats, and make histograms.
+  """
+  pass
+
+@iostatsgroup.group("net")
+def iostats_net_group():
+  """
+  Find ethernet devices and monitor them.
+  """
+  pass
+
+
+@iostats_net_group.command("print")
+@click.option("--duration", type=float, default=0, show_default=True)
+@click.option("--interval", type=float, default=1, show_default=True)
+@click.option("--one-line", is_flag=True, default=False, show_default=True)
+def net_print(duration:float, interval:float, one_line:bool):
+  """
+  Print transmissions speeds.
+  """
+  network_sampler = IOSampler(
+    buffer_sec=max(interval * 2, 1),
+    interval=interval,
+  )
+  network_sampler.start_sampling()
+
+  def fmt(elapsed, rbps, tbps):
+    return f"t={elapsed:1.1f}s | RX: {rbps/8e6:3.2f} MB/sec ({rbps/1e9:1.2f} Gbps) | TX: {tbps/8e6:3.2f} MB/sec ({tbps/1e9:1.2f} Gbps)"
+
+  ending = '\n' if not one_line else '\r'
+
+  s = time.perf_counter()
+  try:
+    while True:
+      time.sleep(interval)
+      rbps, tbps = network_sampler.current_bps()
+      elapsed = time.perf_counter() - s
+      display = fmt(elapsed, rbps, tbps)
+      print(display, flush=True, end=ending)
+
+      if elapsed > duration and duration > 0:
+        return
+  except KeyboardInterrupt:
+    pass
+
+  network_sampler.stop_sampling()
+  rbps, tbps = network_sampler.current_bps()
+  elapsed = time.perf_counter() - s
+  display = fmt(elapsed, rbps, tbps)
+  print(display, flush=True)
+
+@iostats_net_group.command("histogram")
+@click.option("--duration", type=float, default=5, show_default=True)
+@click.option("--interval", type=float, default=1, show_default=True)
+@click.option("--filename", type=str, default="", show_default=True)
+def net_histogram(duration:float, interval:float, filename:str):
+  """
+  Produce a histogram of network speeds.
+  """
+  network_sampler = IOSampler(
+    buffer_sec=max(duration * 2, 1),
+    interval=interval,
+  )
+  network_sampler.start_sampling()
+
+  time.sleep(float(duration) + 0.1)
+  network_sampler.stop_sampling()
+
+  if filename == "":
+    filename = None
+
+  network_sampler.plot_histogram(filename=filename)
 
