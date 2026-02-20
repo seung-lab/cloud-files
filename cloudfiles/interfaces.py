@@ -30,6 +30,7 @@ from .secrets import (
   CLOUD_FILES_LOCK_DIR,
 )
 
+NFS_ETAG_REGEXP = re.compile(r'\d+\-$')
 COMPRESSION_EXTENSIONS = ('.gz', '.br', '.zstd','.bz2','.xz')
 GZIP_TYPES = (True, 'gzip', 1)
 
@@ -1328,9 +1329,9 @@ class S3Interface(StorageInterface):
         # AWS has special multipart validation
         # so we handle it here... leaky abstraction.
         if '-' in etag:
-          # Dell ECS S3 uses a synthetic Etag of "1-" for objects ingested via NFS
-          # Not good behavior, but nothing much we can do other than ignore it.
-          if etag != "1-" and not validate_s3_multipart_etag(content, etag, part_size):
+          # Dell ECS S3 uses a synthetic Etag of "1-" (and similar) for objects 
+          # ingested via NFS. Not good behavior, but nothing much we can do other than ignore it.
+          if not NFS_ETAG_REGEXP.match(etag) and not validate_s3_multipart_etag(content, etag, part_size):
             raise MD5IntegrityError(f"{file_path} failed its multipart md5 check. server md5: {etag}")
           etag = None
         else:
