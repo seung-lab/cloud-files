@@ -37,6 +37,22 @@ from cloudfiles.lib import (
 )
 import cloudfiles.lib
 
+def SI(val:int) -> str:
+  if val < 1024:
+    return f"{val} bytes"
+  elif val < 2**20:
+    return f"{(val / 2**10):.2f} KiB"
+  elif val < 2**30:
+    return f"{(val / 2**20):.2f} MiB"
+  elif val < 2**40:
+    return f"{(val / 2**30):.2f} GiB"
+  elif val < 2**50:
+    return f"{(val / 2**40):.2f} TiB"
+  elif val < 2**60:
+    return f"{(val / 2**50):.2f} PiB"
+  else:
+    return f"{(val / 2**60):.2f} EiB"
+
 def cloudpathjoin(cloudpath, *args):
   cloudpath = normalize_path(cloudpath)
   proto = get_protocol(cloudpath)
@@ -804,18 +820,19 @@ def __rm(cloudpath, progress, paths):
 @click.option('-s', '--summarize', is_flag=True, default=False, help="Sum a total for each input argument.")
 @click.option('-h', '--human-readable', is_flag=True, default=False, help='"Human-readable" output. Use unit suffixes: Bytes, KiB, MiB, GiB, TiB, PiB, and EiB.')
 @click.option('-N', '--count-files', is_flag=True, default=False, help='Also report the number of files.')
-def du(paths, grand_total, summarize, human_readable, count_files):
+@click.option('-e', '--group-by-ext', is_flag=True, default=False, help='Group and summarize disk usage by file extension.')
+def du(paths, grand_total, summarize, human_readable, count_files, group_by_ext):
   """Display disk usage statistics."""
   results = []
 
-  simplified_data = True
+  simplified_data = False
 
   for path in paths:
     npath = normalize_path(path)
     if ispathdir(path):
       cf = CloudFiles(npath)
-      if summarize:
-        simplified_data = False
+      if summarize and not group_by_ext:
+        simplified_data = True
         results.append(cf.subtree_size())
       else:
         results.append(cf.size(cf.list()))
@@ -827,48 +844,42 @@ def du(paths, grand_total, summarize, human_readable, count_files):
         return
       results.append({ path: sz })
 
-  def SI(val):
-    if not human_readable:
-      return val
-
-    if val < 1024:
-      return f"{val} Bytes"
-    elif val < 2**20:
-      return f"{(val / 2**10):.2f} KiB"
-    elif val < 2**30:
-      return f"{(val / 2**20):.2f} MiB"
-    elif val < 2**40:
-      return f"{(val / 2**30):.2f} GiB"
-    elif val < 2**50:
-      return f"{(val / 2**40):.2f} TiB"
-    elif val < 2**60:
-      return f"{(val / 2**50):.2f} PiB"
-    else:
-      return f"{(val / 2**60):.2f} EiB"
+  disp = SI if human_readable else (lambda x: x)
 
   summary = {}
   num_files = 0
+  ext_totals = defaultdict(int)
+
   for path, res in zip(paths, results):
     if simplified_data:
-      summary[path] = sum(res.values())
-      num_files += len(res)
-    else:
       summary[path] = res["num_bytes"]
       num_files += res["N"]
+    else:
+      summary[path] = sum(res.values())
+      num_files += len(res)
+      if group_by_ext:
+        for filepath, size in res.items():
+          ext = os.path.splitext(filepath)[1].lower() or "(no extension)"
+          ext_totals[ext] += size
 
     if summarize:
-      print(f"{SI(summary[path])}\t{path}")
+      print(f"{disp(summary[path])}\t{path}")
 
   if not summarize:
     for res in results:
       for pth, size in res.items():
-        print(f"{SI(size)}\t{pth}")
+        print(f"{disp(size)}\t{pth}")
 
   if grand_total:
-    print(f"{SI(sum(summary.values()))}\tbytes total")
+    print(f"{disp(sum(summary.values()))}\tbytes total")
 
   if count_files:
     print(f"{num_files}\tfiles total") 
+
+  if group_by_ext:
+    print("\nUsage by file extension:")
+    for ext, total in sorted(ext_totals.items(), key=lambda x: x[1], reverse=True):
+      print(f"{disp(total)}\t{ext}")
 
 @main.command()
 @click.argument('paths', nargs=-1)
