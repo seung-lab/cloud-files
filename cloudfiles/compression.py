@@ -189,16 +189,15 @@ def gunzip(content):
   if len(content) == 0:
     raise DecompressionError('File contains zero bytes.')
 
-  gzip_magic_numbers = [ 0x1f, 0x8b ]
+  gzip_magic_bytes = b'\x1f\x8b'
 
-  if isinstance(content, (bytes, bytearray)):
-    first_two_bytes = list(content[:2])
-  else:
-    first_two_bytes = [ byte for byte in bytearray(content)[:2] ]
+  if not isinstance(content, (bytes, bytearray)):
+    content = bytes(content)
 
-  if first_two_bytes != gzip_magic_numbers:
-    raise DecompressionError('File is not in gzip format. Magic numbers {}, {} did not match {}, {}.'.format(
-      hex(first_two_bytes[0]), hex(first_two_bytes[1]), hex(gzip_magic_numbers[0]), hex(gzip_magic_numbers[1])
+  first_two_bytes = content[:2]
+  if first_two_bytes != gzip_magic_bytes:
+    raise DecompressionError('File is not in gzip format. Magic numbers {}, {} did not match 0x1f, 0x8b.'.format(
+      hex(first_two_bytes[0]), hex(first_two_bytes[1])
     ))
 
   if deflate:
