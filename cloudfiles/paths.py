@@ -214,9 +214,7 @@ def asfilepath(epath):
     raise ValueError(f"{epath.protocol} protocol must be \"file\".")
 
   pth = ''
-  lst = [ epath.bucket, epath.path ]
-  while lst:
-    elem = lst.pop(0)
+  for elem in (epath.bucket, epath.path):
     if not elem:
       continue
     pth = os.path.join(pth, elem)
@@ -230,24 +228,17 @@ def ascloudpath(epath):
   return pth
 
 def service_provider(epath:ExtractedPath) -> str:
-  stack = [
-    epath.alias,
-    epath.protocol,
-  ]
-  while len(stack):
-    elem = stack.pop(0)
-    if elem is None:
-      continue
-    return elem
+  if epath.alias is not None:
+    return epath.alias
+  if epath.protocol is not None:
+    return epath.protocol
   return None
 
 def asprotocolpath(epath):
   pth = ''
 
   host = epath.host if not epath.alias else None
-  lst = [ host, epath.bucket, epath.path ]
-  while lst:
-    elem = lst.pop(0)
+  for elem in (host, epath.bucket, epath.path):
     if not elem:
       continue
     pth = posixpath.join(pth, elem)
@@ -445,8 +436,9 @@ def find_common_buckets(cloudpaths:GetPathType):
 
     epath = extract(pth)
     if epath.protocol == "file":
-      path = os.sep.join(asfilepath(epath).split(os.sep)[2:])
-      bucketpath = "file://" + os.sep.join(asfilepath(epath).split(os.sep)[:2])
+      parts = asfilepath(epath).split(os.sep)
+      path = os.sep.join(parts[2:])
+      bucketpath = "file://" + os.sep.join(parts[:2])
     else:
       path = epath.path
       bucketpath = asbucketpath(epath)
