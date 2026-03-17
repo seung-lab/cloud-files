@@ -83,10 +83,8 @@ class ConnectionPool(object):
 
   def reset_pool(self):
     while True:
-      if not self.pool.qsize():
-        break
       try:
-        conn = self.pool.get()
+        conn = self.pool.get_nowait()
         self.close(conn)
         self.pool.task_done()
       except queue.Empty:
