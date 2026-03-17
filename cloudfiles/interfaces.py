@@ -489,8 +489,7 @@ class MemoryInterface(StorageInterface):
   def save_file(self, src, dest, resumable) -> tuple[bool,int]:
     key = self.get_path_to_file(src)
     with EXT_TEST_SEQUENCE_LOCK:
-      exts = list(EXT_TEST_SEQUENCE)
-      exts = [ x[0] for x in exts ]
+      exts = [ x[0] for x in EXT_TEST_SEQUENCE ]
 
     path = key
     true_ext = ''
