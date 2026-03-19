@@ -513,6 +513,19 @@ This will start downloading the data to `example.db` in the local directory. You
 SELECT sum(size) FROM files WHERE path LIKE '%example.jpg';
 ```
 
+For example, one plausible use for this technique is to check whether a copy of a large dataset has missing files. Download `original.db` and `copy.db` and then you can do a set difference.
+
+```sql
+$ sqlite3
+
+> ATTACH DATABASE 'original.db' AS original_data;
+> ATTACH DATABASE 'copy.db' AS copied_data;
+
+> SELECT path from original_data.files
+  EXCEPT
+  SELECT path from copied_data.files;
+```
+
 ### `alias` for Alternative S3 Endpoints
 
 You can set your own protocols for S3 compatible endpoints by creating dynamic or persistent aliases. CloudFiles comes with two official s3 endpoints that are important for the Seung Lab, `matrix://` and `tigerdata://` which point to Princeton S3 endpoints. Official aliases can't be overridden.
