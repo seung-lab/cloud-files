@@ -1138,7 +1138,12 @@ class CloudFiles:
     #   )
 
   def list(
-    self, prefix:str = "", flat:bool = False
+    self,
+    prefix:str = "",
+    flat:bool = False,
+    size:bool = False,
+    return_resume_token:bool = False,
+    resume_token:Optional[str] = None,
   ) -> Generator[str,None,None]:
     """
     List files with the given prefix. 
@@ -1160,7 +1165,13 @@ class CloudFiles:
     Return: generated sequence of file paths relative to cloudpath
     """
     with self._get_connection() as conn:
-      for f in conn.list_files(prefix, flat):
+      for f in conn.list_files(
+        prefix=prefix,
+        flat=flat,
+        size=size, 
+        resume_token=resume_token,
+        return_resume_token=return_resume_token,
+      ):
         yield f
 
   def transfer_to(
