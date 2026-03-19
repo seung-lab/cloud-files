@@ -1,3 +1,5 @@
+from typing import Optional
+
 import base64
 import binascii
 from collections import defaultdict, namedtuple
@@ -346,7 +348,14 @@ class FileInterface(StorageInterface):
     for path in file_paths:
       self.delete_file(path)
 
-  def list_files(self, prefix, flat):
+  def list_files(
+    self, 
+    prefix:str, 
+    flat:bool = False,
+    size:bool = False,
+    return_resume_token:bool = False,
+    resume_token:Optional[str] = None,
+  ):
     """
     List the files in the layer with the given prefix. 
 
@@ -354,7 +363,6 @@ class FileInterface(StorageInterface):
     while non-flat means generate all file paths with that 
     prefix.
     """
-
     layer_path = self.get_path_to_file("")        
     path = os.path.join(layer_path, prefix)
 
@@ -405,8 +413,16 @@ class FileInterface(StorageInterface):
 
     filenames = list(map(stripext, filenames))
     filenames.sort()
-    return iter(filenames)
-  
+
+    if not size and not return_resume_token:
+      return iter(filenames)
+    elif size and return_resume_token:
+      return ( (filename, os.path.getsize(filename), None) for filename in filenames )
+    elif size and not return_resume_token:
+      return ( (filename, os.path.getsize(filename)) for filename in filenames )
+    elif not size and return_resume_token:
+      return ( (filename, None) for filename in filenames )
+
 class MemoryInterface(StorageInterface):
   def __init__(self, path, secrets=None, request_payer=None, **kwargs):
     global MEM_BUCKET_POOL_LOCK
@@ -589,7 +605,14 @@ class MemoryInterface(StorageInterface):
     for path in file_paths:
       self.delete_file(path)
 
-  def list_files(self, prefix, flat):
+  def list_files(
+    self, 
+    prefix:str, 
+    flat:bool = False,
+    size:bool = False,
+    return_resume_token:bool = False,
+    resume_token:Optional[str] = None,
+  ):
     """
     List the files in the layer with the given prefix. 
 
@@ -631,7 +654,17 @@ class MemoryInterface(StorageInterface):
 
     filenames = list(map(stripext, filenames))
     filenames.sort()
-    return iter(filenames)
+
+    # The size operation could be made much faster
+    # but will require some surgery
+    if not size and not return_resume_token:
+      return iter(filenames)
+    elif size and return_resume_token:
+      return ( (filename, self.size(filename), None) for filename in filenames )
+    elif size and not return_resume_token:
+      return ( (filename, self.size(filename)) for filename in filenames )
+    elif not size and return_resume_token:
+      return ( (filename, None) for filename in filenames )
 
   def subtree_size(self, prefix:str = "") -> tuple[int,int]:
     layer_path = self.get_path_to_file("")        
@@ -833,9 +866,15 @@ class GoogleCloudStorageInterface(StorageInterface):
       except google.cloud.exceptions.NotFound:
         pass
 
-
   @retry
-  def list_files(self, prefix, flat=False):
+  def list_files(
+    self, 
+    prefix:str, 
+    flat:bool = False,
+    size:bool = False,
+    return_resume_token:bool = False,
+    resume_token:Optional[str] = None,
+  ):
     """
     List the files in the layer with the given prefix. 
 
@@ -848,29 +887,53 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     delimiter = '/' if flat else None
 
+    items = "name"
+    if size:
+      items += ",size"
+
     blobs = self._bucket.list_blobs(
       prefix=path, 
       delimiter=delimiter,
       page_size=2500,
-      fields="items(name),nextPageToken,prefixes",
+      fields=f"items({items}),nextPageToken,prefixes",
+      page_token=resume_token,
     )
+
+    def return_args(filename, blob, page):
+      nonlocal blobs
+      args = [ filename ]
+      if size:
+        args.append(blob.size)
+      if return_resume_token:
+        args.append(blobs.next_page_token)
+      
+      if len(args) == 1:
+        return args[0]
+      else:
+        return tuple(args)
 
     for page in blobs.pages:
       if page.prefixes:
-        yield from (
-          item.removeprefix(path)
-          for item in page.prefixes
-        )
+        for item in page.prefixes:
+          ret = [ item.removeprefix(path) ]
+          if size:
+            ret.append(0)
+          if return_resume_token:
+            ret.append(page.next_page_token)
+
+          if len(ret) == 1:
+            yield ret[0]
+          else:
+            yield tuple(ret)
 
       for blob in page:
         filename = blob.name.removeprefix(layer_path)
         if not filename:
           continue
         elif not flat and filename[-1] != '/':
-          yield filename
+          yield return_args(filename, blob, page)
         elif flat and '/' not in blob.name.removeprefix(path):
-          yield filename
-
+          yield return_args(filename, blob, page)
 
   @retry
   def subtree_size(self, prefix:str = "") -> tuple[int,int]:
@@ -1026,7 +1089,14 @@ class HttpInterface(StorageInterface):
   def files_exist(self, file_paths):
     return {path: self.exists(path) for path in file_paths}
 
-  def _list_files_google(self, prefix, flat):
+  def _list_files_google(
+    self, 
+    prefix:str, 
+    flat:bool = False,
+    size:bool = False,
+    return_resume_token:bool = False,
+    resume_token:Optional[str] = None,
+  ):
     bucket = self._path.path.split('/')[0]
     prefix = posixpath.join(
       self._path.path.replace(bucket, '', 1), 
@@ -1037,16 +1107,25 @@ class HttpInterface(StorageInterface):
 
     headers = self.default_headers()
 
+    items = "name"
+    if size:
+      items += ",size"
+
+    fields = f"items({items}),nextPageToken,prefixes"
+
     @retry_if_not(AuthorizationError)
     def request(token):
       nonlocal headers
-      params = {}
+      params = {
+        "fields": fields,
+      }
       if prefix:
         params["prefix"] = prefix
       if token is not None:
         params["pageToken"] = token
       if flat:
         params["delimiter"] = '/'
+
 
       results = self.session.get(
         f"https://storage.googleapis.com/storage/v1/b/{bucket}/o",
@@ -1067,17 +1146,33 @@ class HttpInterface(StorageInterface):
     token = None
     while True:
       results = request(token)
+      token = results.get("nextPageToken", None)
 
       if 'prefixes' in results:
-        yield from (
+        itr = (
           item.removeprefix(strip) 
           for item in results["prefixes"]
         )
+        if not size and not return_resume_token:
+          yield from itr
+        elif not size and return_resume_token:
+          yield from ( (pre, token) for pre in itr )
+        elif size and not return_resume_token:
+          yield from ( (pre, 0) for pre in itr )
+        else:
+          yield from ( (pre, 0, token) for pre in itr )
 
       for res in results.get("items", []):
-        yield res["name"].removeprefix(strip)
+        name = res["name"].removeprefix(strip)
+        if not size and not return_resume_token:
+          yield name
+        elif size and not return_resume_token:
+          yield (name, int(res["size"]))
+        elif not size and return_resume_token:
+          yield (name, token)
+        else:
+          yield (name, int(res["size"]), token)
       
-      token = results.get("nextPageToken", None)
       if token is None:
         break
 
@@ -1124,10 +1219,20 @@ class HttpInterface(StorageInterface):
       if flat:
         break
 
-  def list_files(self, prefix, flat=False):
+  def list_files(
+    self, 
+    prefix:str, 
+    flat:bool = False,
+    size:bool = False,
+    return_resume_token:bool = False,
+    resume_token:Optional[str] = None,
+  ):
     if self._path.host == "https://storage.googleapis.com":
-      yield from self._list_files_google(prefix, flat)
+      yield from self._list_files_google(prefix, flat, size, return_resume_token, resume_token)
       return
+
+    if size or resume_token or return_resume_token:
+      raise NotImplementedError("size, resume_token, and return_resume_token are not yet implemented.")
 
     url = posixpath.join(self._path.host, self._path.path, prefix)
     resp = requests.head(url)
@@ -1490,7 +1595,14 @@ class S3Interface(StorageInterface):
         **self._additional_attrs,
       )
 
-  def list_files(self, prefix, flat=False):
+  def list_files(
+    self, 
+    prefix:str, 
+    flat:bool = False,
+    size:bool = False,
+    return_resume_token:bool = False,
+    resume_token:Optional[str] = None,
+  ):
     """
     List the files in the layer with the given prefix. 
 
@@ -1517,7 +1629,7 @@ class S3Interface(StorageInterface):
 
       return self._conn.list_objects_v2(**kwargs)
 
-    resp = s3lst(path)
+    resp = s3lst(path, continuation_token=resume_token)
     # the case where the prefix is something like "build", but "build" is a subdirectory
     # so requery with "build/" to get the proper behavior
     if (
@@ -1528,7 +1640,7 @@ class S3Interface(StorageInterface):
       and len(resp.get("CommonPrefixes", [])) == 1
     ):
       path += '/'
-      resp = s3lst(path)
+      resp = s3lst(path, continuation_token=resume_token)
 
     def iterate(resp):
       if 'CommonPrefixes' in resp.keys():
@@ -1540,24 +1652,37 @@ class S3Interface(StorageInterface):
       if 'Contents' not in resp.keys():
         resp['Contents'] = []
 
+      token = None
+      if resp["IsTruncated"]:
+        token = resp["NextContinuationToken"]
+
       for item in resp['Contents']:
         key = item['Key']
         filename = key.removeprefix(layer_path)
         if filename == '':
           continue
-        elif not flat and filename[-1] != '/':
-          yield filename
-        elif flat and '/' not in key.removeprefix(path):
-          yield filename
+        elif flat and '/' in key.removeprefix(path):
+          continue
+        elif not flat and filename[-1] == "/":
+          continue
 
-    for filename in iterate(resp):
-      yield filename
+        if not size and not return_resume_token:
+          yield filename
+        elif size and not return_resume_token:
+          yield (filename, int(item["Size"]))
+        elif not size and return_resume_token:
+          yield (filename, token)
+        else:
+          yield (filename, int(item["Size"]), token)
+
+    for result in iterate(resp):
+      yield result
 
     while resp['IsTruncated'] and resp['NextContinuationToken']:
       resp = s3lst(path, resp['NextContinuationToken'])
 
-      for filename in iterate(resp):
-        yield filename
+      for result in iterate(resp):
+        yield result
 
   def subtree_size(self, prefix:str = "") -> tuple[int,int]:
     layer_path = self.get_path_to_file("")        

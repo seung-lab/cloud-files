@@ -37,6 +37,8 @@ from cloudfiles.lib import (
 )
 import cloudfiles.lib
 
+from . import listing_db
+
 def SI(val:int) -> str:
   if val < 1024:
     return f"{val} bytes"
@@ -105,8 +107,10 @@ def license():
 @click.option('--flat', is_flag=True, default=False, help='Only produce a single level of directory hierarchy.',show_default=True)
 @click.option('-e','--expr',is_flag=True, default=False, help=r'Use a limited regexp language (e.g. [abc123]{3}) to generate prefixes.', show_default=True)
 @click.option('--no-auth',is_flag=True, default=False, help='Uses the http API for read-only operations.', show_default=True)
+@click.option('--sqlite', 'sqlite_filename', default="", help='Write results to this sqlite database.', show_default=True)
+@click.option('--progress', is_flag=True, default=False, help="Show progress bar for sqlite.", show_default=True)
 @click.argument("cloudpath")
-def ls(shortpath, flat, expr, cloudpath, no_auth):
+def ls(shortpath, flat, expr, cloudpath, no_auth, sqlite_filename, progress):
   """Recursively lists the contents of a directory."""
   cloudpath = normalize_path(cloudpath)
 
@@ -122,6 +126,12 @@ def ls(shortpath, flat, expr, cloudpath, no_auth):
     cloudpath = os.path.dirname(cloudpath)
 
   flat = flat or flt
+
+  if sqlite_filename != "":
+    return listing_db.list(
+      cloudpath, sqlite_filename, 
+      prefix, flat, progress
+    )
 
   cf = CloudFiles(cloudpath, no_sign_request=no_sign_request)
   iterables = []
