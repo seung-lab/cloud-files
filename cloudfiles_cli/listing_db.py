@@ -119,6 +119,9 @@ def list(
     save_cloudpath(conn, cloudpath)
     page_token, rows_done = load_checkpoint(conn)
 
+    if progress and page_token is not None:
+      print(f"Resuming from {rows_done} rows.")
+
     iterator = cf.list(
       prefix=prefix,
       flat=flat,
