@@ -66,6 +66,11 @@ def init_db(filename:str) -> sqlite3.Connection:
 
   return conn
 
+def get_cloudpath(conn:sqlite3.Connection) -> str:
+  return conn.execute(
+    f"SELECT value FROM metadata where name = 'cloudpath'"
+  ).fetchone()[0]
+
 def save_cloudpath(conn:sqlite3.Connection, cloudpath:str):
   conn.execute(
     f"UPDATE metadata SET value = ? where name = 'cloudpath'", [ cloudpath ]
@@ -113,9 +118,19 @@ def list(
   flat:bool = False,
   progress:bool = False,
 ):
-  cf = CloudFiles(cloudpath)
-
   with init_db(db_name) as conn:
+
+    saved_cloudpath = get_cloudpath(conn)
+    if saved_cloudpath not in ("", cloudpath):
+      print(
+        f"Cloudpath does not match database. Aborting.\n"
+        f"Saved: {saved_cloudpath}\n"
+        f"Argument: {cloudpath}"
+      )
+      return
+
+    cf = CloudFiles(cloudpath)
+
     save_cloudpath(conn, cloudpath)
     page_token, rows_done = load_checkpoint(conn)
 
