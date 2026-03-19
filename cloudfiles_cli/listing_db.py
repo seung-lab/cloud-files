@@ -1,4 +1,5 @@
 import sqlite3
+import time
 
 from tqdm import tqdm
 
@@ -164,6 +165,9 @@ def list(
 
     if progress:
       print("Creating index.")
+
+    s = time.monotonic()
     conn.execute("CREATE INDEX IF NOT EXISTS idx_files_path ON files(path)")
+    elapsed = time.monotonic() - s
     if progress:
-      print("done.")
+      print(f"done in {elapsed:.3f} sec.")
