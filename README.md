@@ -440,6 +440,8 @@ cf.clear_locks()
 ```bash
 # list cloud and local directories
 cloudfiles ls gs://bucket-folder/
+# resumable list cloud and local directories to sqlite db
+cloudfiles ls --sqlite example.db gs://bucket-folder/
 # parallel file transfer, no decompression
 cloudfiles -p 2 cp --progress -r s3://bkt/ gs://bkt2/
 # change compression type to brotli
@@ -495,6 +497,20 @@ cloudfiles ls -e "gs://bucket/prefix[ab]"
 # equivalent to:
 # cloudfiles ls gs://bucket/prefixa
 # cloudfiles ls gs://bucket/prefixb
+```
+
+### `ls` sqlite 
+
+When there is a very large directory in the cloud, sometimes we want to download the file listing and file sizes locally for ease of searching and comparison. This feature allows you to initiate resumable downloads of a given bucket or directory on Google Cloud Storage or Amazone S3 endpoints. The `file`, `mem`, and `https` protocols do not support resumption (except for the Google Storage REST API which does have support).
+
+```bash
+cloudfiles ls --sqlite example.db gs://bucket/prefix --progress
+```
+
+This will start downloading the data to `example.db` in the local directory. You can then search for files in the `files` table.
+
+```sql
+SELECT sum(size) FROM files WHERE path LIKE '%example.jpg';
 ```
 
 ### `alias` for Alternative S3 Endpoints
