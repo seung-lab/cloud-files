@@ -1629,7 +1629,7 @@ class S3Interface(StorageInterface):
 
       return self._conn.list_objects_v2(**kwargs)
 
-    resp = s3lst(path)
+    resp = s3lst(path, continuation_token=resume_token)
     # the case where the prefix is something like "build", but "build" is a subdirectory
     # so requery with "build/" to get the proper behavior
     if (
@@ -1640,7 +1640,7 @@ class S3Interface(StorageInterface):
       and len(resp.get("CommonPrefixes", [])) == 1
     ):
       path += '/'
-      resp = s3lst(path)
+      resp = s3lst(path, continuation_token=resume_token)
 
     def iterate(resp):
       if 'CommonPrefixes' in resp.keys():
