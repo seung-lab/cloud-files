@@ -164,10 +164,11 @@ def list(
         pbar.update(len(batch))
 
     if progress:
-      print("Creating index.")
+      print("creating index.")
 
     s = time.monotonic()
     conn.execute("CREATE INDEX IF NOT EXISTS idx_files_path ON files(path)")
     elapsed = time.monotonic() - s
     if progress:
-      print(f"done in {elapsed:.3f} sec.")
+      print(f"created index in {elapsed:.3f} sec.")
+      print("done.")
