@@ -662,12 +662,17 @@ def xfergroup():
   """
   pass
 
+def read_txt(text_file:str):
+  with open(text_file, "rt") as f:
+    yield from ( line.rstrip('\n').rstrip('\r\n') for line in f )
+
 @xfergroup.command("init")
 @click.argument("source")
 @click.argument("destination")
 @click.option('-c', '--compression', default='same', help="Destination compression type. Options: same, none, gzip, br, zstd", show_default=True)
 @click.option('--db', default=None, required=True, help="Filepath of the sqlite database used for tracking progress. Different databases should be used for each job.")
-def xferinit(source, destination, compression, db):
+@click.option('--txt', 'text_file', default=None, type=str, help="Load the source file list from a text file with one file path per line.")
+def xferinit(source, destination, compression, db, text_file):
   """(1) Create db of files from the source."""
   if compression == "same":
     compression = None
@@ -676,9 +681,13 @@ def xferinit(source, destination, compression, db):
 
   source = normalize_path(source)
   destination = normalize_path(destination)
+  paths = source
+
+  if text_file:
+    paths = read_txt(text_file)
 
   rt = ResumableTransfer(db)
-  rt.init(source, destination, source, compression)
+  rt.init(source, destination, paths, compression)
 
 @xfergroup.command("execute")
 @click.argument("db")
