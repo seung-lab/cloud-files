@@ -85,8 +85,8 @@ def reset_connection_pools():
 reset_connection_pools()
 
 retry = tenacity.retry(
-  reraise=True, 
-  stop=tenacity.stop_after_attempt(7), 
+  reraise=True,
+  stop=tenacity.stop_after_attempt(5),
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
@@ -100,10 +100,10 @@ def retry_if_not(exception_type):
 
   return tenacity.retry(
     retry=conditions,
-    reraise=True, 
-    stop=tenacity.stop_after_attempt(7), 
+    reraise=True,
+    stop=tenacity.stop_after_attempt(5),
     wait=tenacity.wait_random_exponential(0.5, 60.0),
-  ) 
+  )
 
 class StorageInterface(object):
   exists_batch_size = 1
@@ -693,6 +693,11 @@ class GoogleCloudStorageInterface(StorageInterface):
     global GCS_BUCKET_POOL_LOCK
     self._path = path
     self._request_payer = request_payer
+    self._timeout = kwargs.get('timeout', None)
+    # Unpacked into per-request calls. Empty when None so the underlying
+    # google-cloud-storage default (60s) applies; passing timeout=None
+    # explicitly would disable the timeout entirely.
+    self._timeout_kw = {} if self._timeout is None else {'timeout': self._timeout}
 
     with GCS_BUCKET_POOL_LOCK:
       pool = GC_POOL[GCloudBucketPoolParams(self._path.bucket, self._request_payer)]
@@ -727,7 +732,7 @@ class GoogleCloudStorageInterface(StorageInterface):
       blob.storage_class = storage_class
 
     blob.md5_hash = md5(content)
-    blob.upload_from_string(content, content_type)
+    blob.upload_from_string(content, content_type, **self._timeout_kw)
 
   @retry
   def copy_file(self, src_path, dest_bucket, dest_key) -> tuple[bool,int]:
@@ -739,7 +744,8 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     try:
       blob = self._bucket.copy_blob(
-        source_blob, dest_bucket, dest_key
+        source_blob, dest_bucket, dest_key,
+        **self._timeout_kw,
       )
     except google.api_core.exceptions.NotFound:
       return (False, 0)
@@ -757,7 +763,10 @@ class GoogleCloudStorageInterface(StorageInterface):
       end = int(end - 1)
 
     try:
-      content = blob.download_as_bytes(start=start, end=end, raw_download=True, checksum=None)
+      content = blob.download_as_bytes(
+        start=start, end=end, raw_download=True, checksum=None,
+        **self._timeout_kw,
+      )
     except google.cloud.exceptions.NotFound as err:
       return (None, None, None, None)
 
@@ -778,8 +787,9 @@ class GoogleCloudStorageInterface(StorageInterface):
       mkdir(os.path.dirname(dest))
       blob.download_to_filename(
         filename=dest,
-        raw_download=True, 
-        checksum=None
+        raw_download=True,
+        checksum=None,
+        **self._timeout_kw,
       )
     except google.cloud.exceptions.NotFound:
       return (False, 0)
@@ -795,7 +805,7 @@ class GoogleCloudStorageInterface(StorageInterface):
   @retry_if_not(google.cloud.exceptions.NotFound)
   def head(self, file_path):
     key = self.get_path_to_file(file_path)
-    blob = self._bucket.get_blob(key)
+    blob = self._bucket.get_blob(key, **self._timeout_kw)
     return {
       "Cache-Control": blob.cache_control,
       "Content-Length": blob.size,
@@ -814,7 +824,7 @@ class GoogleCloudStorageInterface(StorageInterface):
   @retry_if_not(google.cloud.exceptions.NotFound)
   def size(self, file_path):
     key = self.get_path_to_file(file_path)
-    blob = self._bucket.get_blob(key)
+    blob = self._bucket.get_blob(key, **self._timeout_kw)
     if blob:
       return blob.size
     return None
@@ -823,7 +833,7 @@ class GoogleCloudStorageInterface(StorageInterface):
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob(key)
-    return blob.exists()
+    return blob.exists(**self._timeout_kw)
 
   @retry
   def files_exist(self, file_paths):
@@ -849,9 +859,9 @@ class GoogleCloudStorageInterface(StorageInterface):
   @retry
   def delete_file(self, file_path):
     key = self.get_path_to_file(file_path)
-    
+
     try:
-      self._bucket.delete_blob( key )
+      self._bucket.delete_blob(key, **self._timeout_kw)
     except google.cloud.exceptions.NotFound:
       pass
 
@@ -892,11 +902,12 @@ class GoogleCloudStorageInterface(StorageInterface):
       items += ",size"
 
     blobs = self._bucket.list_blobs(
-      prefix=path, 
+      prefix=path,
       delimiter=delimiter,
       page_size=2500,
       fields=f"items({items}),nextPageToken,prefixes",
       page_token=resume_token,
+      **self._timeout_kw,
     )
 
     def return_args(filename, blob, page):
@@ -944,6 +955,7 @@ class GoogleCloudStorageInterface(StorageInterface):
       prefix=path,
       page_size=5000,
       fields="items(name,size),nextPageToken",
+      **self._timeout_kw,
     )
 
     total_bytes = 0
@@ -973,6 +985,8 @@ class HttpInterface(StorageInterface):
     if not secrets:
       secrets = http_credentials()
 
+    self._timeout = kwargs.get('timeout', None)
+
     self.session = requests.Session()
     self.session.mount('http://', self.adaptor)
     self.session.mount('https://', self.adaptor)
@@ -1001,7 +1015,7 @@ class HttpInterface(StorageInterface):
   def head(self, file_path):
     key = self.get_path_to_file(file_path)
     headers = self.default_headers()
-    with self.session.head(key, headers=headers) as resp:
+    with self.session.head(key, headers=headers, timeout=self._timeout) as resp:
       if resp.status_code in (404, 403):
         return None
       resp.raise_for_status()
@@ -1024,13 +1038,13 @@ class HttpInterface(StorageInterface):
       end = int(end - 1) if end is not None else ''
       headers["Range"] = f"bytes={start}-{end}"
     
-    with self.session.get(key, headers=headers, stream=True) as resp:    
+    with self.session.get(key, headers=headers, stream=True, timeout=self._timeout) as resp:
       if resp.status_code in (404, 403):
         return (None, None, None, None)
       resp.raise_for_status()
       resp.raw.decode_content = False
       content = resp.raw.read()
-      content_encoding = resp.headers.get('Content-Encoding', None)  
+      content_encoding = resp.headers.get('Content-Encoding', None)
 
     # Don't check MD5 for http because the etag can come in many
     # forms from either GCS, S3 or another service entirely. We
@@ -1064,7 +1078,7 @@ class HttpInterface(StorageInterface):
     streamed_bytes = 0
 
     range_headers = { "Range": f"bytes={downloaded_size}-" }
-    with self.session.get(key, headers=range_headers, stream=True) as resp:
+    with self.session.get(key, headers=range_headers, stream=True, timeout=self._timeout) as resp:
       if resp.status_code not in [200, 206]:
         resp.raise_for_status()
         return (False, 0)
@@ -1083,7 +1097,7 @@ class HttpInterface(StorageInterface):
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
     headers = self.default_headers()
-    with self.session.get(key, stream=True, headers=headers) as resp:
+    with self.session.get(key, stream=True, headers=headers, timeout=self._timeout) as resp:
       return resp.ok
 
   def files_exist(self, file_paths):
@@ -1131,6 +1145,7 @@ class HttpInterface(StorageInterface):
         f"https://storage.googleapis.com/storage/v1/b/{bucket}/o",
         params=params,
         headers=headers,
+        timeout=self._timeout,
       )
       if results.status_code in [401,403]:
         raise AuthorizationError(f"http {results.status_code}")
@@ -1188,7 +1203,7 @@ class HttpInterface(StorageInterface):
       directory = directories.pop()
       url = posixpath.join(baseurl, directory)
 
-      resp = requests.get(url, headers=headers)
+      resp = requests.get(url, headers=headers, timeout=self._timeout)
       resp.raise_for_status()
 
       if 'text/html' not in resp.headers["Content-Type"]:
@@ -1235,7 +1250,7 @@ class HttpInterface(StorageInterface):
       raise NotImplementedError("size, resume_token, and return_resume_token are not yet implemented.")
 
     url = posixpath.join(self._path.host, self._path.path, prefix)
-    resp = requests.head(url)
+    resp = requests.head(url, timeout=self._timeout)
 
     server = resp.headers.get("Server", "").lower()
     if 'apache' in server:
@@ -1268,6 +1283,7 @@ class S3Interface(StorageInterface):
     self._request_payer = request_payer
     self._path = path
     self._secrets = secrets
+    self._timeout = kwargs.get('timeout', None)
     self._conn = self._get_bucket(path.bucket)
 
     self.composite_upload_threshold = composite_upload_threshold
@@ -1279,8 +1295,8 @@ class S3Interface(StorageInterface):
 
     with S3_BUCKET_POOL_LOCK:
       pool = S3_POOL[S3ConnectionPoolParams(service, bucket_name, self._request_payer)]
-    
-    return pool.get_connection(self._secrets, self._path.host)
+
+    return pool.get_connection(self._secrets, self._path.host, timeout=self._timeout)
 
   def get_path_to_file(self, file_path):
     return posixpath.join(self._path.path, file_path)

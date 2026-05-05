@@ -20,8 +20,8 @@ from .exceptions import UnsupportedProtocolError
 MEMORY_DATA:Dict[str,Dict[str,bytes]] = {}
 
 retry = tenacity.retry(
-  reraise=True, 
-  stop=tenacity.stop_after_attempt(7), 
+  reraise=True,
+  stop=tenacity.stop_after_attempt(5),
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
@@ -58,13 +58,13 @@ class ConnectionPool(object):
   def _create_connection(self, secrets, endpoint):
     raise NotImplementedError
 
-  def get_connection(self, secrets=None, endpoint=None, no_sign_request=False):
+  def get_connection(self, secrets=None, endpoint=None, no_sign_request=False, timeout=None):
     with self._lock:
-      try:        
+      try:
         conn = self.pool.get(block=False)
         self.pool.task_done()
       except queue.Empty:
-        conn = self._create_connection(secrets, endpoint, no_sign_request)
+        conn = self._create_connection(secrets, endpoint, no_sign_request, timeout)
       finally:
         self.outstanding += 1
 
@@ -106,7 +106,7 @@ class S3ConnectionPool(ConnectionPool):
     super(S3ConnectionPool, self).__init__()
 
   @retry
-  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False):
+  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False, timeout=None):
     if secrets is None:
       secrets = self.credentials
     if isinstance(secrets, str):
@@ -116,9 +116,15 @@ class S3ConnectionPool(ConnectionPool):
     if endpoint is not None:
       additional_args['endpoint_url'] = endpoint
 
-    config = None
+    # The first caller's timeout sticks for any subsequent reuse of the
+    # pooled client, since boto3 timeouts are baked in at client creation.
+    config_kwargs = {}
     if no_sign_request:
-      config = Config(signature_version=UNSIGNED)
+      config_kwargs['signature_version'] = UNSIGNED
+    if timeout is not None:
+      config_kwargs['connect_timeout'] = timeout
+      config_kwargs['read_timeout'] = timeout
+    config = Config(**config_kwargs) if config_kwargs else None
 
     return boto3.client(
       's3',
@@ -144,10 +150,10 @@ class GCloudBucketPool(ConnectionPool):
     super(GCloudBucketPool, self).__init__()
 
   @retry
-  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False):
+  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False, timeout=None):
     if secrets is None:
       secrets = self.credentials
-    
+
     if isinstance(secrets, str):
       secrets = json.loads(secrets)
     if isinstance(secrets, dict):
@@ -171,7 +177,7 @@ class MemoryPool(ConnectionPool):
     self.data = MEMORY_DATA
     super(MemoryPool, self).__init__()
 
-  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False):
+  def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False, timeout=None):
     if self.bucket not in self.data:
       self.data[self.bucket] = {}
     return self.data[self.bucket]
