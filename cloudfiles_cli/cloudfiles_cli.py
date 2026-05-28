@@ -325,11 +325,14 @@ def _cp_single(
     print(f"cloudfiles: {source} is a directory (not copied).")
     return
 
-  xferpaths = os.path.basename(nsrc)
+  nsrc_cf = CloudFiles(nsrc)
+
+  xferpaths = nsrc_cf.basename(nsrc)
   if use_stdin:
     xferpaths = sys.stdin.readlines()
     xferpaths = [ x.replace("\n", "") for x in xferpaths ]
     prefix = os.path.commonprefix(xferpaths)
+    prefix = nsrc_cf.dirname(prefix) + nsrc_cf.sep
     xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
     srcpath = prefix
     if srcpath == "":
@@ -555,11 +558,14 @@ def _mv_single(
     print(f"cloudfiles: {source} is a directory (not copied).")
     return
 
-  xferpaths = os.path.basename(nsrc)
+  nsrc_cf = CloudFiles(nsrc)
+
+  xferpaths = nsrc_cf.basename(nsrc)
   if use_stdin:
     xferpaths = sys.stdin.readlines()
     xferpaths = [ x.replace("\n", "") for x in xferpaths ]
     prefix = os.path.commonprefix(xferpaths)
+    prefix = nsrc_cf.dirname(prefix) + nsrc_cf.sep
     xferpaths = [ x.replace(prefix, "") for x in xferpaths ]
     srcpath = prefix
     if srcpath == "":
