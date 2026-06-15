@@ -86,8 +86,8 @@ reset_connection_pools()
 
 retry = tenacity.retry(
   reraise=True,
-  stop=tenacity.stop_after_attempt(5),
-  wait=tenacity.wait_random_exponential(0.5, 60.0),
+  stop=tenacity.stop_after_attempt(3),
+  wait=tenacity.wait_random_exponential(0.5, 10.0),
 )
 
 def retry_if_not(exception_type):
@@ -101,8 +101,8 @@ def retry_if_not(exception_type):
   return tenacity.retry(
     retry=conditions,
     reraise=True,
-    stop=tenacity.stop_after_attempt(5),
-    wait=tenacity.wait_random_exponential(0.5, 60.0),
+    stop=tenacity.stop_after_attempt(3),
+    wait=tenacity.wait_random_exponential(0.5, 10.0),
   )
 
 class StorageInterface(object):

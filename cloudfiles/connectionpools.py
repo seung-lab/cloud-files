@@ -21,8 +21,8 @@ MEMORY_DATA:Dict[str,Dict[str,bytes]] = {}
 
 retry = tenacity.retry(
   reraise=True,
-  stop=tenacity.stop_after_attempt(5),
-  wait=tenacity.wait_random_exponential(0.5, 60.0),
+  stop=tenacity.stop_after_attempt(3),
+  wait=tenacity.wait_random_exponential(0.5, 10.0),
 )
 
 def clear_memory():
