@@ -7,6 +7,11 @@ import lzma
 import sys
 
 try:
+  from isal import igzip as isal_igzip
+except ImportError:
+  isal_igzip = None
+
+try:
   import deflate
 except ImportError:
   deflate = None
@@ -166,9 +171,21 @@ def compress(content, method='gzip', compress_level=None):
   
   raise ValueError(str(method) + ' is not currently supported. Supported Options: None, gzip, br')
 
+def _gzip_to_isal_level(compresslevel):
+  if compresslevel <= 0:
+    return 0
+  elif compresslevel <= 3:
+    return 1
+  elif compresslevel <= 6:
+    return 2
+  return 3
+
 def gzip_compress(content, compresslevel=None):
   if compresslevel is None:
     compresslevel = 9
+
+  if isal_igzip is not None:
+    return isal_igzip.compress(content, _gzip_to_isal_level(compresslevel))
 
   if deflate:
     return bytes(deflate.gzip_compress(content, compresslevel))
@@ -200,6 +217,9 @@ def gunzip(content):
     raise DecompressionError('File is not in gzip format. Magic numbers {}, {} did not match {}, {}.'.format(
       hex(first_two_bytes[0]), hex(first_two_bytes[1]), hex(gzip_magic_numbers[0]), hex(gzip_magic_numbers[1])
     ))
+
+  if isal_igzip is not None:
+    return isal_igzip.decompress(content)
 
   if deflate:
     return bytes(deflate.gzip_decompress(content))
