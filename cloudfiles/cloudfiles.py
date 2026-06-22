@@ -63,10 +63,6 @@ INTERFACES = {
 for alias in ALIASES:
   INTERFACES[alias] = S3Interface
 
-@lru_cache(maxsize=10)
-def get_signature(fn):
-  return inspect.signature(fn)
-
 def parallelize(desc=None, returns_list=False):
   """
   @parallelize 
@@ -88,20 +84,8 @@ def parallelize(desc=None, returns_list=False):
       while isinstance(fn, partial):
         fn = fn.func
 
-      try:
-        sig = get_signature(fn).bind(*args, **kwargs)
-        parallel = sig.arguments.get("parallel", None)
-      except TypeError:
-        parallel = kwargs.pop("parallel", None)
-        sig = get_signature(fn).bind_partial(*args, **kwargs)
-
-      params = sig.arguments
-      self = params.get("self", None)
-      if "self" in params:
-        del params["self"]
-      input_key, input_value = first(params.items())
-      del params[input_key]
-
+      parallel = kwargs.pop("parallel", None)
+      self = args[0]
       parallel = nvl(parallel, self.parallel, 1)
 
       if parallel == 1:
@@ -293,6 +277,7 @@ class CloudFiles:
   def __init__(
     self,
     cloudpath:str, 
+    *,
     progress:bool = False, 
     green:Optional[bool] = None, 
     secrets:SecretsType = None,
@@ -1764,6 +1749,7 @@ class CloudFile:
   def __init__(
     self,
     path:str,
+    *,
     cache_meta:bool = False, 
     secrets:SecretsType = None,
     composite_upload_threshold:int = int(1e8),
