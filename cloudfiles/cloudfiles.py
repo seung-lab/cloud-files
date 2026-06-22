@@ -1,3 +1,4 @@
+import types
 from typing import (
   Any, Dict, Optional, 
   Union, List, Tuple, 
@@ -98,7 +99,10 @@ def parallelize(desc=None, returns_list=False):
 
       fn = partial(fn, self, **kwargs)
 
-      if not isinstance(input_value, (tuple, list)):
+      if (
+        not isinstance(input_value, (tuple, list)) 
+        and not isinstance(input_value, types.GeneratorType)
+      ):
         input_value = [input_value]
       
       return parallel_execute(
