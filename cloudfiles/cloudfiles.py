@@ -86,6 +86,7 @@ def parallelize(desc=None, returns_list=False):
 
       parallel = kwargs.pop("parallel", None)
       self = args[0]
+      input_value = args[1]
       parallel = nvl(parallel, self.parallel, 1)
 
       if parallel == 1:
@@ -95,9 +96,7 @@ def parallelize(desc=None, returns_list=False):
       kwargs["progress"] = False
       total = kwargs.get("total", None)
 
-      input_value = args[-1]
-
-      fn = partial(fn, *args, **kwargs)
+      fn = partial(fn, self, **kwargs)
       
       return parallel_execute(
         fn, input_value, parallel, total, progress, 
@@ -276,7 +275,6 @@ class CloudFiles:
   def __init__(
     self,
     cloudpath:str, 
-    *,
     progress:bool = False, 
     green:Optional[bool] = None, 
     secrets:SecretsType = None,
@@ -371,7 +369,8 @@ class CloudFiles:
   @parallelize(desc="Download", returns_list=True)
   def get(
     self, 
-    paths:GetPathType, 
+    paths:GetPathType,
+    *,
     total:Optional[int] = None, 
     raw:bool = False, 
     progress:Optional[bool] = None, 
@@ -592,6 +591,7 @@ class CloudFiles:
   def puts(
     self, 
     files:PutType, 
+    *,
     content_type:Optional[str] = None,
     compress:CompressType = None, 
     compression_level:Optional[int] = None,
