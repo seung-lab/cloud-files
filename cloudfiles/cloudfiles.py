@@ -11,7 +11,7 @@ from functools import partial, wraps, reduce, lru_cache
 import inspect
 import io
 import math
-import multiprocessing
+import multiprocessing as mp
 import itertools
 import os.path
 import platform
@@ -95,6 +95,8 @@ def parallelize(desc=None, returns_list=False):
       kwargs["progress"] = False
       total = kwargs.get("total", None)
 
+      input_value = args[-1]
+
       fn = partial(fn, *args, **kwargs)
       
       return parallel_execute(
@@ -111,7 +113,7 @@ def parallel_execute(
     returns_list
   ):
   if parallel == 0:
-    parallel = multiprocessing.cpu_count()
+    parallel = mp.cpu_count()
   elif parallel < 0:
     raise ValueError(f"parallel must be >= 0. Got: {parallel}")
 
