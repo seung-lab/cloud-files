@@ -275,6 +275,7 @@ class CloudFiles:
   def __init__(
     self,
     cloudpath:str, 
+    *,
     progress:bool = False, 
     green:Optional[bool] = None, 
     secrets:SecretsType = None,
