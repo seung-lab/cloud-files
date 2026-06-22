@@ -143,12 +143,12 @@ def parallel_execute(
 
   # Don't fork, spawn entirely new processes. This
   # avoids accidental deadlocks.
-  multiprocessing.set_start_method("spawn", force=True)
+  spawn_ctx = mp.get_context("spawn")
 
   results = []
   tms = []
   try: 
-    with pathos.pools.ProcessPool(parallel) as executor:
+    with pathos.pools.ProcessPool(parallel, context=spawn_ctx) as executor:
       for res in executor.imap(fn, sip(inputs, block_size)):
         update = res
         if isinstance(res, tuple):
