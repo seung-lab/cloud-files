@@ -97,12 +97,14 @@ def parallelize(desc=None, returns_list=False):
       total = kwargs.get("total", None)
 
       fn = partial(fn, self, **kwargs)
+
+      if not isinstance(input_value, (tuple, list)):
+        input_value = [input_value]
       
       return parallel_execute(
         fn, input_value, parallel, total, progress, 
         desc=desc, returns_list=returns_list
       )
-  
     return inner_decor
   return decor
 
