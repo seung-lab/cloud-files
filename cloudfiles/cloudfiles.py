@@ -11,7 +11,7 @@ from functools import partial, wraps, reduce, lru_cache
 import inspect
 import io
 import math
-import multiprocessing as mp
+import multiprocess as mp
 import itertools
 import os.path
 import platform
@@ -139,14 +139,10 @@ def parallel_execute(
   if platform.system().lower() == "darwin":
     os.environ["no_proxy"] = "*"
 
-  # Don't fork, spawn entirely new processes. This
-  # avoids accidental deadlocks.
-  spawn_ctx = mp.get_context("spawn")
-
   results = []
   tms = []
   try: 
-    with pathos.pools.ProcessPool(parallel, context=spawn_ctx) as executor:
+    with pathos.pools.ProcessPool(parallel) as executor:
       for res in executor.imap(fn, sip(inputs, block_size)):
         update = res
         if isinstance(res, tuple):
