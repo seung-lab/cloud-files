@@ -91,14 +91,11 @@ def parallelize(desc=None, returns_list=False):
       if parallel == 1:
         return fn(*args, **kwargs)
 
-      progress = params.get("progress", False)
-      params["progress"] = False
-      total = params.get("total", None)
+      progress = kwargs.get("progress", False)
+      kwargs["progress"] = False
+      total = kwargs.get("total", None)
 
-      if self is None:
-        fn = partial(fn, **params)
-      else:
-        fn = partial(fn, self, **params)
+      fn = partial(fn, *args, **kwargs)
       
       return parallel_execute(
         fn, input_value, parallel, total, progress, 
