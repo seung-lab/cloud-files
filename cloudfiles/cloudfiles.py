@@ -7,7 +7,7 @@ from typing import (
 
 from queue import Queue
 from collections import defaultdict
-from functools import partial, wraps, reduce
+from functools import partial, wraps, reduce, lru_cache
 import inspect
 import io
 import math
@@ -63,6 +63,10 @@ INTERFACES = {
 for alias in ALIASES:
   INTERFACES[alias] = S3Interface
 
+@lru_cache(maxsize=10)
+def get_signature(fn):
+  return inspect.signature(fn)
+
 def parallelize(desc=None, returns_list=False):
   """
   @parallelize 
@@ -85,11 +89,11 @@ def parallelize(desc=None, returns_list=False):
         fn = fn.func
 
       try:
-        sig = inspect.signature(fn).bind(*args, **kwargs)
+        sig = get_signature(fn).bind(*args, **kwargs)
         parallel = sig.arguments.get("parallel", None)
       except TypeError:
         parallel = kwargs.pop("parallel", None)
-        sig = inspect.signature(fn).bind_partial(*args, **kwargs)
+        sig = get_signature(fn).bind_partial(*args, **kwargs)
 
       params = sig.arguments
       self = params.get("self", None)
