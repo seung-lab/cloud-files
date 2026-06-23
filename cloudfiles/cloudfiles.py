@@ -1,3 +1,4 @@
+import types
 from typing import (
   Any, Dict, Optional, 
   Union, List, Tuple, 
@@ -11,7 +12,7 @@ from functools import partial, wraps, reduce
 import inspect
 import io
 import math
-import multiprocessing
+import multiprocess as mp
 import itertools
 import os.path
 import platform
@@ -84,39 +85,30 @@ def parallelize(desc=None, returns_list=False):
       while isinstance(fn, partial):
         fn = fn.func
 
-      try:
-        sig = inspect.signature(fn).bind(*args, **kwargs)
-        parallel = sig.arguments.get("parallel", None)
-      except TypeError:
-        parallel = kwargs.pop("parallel", None)
-        sig = inspect.signature(fn).bind_partial(*args, **kwargs)
-
-      params = sig.arguments
-      self = params.get("self", None)
-      if "self" in params:
-        del params["self"]
-      input_key, input_value = first(params.items())
-      del params[input_key]
-
+      parallel = kwargs.pop("parallel", None)
+      self = args[0]
+      input_value = args[1]
       parallel = nvl(parallel, self.parallel, 1)
 
       if parallel == 1:
         return fn(*args, **kwargs)
 
-      progress = params.get("progress", False)
-      params["progress"] = False
-      total = params.get("total", None)
+      progress = kwargs.get("progress", False)
+      kwargs["progress"] = False
+      total = kwargs.get("total", None)
 
-      if self is None:
-        fn = partial(fn, **params)
-      else:
-        fn = partial(fn, self, **params)
+      fn = partial(fn, self, **kwargs)
+
+      if (
+        not isinstance(input_value, (tuple, list)) 
+        and not isinstance(input_value, types.GeneratorType)
+      ):
+        input_value = [input_value]
       
       return parallel_execute(
         fn, input_value, parallel, total, progress, 
         desc=desc, returns_list=returns_list
       )
-  
     return inner_decor
   return decor
 
@@ -126,7 +118,7 @@ def parallel_execute(
     returns_list
   ):
   if parallel == 0:
-    parallel = multiprocessing.cpu_count()
+    parallel = mp.cpu_count()
   elif parallel < 0:
     raise ValueError(f"parallel must be >= 0. Got: {parallel}")
 
@@ -152,10 +144,6 @@ def parallel_execute(
   no_proxy = os.environ.get("no_proxy", "")
   if platform.system().lower() == "darwin":
     os.environ["no_proxy"] = "*"
-
-  # Don't fork, spawn entirely new processes. This
-  # avoids accidental deadlocks.
-  multiprocessing.set_start_method("spawn", force=True)
 
   results = []
   tms = []
@@ -289,6 +277,7 @@ class CloudFiles:
   def __init__(
     self,
     cloudpath:str, 
+    *,
     progress:bool = False, 
     green:Optional[bool] = None, 
     secrets:SecretsType = None,
@@ -383,7 +372,8 @@ class CloudFiles:
   @parallelize(desc="Download", returns_list=True)
   def get(
     self, 
-    paths:GetPathType, 
+    paths:GetPathType,
+    *,
     total:Optional[int] = None, 
     raw:bool = False, 
     progress:Optional[bool] = None, 
@@ -604,6 +594,7 @@ class CloudFiles:
   def puts(
     self, 
     files:PutType, 
+    *,
     content_type:Optional[str] = None,
     compress:CompressType = None, 
     compression_level:Optional[int] = None,
@@ -1760,6 +1751,7 @@ class CloudFile:
   def __init__(
     self,
     path:str,
+    *,
     cache_meta:bool = False, 
     secrets:SecretsType = None,
     composite_upload_threshold:int = int(1e8),
