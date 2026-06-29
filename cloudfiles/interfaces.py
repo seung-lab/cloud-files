@@ -54,6 +54,8 @@ S3_ACLS = {
   "nokura": "public-read",
 }
 
+DEFAULT_S3_ACL = "bucket-owner-full-control"
+
 S3ConnectionPoolParams = namedtuple('S3ConnectionPoolParams', 'service bucket_name request_payer')
 GCloudBucketPoolParams = namedtuple('GCloudBucketPoolParams', 'bucket_name request_payer')
 MemoryPoolParams = namedtuple('MemoryPoolParams', 'bucket_name')
@@ -1296,7 +1298,7 @@ class S3Interface(StorageInterface):
 
     attrs = {
       'ContentType': (content_type or 'application/octet-stream'),
-      'ACL': S3_ACLS.get(self._path.alias, "bucket-owner-full-control"),
+      'ACL': S3_ACLS.get(self._path.alias, DEFAULT_S3_ACL),
       **self._additional_attrs,
     }
 
@@ -1374,7 +1376,8 @@ class S3Interface(StorageInterface):
           CopySource=copy_source,
           Bucket=dest_bucket_name,
           Key=dest_key,
-          MetadataDirective='COPY'  # Ensure metadata like Content-Encoding is copied
+          MetadataDirective='COPY',  # Ensure metadata like Content-Encoding is copied
+          ACL=S3_ACLS.get(self._path.alias, DEFAULT_S3_ACL),
       )
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] in ('NoSuchKey', '404'):
