@@ -25,7 +25,7 @@ import pathos.pools
 
 import cloudfiles
 import cloudfiles.paths
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 from cloudfiles.monitoring import TransmissionMonitor, IOSampler, IOEnum
 from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
@@ -646,6 +646,21 @@ def touch(
       cf = CloudFiles(bucket, no_sign_request=no_sign_request, progress=False)
       cf.touch(items)
       pbar.update(len(items))
+
+
+@main.group("acl")
+def aclgroup():
+  """
+  Get ACL records (if you have permission).
+  """
+  pass
+
+@aclgroup.command("get")
+@click.argument("source")
+@click.option('--progress', is_flag=True, default=False, help="Show progress.", show_default=True)
+def get_acl(source, progress):
+  cf = CloudFile(source)
+  print(cf.get_acl())
 
 @main.group("xfer")
 def xfergroup():
