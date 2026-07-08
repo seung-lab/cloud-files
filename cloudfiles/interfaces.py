@@ -1463,7 +1463,7 @@ class S3Interface(StorageInterface):
         raise
 
   @retry
-  def get_file_acl(self):
+  def get_file_acl(self, file_path:str):
     try:
       kwargs = self._additional_attrs.copy()
       return self._conn.get_object_acl(
