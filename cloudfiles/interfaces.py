@@ -502,6 +502,9 @@ class MemoryInterface(StorageInterface):
       result = result[slice(start, end)]
     return (result, encoding, None, None)
 
+  def get_file_acl(self, file_path:str):
+    return None
+
   def save_file(self, src, dest, resumable) -> tuple[bool,int]:
     key = self.get_path_to_file(src)
     with EXT_TEST_SEQUENCE_LOCK:
@@ -1045,6 +1048,9 @@ class HttpInterface(StorageInterface):
     
     return (content, content_encoding, None, None)
 
+  def get_file_acl(self, file_path:str):
+    raise NotImplementedError()
+
   @retry
   def save_file(self, src, dest, resumable) -> tuple[bool, int]:
     key = self.get_path_to_file(src)
@@ -1453,6 +1459,21 @@ class S3Interface(StorageInterface):
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] == 'NoSuchKey':
         return (None, None, None, None)
+      else:
+        raise
+
+  @retry
+  def get_file_acl(self):
+    try:
+      kwargs = self._additional_attrs.copy()
+      return self._conn.get_object_acl(
+        Bucket=self._path.bucket,
+        Key=self.get_path_to_file(file_path),
+        **kwargs
+      )
+    except botocore.exceptions.ClientError as err: 
+      if err.response['Error']['Code'] == 'NoSuchKey':
+        return None
       else:
         raise
 

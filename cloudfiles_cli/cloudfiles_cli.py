@@ -660,7 +660,17 @@ def aclgroup():
 @click.option('--progress', is_flag=True, default=False, help="Show progress.", show_default=True)
 def get_acl(source, progress):
   cf = CloudFile(source)
-  print(cf.get_acl())
+  
+  if cf.protocol == "file" and os.uname().sysname == "Windows":
+    print("Windows is not currently supported.")
+    return
+
+  acl = cf.get_acl()
+
+  if cf.protocol == "file":
+    print(oct(first(acl.values())))
+  else:
+    print(acl)
 
 @main.group("xfer")
 def xfergroup():
