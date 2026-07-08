@@ -656,21 +656,34 @@ def aclgroup():
   pass
 
 @aclgroup.command("get")
-@click.argument("source")
+@click.argument("sources", nargs=-1)
 @click.option('--progress', is_flag=True, default=False, help="Show progress.", show_default=True)
-def get_acl(source, progress):
-  cf = CloudFile(source)
-  
-  if cf.protocol == "file" and os.uname().sysname == "Windows":
-    print("Windows is not currently supported.")
+def get_acl(sources, progress):
+  sources = list(map(normalize_path, sources))
+  sources = [ src.replace("precomputed://", "") for src in sources ]
+
+  if len(sources) == 1:
+    cf = CloudFile(sources[0])
+    acl = cf.get_acl()
+    if cf.protocol == "file":
+      print(oct(first(acl.values())))
+    else:
+      print(acl)
     return
 
-  acl = cf.get_acl()
+  pbar = tqdm(total=len(sources), desc="Fetching ACLs", disable=(not progress))
+  clustered = find_common_buckets(sources)
 
-  if cf.protocol == "file":
-    print(oct(first(acl.values())))
-  else:
-    print(acl)
+  pairs = []
+
+  with pbar:
+    for bucket, items in clustered.items():
+      cf = CloudFiles(bucket, progress=False)
+      acls = cf.get_acl(( item["path"] for item in items ))
+      pbar.update(len(items))
+
+      print(bucket)
+      print(acls)
 
 @main.group("xfer")
 def xfergroup():
