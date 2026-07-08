@@ -859,6 +859,44 @@ class CloudFiles:
       'storage_class': storage_class
     })
 
+  def get_acl(
+    self,
+    paths:GetPathType, 
+    total:Optional[int] = None,
+    progress:Optional[bool] = None, 
+    return_recording:bool = False,
+  ) -> Union[dict[str,Any], tuple[dict[str,Any], TransmissionMonitor]]:
+    """
+    Read the access control list (ACL) or file permissions
+    for one or more files.
+    """
+    paths = toiter(paths)
+    progress = nvl(progress, self.progress)
+    tm = TransmissionMonitor(IOEnum.RX)
+
+    results = {}
+
+    def get_acl_thunk(path):
+      flight_id = tm.start_io(1)
+      with self._get_connection() as conn:
+        results[path] = conn.get_file_acl(path)
+      tm.end_io(flight_id, 1)
+
+    fns = ( partial(get_acl_thunk, path) for path in paths )
+    desc = self._progress_description("Fetching ACLs")
+    schedule_jobs(
+      fns=fns,
+      concurrency=self.num_threads,
+      progress=(desc if progress else None),
+      total=total,
+      green=self.green,
+    )
+
+    if return_recording:
+      return (results, tm)
+    else:
+      return results
+
   def isdir(self, prefix:str = "") -> bool:
     """
     Tests if the given path points to a directory.
@@ -1835,6 +1873,9 @@ class CloudFile:
   def get_json(self) -> Union[dict,list]:
     """Download a json file and decode to a dict or list."""
     return self.cf.get_json(self.filename)
+
+  def get_acl(self):
+    return self.cf.get_acl(self.filename)
 
   def put(self, content:bytes, *args, **kwargs):
     """Upload a file."""
