@@ -297,6 +297,11 @@ class FileInterface(StorageInterface):
       return read_file(path, encoding, start, end)
     return self._try_extensions(file_path, do_get_file, (None, None, None, None))
 
+  def get_file_acl(self, file_path:str):
+    def do_stat_file(path:str, encoding:str):
+      return os.stat(path).st_mode
+    return self._try_extensions(file_path, do_stat_file, None)
+
   def size(self, file_path):
     def do_size(path:str, encoding:str):
       return os.path.getsize(path)
@@ -764,6 +769,12 @@ class GoogleCloudStorageInterface(StorageInterface):
       hash_value = blob.crc32c
 
     return (content, blob.content_encoding, hash_value, hash_type)
+
+  @retry_if_not(google.cloud.exceptions.NotFound)
+  def get_file_acl(self, file_path:str):
+    key = self.get_path_to_file(file_path)
+    blob = self._bucket.get_blob( key )
+    return list(blob.acl)
 
   @retry
   def save_file(self, src, dest, resumable) -> tuple[bool, int]:
