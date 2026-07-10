@@ -25,7 +25,7 @@ import pathos.pools
 
 import cloudfiles
 import cloudfiles.paths
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 from cloudfiles.monitoring import TransmissionMonitor, IOSampler, IOEnum
 from cloudfiles.resumable_tools import ResumableTransfer
 from cloudfiles.compression import transcode
@@ -646,6 +646,44 @@ def touch(
       cf = CloudFiles(bucket, no_sign_request=no_sign_request, progress=False)
       cf.touch(items)
       pbar.update(len(items))
+
+
+@main.group("acl")
+def aclgroup():
+  """
+  Get ACL records (if you have permission).
+  """
+  pass
+
+@aclgroup.command("get")
+@click.argument("sources", nargs=-1)
+@click.option('--progress', is_flag=True, default=False, help="Show progress.", show_default=True)
+def get_acl(sources, progress):
+  sources = list(map(normalize_path, sources))
+  sources = [ src.replace("precomputed://", "") for src in sources ]
+
+  if len(sources) == 1:
+    cf = CloudFile(sources[0])
+    acl = cf.get_acl()
+    if cf.protocol == "file":
+      print(oct(first(acl.values())))
+    else:
+      print(acl)
+    return
+
+  pbar = tqdm(total=len(sources), desc="Fetching ACLs", disable=(not progress))
+  clustered = find_common_buckets(sources)
+
+  pairs = []
+
+  with pbar:
+    for bucket, items in clustered.items():
+      cf = CloudFiles(bucket, progress=False)
+      acls = cf.get_acl(( item["path"] for item in items ))
+      pbar.update(len(items))
+
+      print(bucket)
+      print(acls)
 
 @main.group("xfer")
 def xfergroup():

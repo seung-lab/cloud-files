@@ -1302,6 +1302,27 @@ def test_touch(s3, protocol):
 
   assert sorted(list(cf)) == sorted([ str(i) for i in range(20) ])
 
+@pytest.mark.parametrize("protocol", ["file", "mem", "s3"])
+def test_get_acl(s3, protocol):
+  from cloudfiles import CloudFiles
+
+  url = compute_url(protocol, "acl")
+
+  cf = CloudFiles(url)
+
+  fnames = [ str(i) for i in range(20) ]
+  cf.touch(fnames)
+  
+  acls = cf.get_acl(fnames)
+
+  for path, acl in acls.items():
+    if protocol == "mem":
+      assert acl is None
+    elif protocol == "file" and os.uname().sysname != "Windows":
+      assert acl & 0o777 == 0o644
+    elif protocol == "s3":
+      assert acl["Grants"][0]["Permission"] == "FULL_CONTROL"
+  
 class TestTransmissionMonitor:
   @pytest.fixture
   def tx_monitor(self):

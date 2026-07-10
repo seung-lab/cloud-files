@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Callable, Any
 
 import base64
 import binascii
@@ -238,6 +238,30 @@ class FileInterface(StorageInterface):
 
     return self.io_with_lock(do_put_file, path, exclusive=True)
 
+  def _try_extensions(self, file_path:str, fn:Callable, null_return:Any):
+    global EXT_TEST_SEQUENCE
+    path = self.get_path_to_file(file_path)
+
+    def _try_extensions_helper():
+      with EXT_TEST_SEQUENCE_LOCK:
+        seq = list(EXT_TEST_SEQUENCE)
+
+      i = 0
+      try:
+        for i, (ext, encoding) in enumerate(seq):
+          try:
+            return fn(path + ext, encoding)
+          except FileNotFoundError:
+            continue
+      finally:
+        if i > 0:
+          with EXT_TEST_SEQUENCE_LOCK:
+            EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
+
+      return null_return
+
+    return self.io_with_lock(_try_extensions_helper, path, exclusive=False)
+
   def head(self, file_path):
     path = self.get_path_to_file(file_path)
 
@@ -267,47 +291,21 @@ class FileInterface(StorageInterface):
     return self.io_with_lock(do_head, path, exclusive=False)
 
   def get_file(self, file_path, start=None, end=None, part_size=None):
-    global EXT_TEST_SEQUENCE
     global read_file
-    path = self.get_path_to_file(file_path)
 
-    def do_get_file():
-      with EXT_TEST_SEQUENCE_LOCK:
-        seq = list(EXT_TEST_SEQUENCE)
+    def do_get_file(path:str, encoding:str):
+      return read_file(path, encoding, start, end)
+    return self._try_extensions(file_path, do_get_file, (None, None, None, None))
 
-      i = 0
-      try:
-        for i, (ext, encoding) in enumerate(seq):
-          try:
-            return read_file(path + ext, encoding, start, end)
-          except FileNotFoundError:
-            continue
-      finally:
-        if i > 0:
-          with EXT_TEST_SEQUENCE_LOCK:
-            EXT_TEST_SEQUENCE.insert(0, EXT_TEST_SEQUENCE.pop(i))
-
-      return (None, None, None, None)
-
-    return self.io_with_lock(do_get_file, path, exclusive=False)
+  def get_file_acl(self, file_path:str):
+    def do_stat_file(path:str, encoding:str):
+      return os.stat(path).st_mode
+    return self._try_extensions(file_path, do_stat_file, None)
 
   def size(self, file_path):
-    path = self.get_path_to_file(file_path)
-
-    def do_size():
-      with EXT_TEST_SEQUENCE_LOCK:
-        exts = [ pair[0] for pair in EXT_TEST_SEQUENCE ]
-      errors = (FileNotFoundError,)
-
-      for ext in exts:
-        try:
-          return os.path.getsize(path + ext)
-        except errors:
-          continue
-
-      return None
-
-    return self.io_with_lock(do_size, path, exclusive=False)
+    def do_size(path:str, encoding:str):
+      return os.path.getsize(path)
+    return self._try_extensions(file_path, do_size, None)
 
   def subtree_size(self, prefix:str = "") -> tuple[int,int]:
     total_bytes = 0
@@ -503,6 +501,9 @@ class MemoryInterface(StorageInterface):
     if isinstance(result, (bytes, bytearray, str)):
       result = result[slice(start, end)]
     return (result, encoding, None, None)
+
+  def get_file_acl(self, file_path:str):
+    return None
 
   def save_file(self, src, dest, resumable) -> tuple[bool,int]:
     key = self.get_path_to_file(src)
@@ -772,6 +773,12 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     return (content, blob.content_encoding, hash_value, hash_type)
 
+  @retry_if_not(google.cloud.exceptions.NotFound)
+  def get_file_acl(self, file_path:str):
+    key = self.get_path_to_file(file_path)
+    blob = self._bucket.get_blob( key )
+    return list(blob.acl)
+
   @retry
   def save_file(self, src, dest, resumable) -> tuple[bool, int]:
     key = self.get_path_to_file(src)
@@ -1040,6 +1047,9 @@ class HttpInterface(StorageInterface):
     # etag = resp.headers.get('etag', None)
     
     return (content, content_encoding, None, None)
+
+  def get_file_acl(self, file_path:str):
+    raise NotImplementedError()
 
   @retry
   def save_file(self, src, dest, resumable) -> tuple[bool, int]:
@@ -1449,6 +1459,21 @@ class S3Interface(StorageInterface):
     except botocore.exceptions.ClientError as err: 
       if err.response['Error']['Code'] == 'NoSuchKey':
         return (None, None, None, None)
+      else:
+        raise
+
+  @retry
+  def get_file_acl(self, file_path:str):
+    try:
+      kwargs = self._additional_attrs.copy()
+      return self._conn.get_object_acl(
+        Bucket=self._path.bucket,
+        Key=self.get_path_to_file(file_path),
+        **kwargs
+      )
+    except botocore.exceptions.ClientError as err: 
+      if err.response['Error']['Code'] == 'NoSuchKey':
+        return None
       else:
         raise
 
