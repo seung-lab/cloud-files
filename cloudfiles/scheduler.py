@@ -3,13 +3,11 @@ import sys
 import gevent.monkey
 from tqdm import tqdm
 
-from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
+from .threaded_queue import ThreadedQueue
 from .lib import totalfn
 
-DEFAULT_THREADS = 20
-
 def schedule_threaded_jobs(
-    fns, concurrency=DEFAULT_THREADS, 
+    fns, concurrency, 
     progress=None, total=None, count_return=False
   ):
 
@@ -42,7 +40,7 @@ def schedule_threaded_jobs(
   return results
 
 def schedule_green_jobs(
-    fns, concurrency=DEFAULT_THREADS, 
+    fns, concurrency, 
     progress=None, total=None, count_return=False
   ):
   import gevent.pool
@@ -114,7 +112,7 @@ def schedule_single_threaded_jobs(
   return results 
 
 def schedule_jobs(
-    fns, concurrency=DEFAULT_THREADS, 
+    fns, concurrency, 
     progress=None, total=None, green=None,
     count_return=False
   ):

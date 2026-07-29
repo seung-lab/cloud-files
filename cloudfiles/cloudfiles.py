@@ -39,7 +39,7 @@ from .lib import (
 from .monitoring import TransmissionMonitor, IOEnum
 from .paths import ALIASES, find_common_buckets
 from .secrets import CLOUD_FILES_DIR, CLOUD_FILES_LOCK_DIR
-from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
+from .threaded_queue import ThreadedQueue
 from .typing import (
   CompressType, GetPathType, PutScalarType,
   PutType, ParallelType, SecretsType
