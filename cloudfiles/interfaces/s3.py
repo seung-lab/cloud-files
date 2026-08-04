@@ -1,8 +1,13 @@
 from typing import Optional
 
 from .base import (
-  StorageInterface, S3_POOL, S3_BUCKET_POOL_LOCK, S3ConnectionPoolParams,
-  retry, retry_if_not, GZIP_TYPES,
+  GZIP_TYPES,
+  retry, 
+  retry_if_not, 
+  S3_BUCKET_POOL_LOCK, 
+  S3_POOL, 
+  S3ConnectionPoolParams,
+  StorageInterface, 
 )
 
 import boto3
