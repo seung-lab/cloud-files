@@ -27,8 +27,6 @@ import orjson
 import pathos.pools
 from tqdm import tqdm
 
-import google.cloud.storage 
-
 from . import compression, paths, gcs
 from .exceptions import UnsupportedProtocolError, MD5IntegrityError, CRC32CIntegrityError
 from .lib import (
