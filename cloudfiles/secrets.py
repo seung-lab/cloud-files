@@ -3,8 +3,6 @@ from collections import defaultdict
 import os
 import json
 
-from google.oauth2 import service_account
-
 from .lib import mkdir, colorize
 
 HOME = os.path.expanduser('~')
@@ -55,6 +53,7 @@ google_credentials_path = secretpath('google-secret.json')
 def google_credentials(bucket = ''):
   global PROJECT_NAME
   global GOOGLE_CREDENTIALS_CACHE
+  from google.oauth2 import service_account
 
   if bucket in GOOGLE_CREDENTIALS_CACHE.keys():
     return GOOGLE_CREDENTIALS_CACHE[bucket]

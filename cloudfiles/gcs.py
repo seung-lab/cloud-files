@@ -9,8 +9,6 @@ import math
 import os
 import posixpath
 
-from google.cloud.storage import Client
-
 from . import paths, compression
 from .lib import sip
 from .secrets import google_credentials
@@ -81,6 +79,7 @@ def composite_upload(
   skip_compress:bool = False,
 ) -> int:
   from .cloudfiles import CloudFiles, CloudFile
+  from google.cloud.storage import Client
   
   content_encoding = compression.normalize_encoding(compress)
   if isinstance(handle, bytes):

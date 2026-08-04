@@ -10,8 +10,6 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
-from google.cloud.storage import Client
-from google.oauth2 import service_account
 import tenacity
 
 from .secrets import google_credentials, aws_credentials
@@ -145,6 +143,9 @@ class GCloudBucketPool(ConnectionPool):
 
   @retry
   def _create_connection(self, secrets=None, endpoint=None, no_sign_request=False):
+    from google.cloud.storage import Client
+    from google.oauth2 import service_account
+    
     if secrets is None:
       secrets = self.credentials
     
