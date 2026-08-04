@@ -253,6 +253,7 @@ class S3Interface(StorageInterface):
 
   @retry
   def save_file(self, src, dest, resumable) -> tuple[bool,int]:
+    from .file import FileInterface
     key = self.get_path_to_file(src)
     kwargs = self._additional_attrs.copy()
 
