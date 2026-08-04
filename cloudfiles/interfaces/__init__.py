@@ -1,4 +1,4 @@
-from .base import reset_connection_pools, MEMORY_DATA
+from .base import reset_connection_pools, MEMORY_DATA, COMPRESSION_EXTENSIONS
 
 from .cave import CaveInterface
 from .file import FileInterface
