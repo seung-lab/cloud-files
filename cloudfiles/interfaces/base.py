@@ -1,7 +1,6 @@
 from typing import Optional, Callable, Any
 
 from collections import defaultdict, namedtuple
-from datetime import datetime
 
 import gevent.monkey
 

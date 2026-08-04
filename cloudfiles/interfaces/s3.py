@@ -11,6 +11,7 @@ import botocore
 import base64
 import binascii
 from io import BytesIO
+import os
 import posixpath
 import re
 
