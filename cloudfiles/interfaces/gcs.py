@@ -7,8 +7,6 @@ from .base import (
 )
 from ..exceptions import CompressionError
 
-import google.cloud.exceptions
-
 class GoogleCloudStorageInterface(StorageInterface):
   # Broke this out to avoid overhead of importing GCS library
   exists_batch_size = 1000 # Batch._MAX_BATCH_SIZE
@@ -73,8 +71,8 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     return (True, blob.size)
 
-  @retry_if_not(google.cloud.exceptions.NotFound)
   def get_file(self, file_path, start=None, end=None, part_size=None):
+    import google.cloud.exceptions
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
@@ -97,10 +95,14 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     return (content, blob.content_encoding, hash_value, hash_type)
 
-  @retry_if_not(google.cloud.exceptions.NotFound)
+  @retry
   def get_file_acl(self, file_path:str):
+    import google.cloud.exceptions
     key = self.get_path_to_file(file_path)
-    blob = self._bucket.get_blob( key )
+    try:
+      blob = self._bucket.get_blob( key )
+    except google.cloud.exceptions.NotFound as err:
+      return []
     return list(blob.acl)
 
   @retry
@@ -125,10 +127,15 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     return (True, num_bytes)
 
-  @retry_if_not(google.cloud.exceptions.NotFound)
+  @retry
   def head(self, file_path):
+    import google.cloud.exceptions
     key = self.get_path_to_file(file_path)
-    blob = self._bucket.get_blob(key)
+    try:
+      blob = self._bucket.get_blob(key)
+    except google.cloud.exceptions.NotFound:
+      return None
+
     return {
       "Cache-Control": blob.cache_control,
       "Content-Length": blob.size,
@@ -144,15 +151,20 @@ class GoogleCloudStorageInterface(StorageInterface):
       "Component-Count": blob.component_count,
     }
 
-  @retry_if_not(google.cloud.exceptions.NotFound)
+  @retry
   def size(self, file_path):
+    import google.cloud.exceptions
     key = self.get_path_to_file(file_path)
-    blob = self._bucket.get_blob(key)
+    try:
+      blob = self._bucket.get_blob(key)
+    except google.cloud.exceptions.NotFound:
+      return None
+
     if blob:
       return blob.size
     return None
 
-  @retry_if_not(google.cloud.exceptions.NotFound)
+  @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob(key)
@@ -160,6 +172,7 @@ class GoogleCloudStorageInterface(StorageInterface):
 
   @retry
   def files_exist(self, file_paths):
+    import google.cloud.exceptions
     result = { path: None for path in file_paths }
 
     for batch in sip(file_paths, self.exists_batch_size):
@@ -181,6 +194,7 @@ class GoogleCloudStorageInterface(StorageInterface):
 
   @retry
   def delete_file(self, file_path):
+    import google.cloud.exceptions
     key = self.get_path_to_file(file_path)
     
     try:
@@ -190,6 +204,7 @@ class GoogleCloudStorageInterface(StorageInterface):
 
   @retry
   def delete_files(self, file_paths):
+    import google.cloud.exceptions
     for batch in sip(file_paths, self.delete_batch_size):
       try:
         with self._bucket.client.batch():
