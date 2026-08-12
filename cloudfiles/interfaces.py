@@ -1201,7 +1201,7 @@ class HttpInterface(StorageInterface):
       directory = directories.pop()
       url = posixpath.join(baseurl, directory)
 
-      resp = requests.get(url, headers=headers)
+      resp = requests.get(url, headers=headers, timeout=30)
       resp.raise_for_status()
 
       if 'text/html' not in resp.headers["Content-Type"]:
@@ -1248,7 +1248,7 @@ class HttpInterface(StorageInterface):
       raise NotImplementedError("size, resume_token, and return_resume_token are not yet implemented.")
 
     url = posixpath.join(self._path.host, self._path.path, prefix)
-    resp = requests.head(url)
+    resp = requests.head(url, timeout=30)
 
     server = resp.headers.get("Server", "").lower()
     if 'apache' in server:
