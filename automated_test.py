@@ -146,6 +146,28 @@ def test_read_write_py_objects_mem():
 
   cf.delete(["my_set", "my_set2"])
 
+def test_reader_and_writer_share_a_lock():
+  import os, tempfile
+  import cloudfiles.interfaces as cfi
+  from cloudfiles import CloudFiles
+
+  seen = []
+  real = cfi.fasteners.InterProcessReaderWriterLock
+
+  class Recording(real):
+    def __init__(self, path, *a, **k):
+      seen.append(os.path.basename(path))
+      super().__init__(path, *a, **k)
+
+  cfi.fasteners.InterProcessReaderWriterLock = Recording
+  try:
+    cf = CloudFiles("file://" + tempfile.mkdtemp(), locking=True)
+    cf.put("chunk", b"data" * 100, compress="gzip")
+    cf.get("chunk")
+    assert seen[0] == seen[-1], f"write locked {seen[0]}, read locked {seen[-1]}"
+  finally:
+    cfi.fasteners.InterProcessReaderWriterLock = real
+
 @pytest.mark.parametrize("protocol", ('mem', 'file', 's3'))#'gs'))
 def test_get_json_order(s3, protocol):
   from cloudfiles import CloudFiles

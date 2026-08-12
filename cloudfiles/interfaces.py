@@ -208,6 +208,7 @@ class FileInterface(StorageInterface):
     storage_class=None
   ):
     path = self.get_path_to_file(file_path)
+    lock_path = path
     compress_ext = self.get_extension(compress)
     _, ext = os.path.splitext(path)
     if ext != compress_ext:
@@ -236,7 +237,7 @@ class FileInterface(StorageInterface):
         with open(path, 'wb') as f:
           f.write(content)
 
-    return self.io_with_lock(do_put_file, path, exclusive=True)
+    return self.io_with_lock(do_put_file, lock_path, exclusive=True)
 
   def _try_extensions(self, file_path:str, fn:Callable, null_return:Any):
     global EXT_TEST_SEQUENCE
