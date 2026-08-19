@@ -1024,9 +1024,11 @@ def populate_md5(
 @click.option('--part-size', default=None, help="For S3, compute multipart hashes using this part size in bytes.", show_default=True)
 def verify(source, target, only_matching, verbose, md5, multipart_threshold, part_size):
   """
-  Validates checksums of two files or two directories 
+  Compares source and target directories to check
+  if filenames and sizes match. Optionally it can
+  validate if the checksums of two files or two directories
   match. These tags are usually either md5 or crc32c 
-  generated strings. These are not secure hashes so they 
+  generated strings. These are not secure hashes so they
   will only catch accidental changes to files, not 
   intentionally malicious changes.
   """
