@@ -1099,15 +1099,19 @@ def verify(source, target, only_matching, verbose, md5, multipart_threshold, par
       continue
     elif not (
       (
-        (sm["ETag"] and tm["ETag"])
+        (sm.get("ETag", None) and tm.get("ETag", None))
         and (
           sm["ETag"] == tm["ETag"]
           or md5_equal(sm["ETag"], tm["ETag"])
         )
       )
       or (
-        sm["Content-Md5"] and tm["Content-Md5"]
+        (sm.get("Content-Md5", None) and tm.get("Content-Md5", None))
         and md5_equal(sm["Content-Md5"], tm["Content-Md5"])
+      )
+      or (
+        (sm.get("Content-Crc32c", None) and tm.get("Content-Crc32c", None))
+        and sm["Content-Crc32c"] == tm["Content-Crc32c"]
       )
     ):
       failed_files.append(filename)
