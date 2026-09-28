@@ -116,9 +116,17 @@ class S3ConnectionPool(ConnectionPool):
     if endpoint is not None:
       additional_args['endpoint_url'] = endpoint
 
-    config = None
+    config = {}
     if no_sign_request:
-      config = Config(signature_version=UNSIGNED)
+      config['signature_version'] = UNSIGNED
+
+    if endpoint is not None:
+      config['request_checksum_calculation'] = "when_required"
+    
+    if len(config) == 0:
+      config = None
+    else:
+      config = Config(**config)
 
     return boto3.client(
       's3',
