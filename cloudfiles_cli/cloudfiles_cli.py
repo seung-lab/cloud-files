@@ -387,7 +387,11 @@ def _cp_single(
       with pathos.pools.ProcessPool(parallel) as executor:
         for tm in executor.imap(fn, sip(xferpaths, block_size)):
           pbar.update(block_size)
-          tms.append(tm)
+          if io_rate or gantt:
+            tms.append(tm)
+
+    if not (io_rate or gantt):
+      return
 
     tm = TransmissionMonitor.merge(tms)
     del tms
