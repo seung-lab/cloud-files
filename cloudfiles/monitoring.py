@@ -10,6 +10,8 @@ import intervaltree
 import numpy as np
 import numpy.typing as npt
 
+EPSILON_SEC = 1e-7
+
 class IOEnum(enum.Enum):
   RX = 1
   TX = 2
@@ -63,6 +65,8 @@ class TransmissionMonitor:
     
     with self._lock:
       start_us = int(self._in_flight.pop(flight_id) * 1e6)
+      if start_us == end_us:
+        end_us += 1
       self._in_flight_bytes -= num_bytes
       self._intervaltree.addi(start_us, end_us, [flight_id, num_bytes])
       self._total_bytes_landed += num_bytes
@@ -662,7 +666,7 @@ class IOSampler:
       time.monotonic()
       time.monotonic()
       e = time.monotonic()
-      return (e - s) / 5
+      return ((e - s) / 5) or EPSILON_SEC
 
     time_correction = measure_correction()
     psutil.net_io_counters.cache_clear()
@@ -679,12 +683,15 @@ class IOSampler:
         recorrection_start = time.monotonic()
 
       e = time.monotonic()
+      elapsed = (e-s) or EPSILON_SEC
 
-      wait = interval - (e-s)
+      wait = interval - elapsed
       if wait > 0:
         time.sleep(wait)
 
-    if (interval * 0.5) < (time.monotonic() - e):
+    elapsed = (time.monotonic() - e) or EPSILON_SEC
+
+    if (interval * 0.5) < elapsed:
       self._do_sample(time_correction)
 
   def is_sampling(self):
