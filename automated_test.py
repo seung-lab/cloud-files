@@ -1458,3 +1458,21 @@ class TestTransmissionMonitor:
     
     assert new_monitor.total_bytes() == 100
     assert hasattr(new_monitor, '_lock')
+
+  def test_slow_clock_tick(self, tx_monitor):
+    import time
+
+    real_monotonic = time.monotonic
+    time.monotonic = lambda: 1
+
+    flight_id = tx_monitor.start_io(100)
+    time.sleep(0.01) 
+    tx_monitor.end_io(flight_id, 100)
+    
+    assert len(tx_monitor._in_flight) == 0
+    assert tx_monitor._in_flight_bytes == 0
+    assert tx_monitor._total_bytes_landed == 100
+    assert len(tx_monitor._intervaltree) == 1
+
+    time.monotonic = real_monotonic
+
