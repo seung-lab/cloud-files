@@ -19,6 +19,6 @@ six>=1.14.0
 tenacity>=4.10.0
 tqdm
 urllib3>=1.26.3
-zstandard
+zstandard; python_version < "3.14"
 rsa>=4.7.2
 fasteners

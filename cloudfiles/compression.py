@@ -12,7 +12,12 @@ except ImportError:
   deflate = None
 
 import brotli
-import zstandard as zstd
+
+if sys.version_info >= (3, 14):
+  from compression import zstd # PEP 784
+else:
+  zstd = None
+  import zstandard
 
 from tqdm import tqdm
 
@@ -221,15 +226,26 @@ def brotli_decompress(content):
   return brotli.decompress(content)
 
 def zstd_compress(content, level=None):
+  if level is not None:
+    level = int(level)
+
+  # The stdlib ZstdCompressor.compress() buffers its output
+  # by default, so use the one-shot function instead.
+  if zstd is not None:
+    return zstd.compress(content, level=level)
+
   kwargs = {}
   if level is not None:
-    kwargs['level'] = int(level)
+    kwargs['level'] = level
 
-  ctx = zstd.ZstdCompressor(**kwargs)
+  ctx = zstandard.ZstdCompressor(**kwargs)
   return ctx.compress(content)
 
 def zstd_decompress(content):
-  ctx = zstd.ZstdDecompressor()
+  if zstd is not None:
+    return zstd.decompress(content)
+
+  ctx = zstandard.ZstdDecompressor()
   return ctx.decompress(content)
 
 
