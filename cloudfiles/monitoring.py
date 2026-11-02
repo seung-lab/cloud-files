@@ -39,10 +39,15 @@ class TransmissionMonitor:
 
     tm = TransmissionMonitor(tms[0]._direction)
 
+    # IntervalTree.union rebuilds the entire tree on every call,
+    # so unioning one monitor at a time is O(N^2). Build it once.
+    intervals = set()
+    for other in tms:
+      with other._lock:
+        intervals.update(other._intervaltree)
+
     with tm._lock:
-      for other in tms:
-        with other._lock:
-          tm._intervaltree = tm._intervaltree.union(other._intervaltree)
+      tm._intervaltree = intervaltree.IntervalTree(intervals)
 
     return tm
 
@@ -65,8 +70,10 @@ class TransmissionMonitor:
     
     with self._lock:
       start_us = int(self._in_flight.pop(flight_id) * 1e6)
+
       if start_us == end_us:
         end_us += 1
+
       self._in_flight_bytes -= num_bytes
       self._intervaltree.addi(start_us, end_us, [flight_id, num_bytes])
       self._total_bytes_landed += num_bytes
