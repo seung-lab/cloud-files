@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from functools import partial
 import itertools
 import json
+import os
 import re
 import multiprocessing as mp
 import posixpath
@@ -736,17 +737,36 @@ def xferinit(source, destination, compression, db, text_file):
 @xfergroup.command("execute")
 @click.argument("db")
 @click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
-@click.option('--lease-msec', default=0, help="(distributed transfers) Number of milliseconds to lease each task for.", show_default=True)
+@click.option('--lease-msec', default=None, help="(distributed transfers) Number of milliseconds to lease each task for. Multi-process operation requires a non-zero value.", show_default=True)
 @click.option('-b', '--block-size', default=200, help="Number of files to process at a time.", show_default=True)
-def xferexecute(db, progress, lease_msec, block_size):
+@click.option('--keep', default=False, help="Instead of deleting the database when finished, move it to .db.done", show_default=True)
+@click.pass_context
+def xferexecute(ctx, db, progress, lease_msec, block_size, keep):
   """(2) Perform the transfer using the database.
 
   Multiple clients can use the same database
   for execution.
   """
+  ctx.ensure_object(dict)
+  parallel = int(ctx.obj.get("parallel", 1))
+
+  if lease_msec is None:
+    lease_msec = 1000 if parallel != 1 else 0
+
+  def do_execute():
+    rt = ResumableTransfer(db, lease_msec)
+    rt.execute(progress=progress, block_size=block_size)
+
+  with pathos.pools.ProcessPool(parallel) as executor:
+    for _ in executor.imap(do_execute, sip(paths, block_size)):
+      pbar.update(block_size)
+
   rt = ResumableTransfer(db, lease_msec)
-  rt.execute(progress=progress, block_size=block_size)
-  rt.close()
+  if rt.remaining() == 0:
+    if keep:
+      os.rename(db, f"{db}.done")
+    else:
+      rt.close()
 
 @main.command()
 @click.argument("sources", nargs=-1)
