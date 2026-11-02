@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from functools import partial
 import itertools
 import json
+import os
 import re
 import multiprocessing as mp
 import posixpath
@@ -740,17 +741,57 @@ def xferinit(source, destination, compression, db, text_file):
 @xfergroup.command("execute")
 @click.argument("db")
 @click.option('--progress', is_flag=True, default=False, help="Show transfer progress.")
-@click.option('--lease-msec', default=0, help="(distributed transfers) Number of milliseconds to lease each task for.", show_default=True)
+@click.option('--lease-msec', default=None, help="(distributed transfers) Number of milliseconds to lease each task for. Multi-process operation requires a non-zero value.", show_default=True)
 @click.option('-b', '--block-size', default=200, help="Number of files to process at a time.", show_default=True)
-def xferexecute(db, progress, lease_msec, block_size):
+@click.option('--keep', default=False, help="Instead of deleting the database when finished, move it to .db.done", show_default=True)
+@click.pass_context
+def xferexecute(ctx, db, progress, lease_msec, block_size, keep):
   """(2) Perform the transfer using the database.
 
   Multiple clients can use the same database
   for execution.
   """
-  rt = ResumableTransfer(db, lease_msec)
-  rt.execute(progress=progress, block_size=block_size)
-  rt.close()
+  ctx.ensure_object(dict)
+  parallel = int(ctx.obj.get("parallel", 1))
+
+  if lease_msec is None:
+    lease_msec = 1000 if parallel != 1 else 0
+
+  def do_execute():
+    rt = ResumableTransfer(db, lease_msec)
+    rt.execute(progress=False, block_size=block_size)
+
+  poller = ResumableTransfer(db, lease_msec)
+  pbar = tqdm(
+    initial=poller.rfs.finished(),
+    total=poller.rfs.total(),
+    desc="Transferring Files",
+    disable=(not progress)
+  )
+
+  with pbar:
+    with pathos.pools.ProcessPool(nodes=parallel) as pool:
+      workers = [ pool.apipe(do_execute) for _ in range(parallel) ]
+
+      while any(not w.ready() for w in workers):
+        time.sleep(1)
+        if progress:
+          pbar.n = poller.rfs.finished()
+          pbar.refresh()
+
+      for w in workers:
+        w.get()
+
+    if progress:
+      pbar.n = poller.rfs.finished()
+      pbar.refresh()
+
+  if poller.rfs.remaining(full_scan=True) == 0:
+    if keep:
+      del poller # close the file connection
+      os.rename(db, f"{db}.done")
+    else:
+      poller.close()
 
 @main.command()
 @click.argument("sources", nargs=-1)
