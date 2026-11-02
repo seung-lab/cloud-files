@@ -755,18 +755,39 @@ def xferexecute(ctx, db, progress, lease_msec, block_size, keep):
 
   def do_execute():
     rt = ResumableTransfer(db, lease_msec)
-    rt.execute(progress=progress, block_size=block_size)
+    rt.execute(progress=False, block_size=block_size)
 
-  with pathos.pools.ProcessPool(parallel) as executor:
-    for _ in executor.imap(do_execute, sip(paths, block_size)):
-      pbar.update(block_size)
+  poller = ResumableTransfer(db, lease_msec)
+  pbar = tqdm(
+    initial=poller.rfs.finished(),
+    total=poller.rfs.total(),
+    desc="Transferring Files",
+    disable=(not progress)
+  )
 
-  rt = ResumableTransfer(db, lease_msec)
-  if rt.remaining() == 0:
+  with pbar:
+    with pathos.pools.ProcessPool(nodes=parallel) as pool:
+      workers = [ pool.apipe(do_execute) for _ in range(parallel) ]
+
+      while any(not w.ready() for w in workers):
+        time.sleep(1)
+        if progress:
+          pbar.n = poller.rfs.finished()
+          pbar.refresh()
+
+      for w in workers:
+        w.get()
+
+    if progress:
+      pbar.n = poller.rfs.finished()
+      pbar.refresh()
+
+  if poller.rfs.remaining(full_scan=True) == 0:
     if keep:
+      del poller # close the file connection
       os.rename(db, f"{db}.done")
     else:
-      rt.close()
+      poller.close()
 
 @main.command()
 @click.argument("sources", nargs=-1)

@@ -179,8 +179,13 @@ class ResumableFileSet:
   def finished(self):
     return self._scalar_query(f"SELECT value FROM stats WHERE id = 1")
 
-  def remaining(self):
-    return self.total() - self.finished()
+  def remaining(self, full_scan:bool = False):
+    if full_scan:
+      return self._scalar_query(
+        f"SELECT count(filename) FROM filelist WHERE finished = 0"
+      )
+    else:
+      return self.total() - self.finished()
 
   def num_leased(self):
     ts = int(now_msec())
