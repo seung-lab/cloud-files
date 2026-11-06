@@ -1402,41 +1402,99 @@ class CloudFiles:
     pair of endpoints as well as transcoding compression
     formats.
     """
+    from queue import Queue, Full, Empty
+    from threading import Thread, Event
+
+    SENTINEL = object()
+    q: Queue = Queue(maxsize=2)
+    abort = Event()
     upload_tms = []
-    for block_paths in sip(paths, block_size):
-      for path in block_paths:
-        if isinstance(path, dict):
-          if "dest_path" in path:
-            path["tags"] = { "dest_path": path["dest_path"] }
-      downloaded = cf_src.get(block_paths, raw=True, progress=False)
-      if reencode is not None:
-        downloaded = compression.transcode(downloaded, reencode, in_place=True)
-      def renameiter():
-        nonlocal allow_missing
-        for item in downloaded:
-          if item["content"] is None:
-            if allow_missing:
-              item["content"] = b""
-            else:
-              raise FileNotFoundError(f"{item['path']}")
-          if (
-            item["tags"] is not None
-            and "dest_path" in item["tags"]
-          ):
-            item["path"] = item["tags"]["dest_path"]
-            del item["tags"]["dest_path"]
-          yield item
-      (ct, batch_tm) = self.puts(
-        renameiter(), 
-        raw=True, 
-        progress=False, 
-        compress=reencode,
-        content_type=content_type,
-        return_recording=True,
-      )
-      pbar.update(len(block_paths))
-      upload_tms.append(batch_tm)
-    
+    errors = []
+
+    def producer():
+      try:
+        for block_paths in sip(paths, block_size):
+          if abort.is_set():
+            break
+          for path in block_paths:
+            if isinstance(path, dict) and "dest_path" in path:
+              path["tags"] = {"dest_path": path["dest_path"]}
+
+          downloaded = cf_src.get(block_paths, raw=True, progress=False)
+          if reencode is not None:
+            downloaded = compression.transcode(
+              downloaded, reencode, in_place=True
+            )
+
+          while not abort.is_set():
+            try:
+              q.put((block_paths, downloaded), timeout=0.1)
+              break
+            except Full:
+              pass
+      except BaseException as exc:
+        errors.append(exc)
+        abort.set()
+      finally:
+        # Always drop the sentinel so the consumer can terminate,
+        # even if it's currently in its error-drain loop.
+        while True:
+          try:
+            q.put(SENTINEL, timeout=0.1)
+            break
+          except Full:
+            pass
+
+    def consumer():
+      try:
+        while True:
+          item = q.get()
+          if item is SENTINEL:
+            break
+          if abort.is_set():
+            continue  # drop queued work; we're aborting
+
+          block_paths, downloaded = item
+
+          def renameiter():
+            for entry in downloaded:
+              if entry["content"] is None:
+                if not allow_missing:
+                  raise FileNotFoundError(entry["path"])
+                entry["content"] = b""
+              tags = entry.get("tags")
+              if tags and "dest_path" in tags:
+                entry["path"] = tags.pop("dest_path")
+              yield entry
+
+          _, batch_tm = self.puts(
+            renameiter(),
+            raw=True,
+            progress=False,
+            compress=reencode,
+            content_type=content_type,
+            return_recording=True,
+          )
+          pbar.update(len(block_paths))
+          upload_tms.append(batch_tm)
+      except BaseException as exc:
+        errors.append(exc)
+        abort.set()
+        # Drain remaining items so the producer's put() unblocks.
+        while True:
+          if q.get() is SENTINEL:
+            break
+
+    t_prod = Thread(target=producer, name="cf-transfer-download")
+    t_cons = Thread(target=consumer, name="cf-transfer-upload")
+    t_prod.start()
+    t_cons.start()
+    t_prod.join()
+    t_cons.join()
+
+    if errors:
+      raise errors[0]
+
     return TransmissionMonitor.merge(upload_tms)
 
   def __transfer_file_to_file(
